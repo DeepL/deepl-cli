@@ -73,7 +73,7 @@
     "php-parser": "3.5.1",
     "smol-toml": "^1.6.1",
     "ws": "^8.19.0",
-    "yaml": "^2.8.2"
+    "yaml": "^2.8.4"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
