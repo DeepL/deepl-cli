@@ -7,9 +7,19 @@ updates:
       interval: weekly
     target-branch: main
     open-pull-requests-limit: 10
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     target-branch: main
+    groups:
+      github-actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
