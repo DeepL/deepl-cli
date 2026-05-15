@@ -80,11 +80,21 @@ deepl --version
 > - **Linux**: `python3`, `make`, and `gcc` (`apt install python3 make gcc g++`)
 > - **Windows**: Visual Studio Build Tools or `windows-build-tools` (`npm install -g windows-build-tools`)
 
-### From npm (not yet published)
+### From npm
 
-An npm package is not yet published; install from source until then.
+The npm package has not been published yet. Until it is, install from source
+using the **From Source** instructions above. The CI examples in this README,
+in [`docs/SYNC.md`](docs/SYNC.md), and in [`examples/`](examples/) install from
+the GitHub repository directly (`git clone … && npm ci && npm run build &&
+npm link`) so they work today without a published package; they can be
+shortened to `npm install -g deepl-cli` once the package is on the public
+registry.
 
-> **CI examples below** (and generated hook output) assume a published npm package; source-installed users should substitute the source-install path.
+> **Security note.** Do not run `npm install -g deepl-cli` against the public
+> registry today — there is no official package under that name yet, so any
+> match would be a third-party publish. Use the source install (or pin a
+> specific commit / signed release tag of this repository in CI) until an
+> official scoped package is announced.
 
 ## 🚀 Quick Start
 

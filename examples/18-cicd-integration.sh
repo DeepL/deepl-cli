@@ -138,8 +138,12 @@ jobs:
         with:
           node-version: '20'
 
+      # The npm package is not yet published; install from source.
+      # Pin to a tag/commit for reproducible builds in production.
       - name: Install DeepL CLI
-        run: npm install -g deepl-cli
+        run: |
+          git clone --depth 1 https://github.com/DeepLcom/deepl-cli.git /tmp/deepl-cli
+          cd /tmp/deepl-cli && npm ci && npm run build && npm link
 
       - name: Configure API Key
         env:

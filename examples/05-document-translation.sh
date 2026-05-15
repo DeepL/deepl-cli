@@ -83,7 +83,7 @@ Key Features:
 - Real-time file watching
 
 Installation:
-npm install -g deepl-cli
+See the project README for installation instructions.
 
 Usage:
 deepl translate "Hello, world!" --to es

@@ -86,11 +86,7 @@ echo "   Creating a technical document with code..."
 cat > "$TEMP_DIR/technical.md" << 'EOF'
 # Installation Guide
 
-Run the following command:
-
-```bash
-npm install deepl-cli
-```
+Install DeepL CLI from source (see the project README).
 
 Then configure your API key: `deepl auth set-key YOUR_KEY`
 EOF

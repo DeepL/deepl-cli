@@ -117,7 +117,11 @@ cat << 'WORKFLOW'
        runs-on: ubuntu-latest
        steps:
          - uses: actions/checkout@v4
-         - run: npm install -g deepl-cli
+         # The npm package is not yet published; install from source.
+         - name: Install DeepL CLI
+           run: |
+             git clone --depth 1 https://github.com/DeepLcom/deepl-cli.git /tmp/deepl-cli
+             cd /tmp/deepl-cli && npm ci && npm run build && npm link
          - name: Check translations are up to date
            run: deepl sync --frozen
            env:
@@ -132,8 +136,11 @@ cat << 'GITLAB'
    i18n-check:
      stage: test
      image: node:20
+     before_script:
+       # The npm package is not yet published; install from source.
+       - git clone --depth 1 https://github.com/DeepLcom/deepl-cli.git /tmp/deepl-cli
+       - (cd /tmp/deepl-cli && npm ci && npm run build && npm link)
      script:
-       - npm install -g deepl-cli
        - deepl sync --frozen
      variables:
        DEEPL_API_KEY: $DEEPL_API_KEY
@@ -158,7 +165,11 @@ cat << 'AUTOSYNC'
        runs-on: ubuntu-latest
        steps:
          - uses: actions/checkout@v4
-         - run: npm install -g deepl-cli
+         # The npm package is not yet published; install from source.
+         - name: Install DeepL CLI
+           run: |
+             git clone --depth 1 https://github.com/DeepLcom/deepl-cli.git /tmp/deepl-cli
+             cd /tmp/deepl-cli && npm ci && npm run build && npm link
          - name: Sync translations
            run: deepl sync --format json
            env:

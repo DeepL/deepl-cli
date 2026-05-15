@@ -808,7 +808,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npm install -g deepl-cli
+      # The npm package is not yet published; install from source.
+      # Pin to a specific tag/commit for reproducible builds.
+      - name: Install DeepL CLI
+        run: |
+          git clone --depth 1 https://github.com/DeepLcom/deepl-cli.git /tmp/deepl-cli
+          cd /tmp/deepl-cli && npm ci && npm run build && npm link
       - name: Check translations are up to date
         run: deepl sync --frozen
         env:
@@ -832,7 +837,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npm install -g deepl-cli
+      - name: Install DeepL CLI
+        run: |
+          git clone --depth 1 https://github.com/DeepLcom/deepl-cli.git /tmp/deepl-cli
+          cd /tmp/deepl-cli && npm ci && npm run build && npm link
       - name: Sync and commit translations
         run: |
           git config user.name "github-actions[bot]"
@@ -862,8 +870,11 @@ The `.deepl-sync.lock` file is only staged when this sync run actually wrote an 
 i18n-check:
   stage: test
   image: node:20
+  before_script:
+    # The npm package is not yet published; install from source.
+    - git clone --depth 1 https://github.com/DeepLcom/deepl-cli.git /tmp/deepl-cli
+    - cd /tmp/deepl-cli && npm ci && npm run build && npm link && cd -
   script:
-    - npm install -g deepl-cli
     - deepl sync --frozen
   variables:
     DEEPL_API_KEY: $DEEPL_API_KEY
