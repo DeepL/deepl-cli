@@ -416,6 +416,49 @@ buckets:
       expect(result.deletedKeys).toBeGreaterThanOrEqual(1);
       expect(result.success).toBe(false);
     });
+
+    it('should report newKeys for a newly-added target locale needing backfill', async () => {
+      // Regression: previously the frozen branch detected drift via hasNewLocale
+      // but returned without promoting current-status keys into newKeysDelta,
+      // so displayResult printed "0 new, 0 stale" even though N keys needed
+      // translation for the new locale. Mirrors the dry-run promotion at
+      // sync-process-bucket.ts lines 124-127.
+      writeYamlConfig(tmpDir, BASIC_CONFIG_YAML);
+      writeSourceFile(tmpDir, 'locales/en.json', SOURCE_JSON);
+
+      nock(DEEPL_FREE_API_URL)
+        .post('/v2/translate')
+        .reply(200, {
+          translations: [
+            { text: 'Auf Wiedersehen', detected_source_language: 'EN', billed_characters: 15 },
+            { text: 'Hallo', detected_source_language: 'EN', billed_characters: 5 },
+            { text: 'Willkommen', detected_source_language: 'EN', billed_characters: 10 },
+          ],
+        });
+
+      const configInitial = await loadSyncConfig(tmpDir);
+      await syncService.sync(configInitial);
+
+      // Add a second target locale (fr) without touching the source file.
+      const expandedConfigYaml = `version: 1
+source_locale: en
+target_locales:
+  - de
+  - fr
+buckets:
+  json:
+    include:
+      - "locales/en.json"
+`;
+      writeYamlConfig(tmpDir, expandedConfigYaml);
+
+      const configAfter = await loadSyncConfig(tmpDir);
+      const result = await syncService.sync(configAfter, { frozen: true });
+
+      expect(result.driftDetected).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.newKeys).toBeGreaterThan(0);
+    });
   });
 
   describe('dry run', () => {

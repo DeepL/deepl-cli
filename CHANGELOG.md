@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **sync**: `deepl sync --frozen` now reports an accurate key count when drift is caused by a newly-added target locale. Previously the message read `Sync drift detected: 0 new, 0 stale keys.` because the frozen branch in `processBucket` short-circuited before promoting current-status keys missing a target-locale translation into `newKeys` — even though `--dry-run` against the same state correctly reported the backfill count. The drift exit code (10) is unchanged. The drift message now also surfaces `deletedKeys` and only mentions nonzero categories, mirroring the success-path summary format.
+
 ## [1.2.0] - 2026-04-25
 
 ### Added

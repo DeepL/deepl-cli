@@ -127,6 +127,42 @@ describe('SyncCommand', () => {
       expect(infoOutput.toLowerCase()).toContain('drift');
     });
 
+    it('should include new and deleted counts in drift message when both are nonzero', async () => {
+      const result = makeResult({
+        driftDetected: true,
+        success: false,
+        newKeys: 5,
+        staleKeys: 0,
+        deletedKeys: 2,
+      });
+      const mockService = createMockSyncService(result);
+      const command = new SyncCommand(mockService);
+
+      await command.run({});
+
+      const infoOutput = logInfoSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(infoOutput).toContain('Sync drift detected: 5 new, 2 deleted keys.');
+    });
+
+    it('should only mention nonzero categories in drift message', async () => {
+      const result = makeResult({
+        driftDetected: true,
+        success: false,
+        newKeys: 0,
+        staleKeys: 0,
+        deletedKeys: 3,
+      });
+      const mockService = createMockSyncService(result);
+      const command = new SyncCommand(mockService);
+
+      await command.run({});
+
+      const infoOutput = logInfoSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(infoOutput).toContain('Sync drift detected: 3 deleted keys.');
+      expect(infoOutput).not.toMatch(/\bnew\b/);
+      expect(infoOutput).not.toMatch(/\bstale\b/);
+    });
+
     it('should output valid JSON to stdout when format is json', async () => {
       const result = makeResult();
       const mockService = createMockSyncService(result);

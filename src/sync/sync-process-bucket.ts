@@ -108,6 +108,12 @@ export async function processBucket(
     const hasNew = toTranslate.some(d => d.status === 'new') || hasNewLocale;
     const hasStale = toTranslate.some(d => d.status === 'stale');
     if ((failMissing && (hasNew || deletedDiffs.length > 0)) || (failStale && hasStale)) {
+      // Promote current keys missing a target-locale translation into newKeysDelta
+      // so the displayed count matches dry-run for the same input state.
+      if (hasNewLocale) {
+        const currentDiffs = diffs.filter(d => d.status === 'current');
+        out.newKeysDelta += currentDiffs.length;
+      }
       out.driftDetected = true;
       return out;
     }

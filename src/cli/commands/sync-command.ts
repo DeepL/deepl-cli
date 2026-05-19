@@ -547,7 +547,12 @@ export class SyncCommand {
     }
 
     if (result.driftDetected) {
-      Logger.info(`Sync drift detected: ${result.newKeys} new, ${result.staleKeys} stale keys.`);
+      const driftParts: string[] = [];
+      if (result.newKeys > 0) driftParts.push(`${result.newKeys} new`);
+      if (result.staleKeys > 0) driftParts.push(`${result.staleKeys} stale`);
+      if (result.deletedKeys > 0) driftParts.push(`${result.deletedKeys} deleted`);
+      const driftSummary = driftParts.length > 0 ? driftParts.join(', ') : 'no key-level diffs surfaced';
+      Logger.info(`Sync drift detected: ${driftSummary} keys.`);
       return;
     }
 
