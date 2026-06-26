@@ -76,7 +76,7 @@
     "yaml": "^2.8.2"
   },
   "devDependencies": {
-    "@commitlint/cli": "^20.1.0",
+    "@commitlint/cli": "^21.0.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@eslint/js": "^10.0.0",
     "@types/better-sqlite3": "^7.6.8",
