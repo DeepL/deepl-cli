@@ -81,7 +81,7 @@
     "@eslint/js": "^10.0.0",
     "@types/better-sqlite3": "^7.6.8",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.6.0",
+    "@types/node": "^26.0.1",
     "@types/ws": "^8.18.1",
     "ajv": "^8.20.0",
     "diff": "^9.0.0",
