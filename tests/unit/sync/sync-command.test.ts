@@ -810,6 +810,21 @@ describe('SyncCommand', () => {
   });
 
   describe('watchAndSync', () => {
+    // These are the heaviest tests in the file: each drives a full watch
+    // lifecycle (chokidar setup, debounced change handling, SIGINT shutdown)
+    // through fake timers. Locally the whole suite runs in ~1.8s, but on
+    // GitHub's shared runners it has been observed at 10.8-10.9s with 232
+    // suites competing for ~4 cores — right at the 10s jest default, which
+    // tipped a different test over on each occurrence (bead sync-94ua).
+    //
+    // The failures were always timeouts, never assertions, and the suite was
+    // measured to be insensitive to the flush round count (250/25/5 rounds all
+    // ran in ~1.4-2.0s locally), so the cost is CI CPU starvation rather than
+    // anything this block does wrong. Raising the ceiling for these tests only
+    // buys headroom; it does not mask a hang, because a genuinely stuck setup
+    // now fails fast with a diagnostic from flushWatchSetup below.
+    jest.setTimeout(30_000);
+
     const mockWatcher = { on: mockWatcherOn, close: mockWatcherClose };
 
     type ProcessOn = typeof process.on;
@@ -825,19 +840,66 @@ describe('SyncCommand', () => {
       jest.useRealTimers();
     });
 
-    // watchAndSync awaits chokidar/path dynamic imports and a filesystem sweep
-    // before registering its SIGINT handler and change/add listeners. Under
-    // fake timers, flushing that chain requires alternating microtask drains
-    // (`await Promise.resolve()`) with zero-duration timer advances — timers
-    // advance queued macrotasks, Promise.resolve drains microtask-only awaits.
-    // History: 20 rounds flaked → 50 rounds flaked under Node 22 CI worker
-    // contention (sync-command.test.ts in PR 44). 250 gives ample headroom
-    // (each round is sub-microsecond) without hiding real hangs — tests still
-    // fail loudly if setup never finishes, just with a longer safety margin.
+    // Under fake timers, driving watchAndSync's setup chain forward requires
+    // alternating microtask drains (`await Promise.resolve()`) with
+    // zero-duration timer advances — timers advance queued macrotasks,
+    // Promise.resolve drains microtask-only awaits.
+    async function flushRound(): Promise<void> {
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(0);
+    }
+
+    // watchAndSync's setup order is: dynamic import of chokidar/path -> resolve
+    // watch paths -> chokidar.watch() -> `await controller.sweepStaleBackups()`
+    // -> attachDebouncedWatchLoop() -> `process.on('SIGINT', ...)`. The last two
+    // run in one synchronous continuation, so `watcher.on` having been called
+    // means the SIGINT handler is registered too. That makes mockWatcherOn an
+    // observable readiness signal for the entire chain.
+    //
+    // Phase 1 waits for that signal rather than guessing a round count, because
+    // a fixed count cannot be correct here. chokidar is jest-mocked, so the
+    // dynamic imports resolve immediately; the genuinely slow step is
+    // sweepStaleBackups, which performs real fs.promises.readdir/stat I/O. A
+    // fixed budget therefore races microsecond-scale iterations against
+    // millisecond-scale syscalls, and loses under CI worker contention.
+    //
+    // When the budget ran out early the failure was not a clean assertion: the
+    // SIGINT handler was never registered, so each test's shutdown
+    // (`for (const l of sigintListeners) l()`) had nothing to call, `await
+    // runPromise` never resolved, and the test died on the 10s testTimeout.
+    // That flake was escalated 20 -> 50 -> 250 rounds and still recurred on
+    // Node 24 CI, hitting a different test in this block each time. See bead
+    // sync-94ua.
+    //
+    // Phase 2 keeps the previous fixed drain. Most callers invoke this helper
+    // again after emitting change events, to settle a debounced sync cycle —
+    // those calls need the drain, not an early return. Readiness is already
+    // true by then, so phase 1 is a no-op for them.
+    // 25 settle rounds, not the historical 250. Every test in this block passes
+    // with as few as 5 (measured), so 25 keeps a 5x margin while dropping the
+    // rest as waste. The escalation to 250 was an attempt to fix the timeout by
+    // widening this budget, which the measurements above show could not have
+    // worked — suite duration is flat across 250/25/5 rounds.
+    const SETUP_READY_MAX_ROUNDS = 20_000;
+    const SETTLE_ROUNDS = 25;
+
     async function flushWatchSetup(): Promise<void> {
-      for (let i = 0; i < 250; i++) {
-        await Promise.resolve();
-        await jest.advanceTimersByTimeAsync(0);
+      let rounds = 0;
+      while (mockWatcherOn.mock.calls.length === 0) {
+        if (rounds >= SETUP_READY_MAX_ROUNDS) {
+          throw new Error(
+            `watchAndSync setup did not attach watcher listeners within ${SETUP_READY_MAX_ROUNDS} ` +
+              `flush rounds (chokidar.watch calls: ${mockWatch.mock.calls.length}). Either setup ` +
+              `is genuinely hung, or this test exercises the early-return path where no watcher ` +
+              `is created and should not call flushWatchSetup.`,
+          );
+        }
+        await flushRound();
+        rounds++;
+      }
+
+      for (let i = 0; i < SETTLE_ROUNDS; i++) {
+        await flushRound();
       }
     }
 
