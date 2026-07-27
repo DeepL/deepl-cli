@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **tests**: Raised the timeout for the `watchAndSync` test block to 30s and replaced its fixed-round setup flush with a wait on an observable readiness signal. These tests intermittently exceeded the 10s default on CI runners — always as timeouts, never assertions — failing unrelated dependency PRs. Suite duration was measured to be flat across 250/25/5 flush rounds, so the historical 20 → 50 → 250 escalation could not have addressed it; the cost is runner CPU starvation (1.8s locally vs 10.8s observed on CI). The flush now also fails with the pending state rather than a bare timeout if setup genuinely stalls.
 - **deps**: `commander` 14.0.3 → 15.0.0. commander 15 is ESM-only (`"type": "module"`) and requires Node >=22.12.0, so it was unmergeable until the Node 24 baseline landed. Jest's `transformIgnorePatterns` allowlist gains `commander` so ts-jest transforms it under CommonJS test execution; without that, 28 suites fail to load with `SyntaxError: Cannot use import statement outside a module`.
 - **ci**: Test matrix, release workflow, and security workflow now target Node 24 (previously Node 20 and 22). Node 20 reached end-of-life in April 2026, and Node 24 is the current LTS. This aligns CI with the runtime the project is moving to; the `engines.node` range is unchanged in this entry and is bumped separately.
 
