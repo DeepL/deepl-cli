@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **deps**: Resolved four production-dependency advisories flagged by `npm audit --omit=dev` via lockfile-only transitive bumps (no `package.json` ranges changed): `brace-expansion` 5.0.5 → 5.0.6 (GHSA-jxxr-4gwj-5jf2, ReDoS), `form-data` → 4.0.6 (GHSA-hmw2-7cc7-3qxx, CRLF injection), and `ws` 8.20.0 → 8.21.0 (GHSA-58qx-3vcg-4xpx and GHSA-96hv-2xvq-fx4p, uninitialized-memory disclosure and memory-exhaustion DoS). Production `npm audit` is back to zero vulnerabilities, unblocking the CI audit gate.
+- **deps**: Resolved two further `brace-expansion` denial-of-service advisories disclosed after the bump above: `brace-expansion` 5.0.6 → 5.0.8 (GHSA-3jxr-9vmj-r5cp, exponential-time expansion of consecutive non-expanding `{}` groups; GHSA-mh99-v99m-4gvg, unbounded expansion length causing an out-of-memory crash). Reached in production through `minimatch`, which accepts `^5.0.5`, so this is again a lockfile-only bump with no `package.json` range changes. Dev-tree instances of the same advisories are intentionally left in place: npm's proposed remediation downgrades `jest` 30 → 25 and `ts-jest` 29 → 27, `devDependencies` are not installed by consumers, and the CI audit gate is production-only.
 
 ## [1.2.0] - 2026-04-25
 
