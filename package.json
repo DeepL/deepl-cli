@@ -24,7 +24,8 @@
   },
   "scripts": {
     "dev": "ts-node src/cli/index.ts",
-    "build": "tsc && chmod +x dist/cli/index.js",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "build": "npm run clean && tsc && chmod +x dist/cli/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
