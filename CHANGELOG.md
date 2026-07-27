@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **ci**: `.nvmrc` now pins Node 24, matching the CI matrix. It still read `20`, so `nvm use` handed local developers a runtime that cannot load `node:sqlite` and does not satisfy `commander`'s `engines.node >=22.12.0`.
 - **build**: `npm run build` now runs a `clean` step first, removing `dist/` and `tsconfig.tsbuildinfo` before compiling. Without it, `tsc` leaves output for sources that no longer exist, so a file rename could ship stale artifacts — verified reproducible: planting `dist/sync/strings-client.js` and rebuilding left both files in `npm pack` output. Removing the build-info file is required too; deleting only `dist/` makes the incremental compiler report the output as up to date and emit nothing.
 - **deps**: `commander` 14.0.3 → 15.0.0. commander 15 is ESM-only (`"type": "module"`) and requires Node >=22.12.0, so it was unmergeable until the Node 24 baseline landed. Jest's `transformIgnorePatterns` allowlist gains `commander` so ts-jest transforms it under CommonJS test execution; without that, 28 suites fail to load with `SyntaxError: Cannot use import statement outside a module`.
 - **ci**: Test matrix, release workflow, and security workflow now target Node 24 (previously Node 20 and 22). Node 20 reached end-of-life in April 2026, and Node 24 is the current LTS. This aligns CI with the runtime the project is moving to; the `engines.node` range is unchanged in this entry and is bumped separately.
