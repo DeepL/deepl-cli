@@ -1,0 +1,71 @@
+/**
+ * Tests for package.json publish-surface invariants
+ *
+ * These guard properties that are easy to lose in a merge and expensive to
+ * lose silently: the `clean` script was previously added, lost, and only
+ * rediscovered when a stale `dist/` was found reaching `npm pack`.
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+interface PackageManifest {
+  scripts: {
+    clean?: string;
+    build: string;
+    prepublishOnly: string;
+  };
+  files: string[];
+  bin: Record<string, string>;
+}
+
+describe('package.json manifest', () => {
+  let pkg: PackageManifest;
+
+  beforeAll(() => {
+    const manifestPath = path.join(__dirname, '..', '..', 'package.json');
+    pkg = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as PackageManifest;
+  });
+
+  describe('clean script', () => {
+    it('should define a clean script', () => {
+      expect(pkg.scripts.clean).toBeDefined();
+    });
+
+    it('should remove dist so renames cannot leak stale output to npm publish', () => {
+      expect(pkg.scripts.clean).toContain('dist');
+    });
+
+    it('should remove the TypeScript build info file', () => {
+      // Without this, tsc's incremental cache reports the deleted output as
+      // up-to-date and emits nothing, leaving dist empty after a clean.
+      expect(pkg.scripts.clean).toContain('tsbuildinfo');
+    });
+  });
+
+  describe('build script', () => {
+    it('should run clean before compiling', () => {
+      expect(pkg.scripts.build).toMatch(/^npm run clean &&/);
+    });
+
+    it('should make the CLI entrypoint executable', () => {
+      expect(pkg.scripts.build).toContain('chmod +x');
+    });
+  });
+
+  describe('publish surface', () => {
+    it('should rebuild from scratch before publishing', () => {
+      expect(pkg.scripts.prepublishOnly).toContain('build');
+    });
+
+    it('should exclude source maps and build info from the tarball', () => {
+      const excluded = pkg.files.filter((entry) => entry.startsWith('!'));
+      expect(excluded).toContain('!dist/**/*.tsbuildinfo');
+      expect(excluded).toContain('!dist/**/*.js.map');
+    });
+
+    it('should point bin at a path inside dist', () => {
+      expect(Object.values(pkg.bin).every((target) => target.startsWith('dist/'))).toBe(true);
+    });
+  });
+});
