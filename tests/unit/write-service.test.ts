@@ -547,4 +547,19 @@ describe('WriteService', () => {
       }
     });
   });
+
+  describe('without a cache backend', () => {
+    it('should improve text even though cache.enabled is true in config', async () => {
+      const cachelessService = new WriteService(mockClient, mockConfigService);
+      const mockImprovements: WriteImprovement[] = [
+        { text: 'Improved.', targetLanguage: 'en-US' },
+      ];
+      mockClient.improveText.mockResolvedValue(mockImprovements);
+
+      const result = await cachelessService.improve('Test', { targetLang: 'en-US' });
+
+      expect(result).toHaveLength(1);
+      expect(mockClient.improveText).toHaveBeenCalledTimes(1);
+    });
+  });
 });

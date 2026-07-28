@@ -22,7 +22,7 @@ export interface ServiceDeps {
   createDeepLClient: CreateDeepLClient;
   getApiKeyAndOptions: GetApiKeyAndOptions;
   getConfigService: () => ConfigService;
-  getCacheService: () => Promise<CacheService>;
+  getCacheService: () => Promise<CacheService | undefined>;
   handleError: (error: unknown) => never;
 }
 

@@ -3,16 +3,28 @@ import chalk from 'chalk';
 import type { ConfigService } from '../../storage/config.js';
 import type { CacheService } from '../../storage/cache.js';
 import { Logger } from '../../utils/logger.js';
+import { ConfigError } from '../../utils/errors.js';
 
 export function registerCache(
   program: Command,
   deps: {
     getConfigService: () => ConfigService;
-    getCacheService: () => Promise<CacheService>;
+    getCacheService: () => Promise<CacheService | undefined>;
     handleError: (error: unknown) => never;
   },
 ): void {
   const { getConfigService, getCacheService, handleError } = deps;
+
+  async function requireCacheService(): Promise<CacheService> {
+    const cacheService = await getCacheService();
+    if (!cacheService) {
+      throw new ConfigError(
+        'Cache backend is unavailable, so cache commands cannot run.',
+        'Reinstall the CLI, or run it with the Node.js version it was installed with.',
+      );
+    }
+    return cacheService;
+  }
 
   program
     .command('cache')
@@ -32,7 +44,7 @@ Examples:
         .action(async (options: { format?: string }) => {
           try {
             const { CacheCommand } = await import('./cache.js');
-            const cacheCommand = new CacheCommand(await getCacheService(), getConfigService());
+            const cacheCommand = new CacheCommand(await requireCacheService(), getConfigService());
             const stats = await cacheCommand.stats();
             if (options.format === 'json') {
               Logger.output(JSON.stringify(stats, null, 2));
@@ -61,7 +73,7 @@ Examples:
           try {
             if (options.dryRun) {
               const { CacheCommand } = await import('./cache.js');
-              const cacheCommand = new CacheCommand(await getCacheService(), getConfigService());
+              const cacheCommand = new CacheCommand(await requireCacheService(), getConfigService());
               const stats = await cacheCommand.stats();
               const totalSizeMB = (stats.totalSize / (1024 * 1024)).toFixed(2);
               const lines = [
@@ -83,7 +95,7 @@ Examples:
             }
 
             const { CacheCommand } = await import('./cache.js');
-            const cacheCommand = new CacheCommand(await getCacheService(), getConfigService());
+            const cacheCommand = new CacheCommand(await requireCacheService(), getConfigService());
             await cacheCommand.clear();
             Logger.success(chalk.green('\u2713 Cache cleared successfully'));
           } catch (error) {
@@ -106,7 +118,7 @@ Examples:
             }
 
             const { CacheCommand } = await import('./cache.js');
-            const cacheCommand = new CacheCommand(await getCacheService(), getConfigService());
+            const cacheCommand = new CacheCommand(await requireCacheService(), getConfigService());
             await cacheCommand.enable(maxSizeBytes);
             Logger.success(chalk.green('\u2713 Cache enabled'));
 
@@ -126,7 +138,7 @@ Examples:
         .action(async () => {
           try {
             const { CacheCommand } = await import('./cache.js');
-            const cacheCommand = new CacheCommand(await getCacheService(), getConfigService());
+            const cacheCommand = new CacheCommand(await requireCacheService(), getConfigService());
             await cacheCommand.disable();
             Logger.success(chalk.green('\u2713 Cache disabled'));
           } catch (error) {

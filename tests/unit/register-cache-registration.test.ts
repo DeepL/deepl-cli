@@ -139,6 +139,23 @@ describe('registerCache', () => {
     });
   });
 
+  describe('unavailable cache backend', () => {
+    it.each([
+      ['stats', ['cache', 'stats']],
+      ['clear', ['cache', 'clear', '--yes']],
+      ['enable', ['cache', 'enable']],
+      ['disable', ['cache', 'disable']],
+    ])('cache %s reports a clear error when getCacheService resolves undefined', async (_name, args) => {
+      getCacheService.mockResolvedValue(undefined);
+      await program.parseAsync(['node', 'test', ...args]);
+      expect(handleError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringMatching(/cache.*unavailable/i) }),
+      );
+      const { CacheCommand } = require('../../src/cli/commands/cache');
+      expect(CacheCommand as jest.Mock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('cache clear', () => {
     it('should clear with --yes flag', async () => {
       mockCacheCommandInstance.clear.mockResolvedValue(undefined);

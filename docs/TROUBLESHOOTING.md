@@ -417,15 +417,19 @@ rm ~/.cache/deepl-cli/cache.db   # or ~/.deepl-cli/cache.db for legacy installat
 deepl cache enable
 ```
 
-### "Cache database corrupted" with NODE_MODULE_VERSION mismatch
+### "Translation cache backend failed to load" with NODE_MODULE_VERSION mismatch
 
 **Cause:** The `better-sqlite3` native addon was compiled for a different Node.js version than the one currently running. This happens when you switch Node.js versions (e.g., via `nvm use`, `fnm`, or a system upgrade) without rebuilding native modules.
+
+Translation and write commands keep working with caching disabled for the run; your cache database is not modified. `deepl cache` subcommands fail until the backend loads again.
 
 **Solution:**
 
 ```bash
 npm rebuild better-sqlite3
 ```
+
+or reinstall the CLI / switch back to the Node.js version it was installed with.
 
 ---
 

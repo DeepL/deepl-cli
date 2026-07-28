@@ -6,7 +6,7 @@
 import * as crypto from 'crypto';
 import { DeepLClient, TranslationResult, isTranslationResult, UsageInfo, LanguageInfo } from '../api/deepl-client.js';
 import { ConfigService } from '../storage/config.js';
-import { CacheService } from '../storage/cache.js';
+import type { CacheService } from '../storage/cache.js';
 import { TranslationOptions, Language, TranslationMemory } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 import { mapWithConcurrency, MULTI_TARGET_CONCURRENCY } from '../utils/concurrency.js';
@@ -40,14 +40,16 @@ export const TRANSLATE_BATCH_SIZE = 50; // DeepL API max texts per request
 export class TranslationService {
   private client: DeepLClient;
   private config: ConfigService;
-  private cache: CacheService;
+  // No cache means "run cacheless" — the CLI passes undefined when the
+  // cache backend is unavailable (see cli/cache-loader.ts).
+  private cache?: CacheService;
   private languageCache: Map<'source' | 'target', { data: LanguageInfo[]; timestamp: number }> = new Map();
   private readonly LANGUAGE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
   constructor(client: DeepLClient, config: ConfigService, cache?: CacheService) {
     this.client = client;
     this.config = config;
-    this.cache = cache ?? CacheService.getInstance();
+    this.cache = cache;
   }
 
   /**
@@ -112,7 +114,7 @@ export class TranslationService {
     const cacheKey = this.generateCacheKey(processedText, translationOptions);
 
     if (shouldUseCache) {
-      const cachedResult = this.cache.get(cacheKey, isTranslationResult);
+      const cachedResult = this.cache?.get(cacheKey, isTranslationResult);
       if (cachedResult) {
         Logger.verbose('[verbose] Cache hit');
         return {
@@ -131,7 +133,7 @@ export class TranslationService {
 
     // Store in cache
     if (shouldUseCache) {
-      this.cache.set(cacheKey, result);
+      this.cache?.set(cacheKey, result);
     }
 
     return {
@@ -198,7 +200,7 @@ export class TranslationService {
       const cacheKey = this.generateCacheKey(text, translationOptions);
 
       if (cacheEnabled) {
-        const cachedResult = this.cache.get(cacheKey, isTranslationResult);
+        const cachedResult = this.cache?.get(cacheKey, isTranslationResult);
         if (cachedResult) {
           results[i] = cachedResult;
           continue;
@@ -281,7 +283,7 @@ export class TranslationService {
         // Cache the result (only once per unique text)
         if (cacheEnabled) {
           const cacheKey = this.generateCacheKey(text, translationOptions);
-          this.cache.set(cacheKey, result);
+          this.cache?.set(cacheKey, result);
         }
       }
     }

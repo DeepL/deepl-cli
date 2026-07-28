@@ -1453,4 +1453,36 @@ describe('TranslationService', () => {
     });
   });
 
+  describe('without a cache backend', () => {
+    let cachelessService: TranslationService;
+
+    beforeEach(() => {
+      cachelessService = new TranslationService(mockDeepLClient, mockConfigService);
+    });
+
+    it('should translate even though cache.enabled is true in config', async () => {
+      mockDeepLClient.translate.mockResolvedValue({
+        text: 'Hola',
+        detectedSourceLang: 'en',
+      });
+
+      const result = await cachelessService.translate('Hello', { targetLang: 'es' });
+
+      expect(result.text).toBe('Hola');
+      expect(mockDeepLClient.translate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should batch translate without a cache', async () => {
+      mockDeepLClient.translateBatch.mockResolvedValue([
+        { text: 'Hola' },
+        { text: 'Mundo' },
+      ]);
+
+      const results = await cachelessService.translateBatch(['Hello', 'World'], { targetLang: 'es' });
+
+      expect(results).toHaveLength(2);
+      expect(results[0]?.text).toBe('Hola');
+    });
+  });
+
 });
