@@ -163,9 +163,13 @@ export class PropertiesFormatParser implements FormatParser {
         case '\r': result += '\\r'; break;
         case '\\': result += '\\\\'; break;
         default: {
-          const code = ch.charCodeAt(0);
-          if (code > 0x7e) {
-            result += '\\u' + code.toString(16).padStart(4, '0');
+          if (ch.codePointAt(0)! > 0x7e) {
+            // Emit every UTF-16 code unit: an astral character such as an
+            // emoji is a surrogate pair, and writing only charCodeAt(0)
+            // leaves a lone high surrogate that cannot be decoded back.
+            for (let i = 0; i < ch.length; i++) {
+              result += '\\u' + ch.charCodeAt(i).toString(16).padStart(4, '0');
+            }
           } else {
             result += ch;
           }

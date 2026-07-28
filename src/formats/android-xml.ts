@@ -21,8 +21,35 @@ const STRING_ARRAY_RE =
 
 const ARRAY_ITEM_RE = /<item>([\s\S]*?)<\/item>/g;
 
+const XML_ENTITY_RE = /&(?:#x([0-9a-fA-F]+)|#(\d+)|(amp|lt|gt|quot|apos));/g;
+
+/**
+ * Decodes XML entities in a single pass, so a literal `&amp;lt;` decodes to
+ * `&lt;` rather than collapsing all the way to `<`.
+ */
+function decodeXmlEntities(value: string): string {
+  return value.replace(XML_ENTITY_RE, (match, hex: string | undefined, dec: string | undefined, named: string | undefined) => {
+    if (hex !== undefined) {
+      const code = Number.parseInt(hex, 16);
+      return code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    if (dec !== undefined) {
+      const code = Number.parseInt(dec, 10);
+      return code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    switch (named) {
+      case 'amp': return '&';
+      case 'lt': return '<';
+      case 'gt': return '>';
+      case 'quot': return '"';
+      case 'apos': return "'";
+      default: return match;
+    }
+  });
+}
+
 function unescapeAndroid(value: string): string {
-  return value.replace(/\\(\\|'|"|n|t|r)/g, (_match, ch: string) => {
+  const withoutBackslashEscapes = value.replace(/\\(\\|'|"|n|t|r)/g, (_match, ch: string) => {
     switch (ch) {
       case '\\': return '\\';
       case "'": return "'";
@@ -33,6 +60,7 @@ function unescapeAndroid(value: string): string {
       default: return ch;
     }
   });
+  return decodeXmlEntities(withoutBackslashEscapes);
 }
 
 function escapeAndroid(value: string): string {
@@ -41,9 +69,11 @@ function escapeAndroid(value: string): string {
     .replace(/\n/g, '\\n')
     .replace(/'/g, "\\'")
     .replace(/"/g, '\\"')
+    // & must precede < and >, or the entities produced below get re-escaped
+    // into &amp;lt; — which compounds on every subsequent sync run.
+    .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/&/g, '&amp;');
+    .replace(/>/g, '&gt;');
 }
 
 export class AndroidXmlFormatParser implements FormatParser {
