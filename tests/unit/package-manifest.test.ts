@@ -10,6 +10,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 interface PackageManifest {
+  name: string;
+  publishConfig?: { access?: string };
+  repository: { type: string; url: string };
+  bugs: { url: string };
+  homepage: string;
   scripts: {
     clean?: string;
     build: string;
@@ -66,6 +71,26 @@ describe('package.json manifest', () => {
 
     it('should point bin at a path inside dist', () => {
       expect(Object.values(pkg.bin).every((target) => target.startsWith('dist/'))).toBe(true);
+    });
+  });
+
+  describe('publish identity', () => {
+    it('should be the scoped @deepl/cli package', () => {
+      expect(pkg.name).toBe('@deepl/cli');
+    });
+
+    it('should keep the bin name deepl regardless of the package scope', () => {
+      expect(Object.keys(pkg.bin)).toEqual(['deepl']);
+    });
+
+    it('should publish publicly — scoped packages default to restricted', () => {
+      expect(pkg.publishConfig?.access).toBe('public');
+    });
+
+    it('should point repository metadata at the DeepL org, not the legacy DeepLcom redirect', () => {
+      expect(pkg.repository.url).toBe('https://github.com/DeepL/deepl-cli');
+      expect(pkg.bugs.url).toBe('https://github.com/DeepL/deepl-cli/issues');
+      expect(pkg.homepage).toBe('https://github.com/DeepL/deepl-cli#readme');
     });
   });
 });
