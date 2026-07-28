@@ -13,6 +13,9 @@ export default {
     '/node_modules/',
     '/.claude/worktrees/',
   ],
+  // Keep haste-map from indexing agent worktrees too — a leftover worktree
+  // otherwise duplicates manual mocks (tests/__mocks__/*) and warns on every run.
+  modulePathIgnorePatterns: ['<rootDir>/.claude/'],
 
   // Coverage configuration
   collectCoverageFrom: [
