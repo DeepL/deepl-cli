@@ -10,9 +10,12 @@ const UNIT_RE =
   /<(?:\w+:)?unit\s+id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/(?:\w+:)?unit>/gi;
 
 const SOURCE_RE = /<(?:\w+:)?source>([\s\S]*?)<\/(?:\w+:)?source>/i;
-const TARGET_RE = /<(\w+:)?target>([\s\S]*?)<\/(?:\w+:)?target>/i;
-const NOTE_RE = /<(?:\w+:)?note>([\s\S]*?)<\/(?:\w+:)?note>/i;
-const SEGMENT_RE = /<(?:\w+:)?segment>([\s\S]*?)<\/(?:\w+:)?segment>/i;
+// Attributes are optional but must be preserved: `state` is a standard XLIFF
+// attribute that every CAT tool writes, and requiring a bare tag previously
+// made these elements invisible (dropping units and duplicating targets).
+const TARGET_RE = /<(\w+:)?target((?:\s[^>]*)?)>([\s\S]*?)<\/(?:\w+:)?target>/i;
+const NOTE_RE = /<(?:\w+:)?note(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?note>/i;
+const SEGMENT_RE = /<(?:\w+:)?segment(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?segment>/i;
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
@@ -187,7 +190,8 @@ export class XliffFormatParser implements FormatParser {
       let newBlock: string;
       if (targetMatch) {
         const ns = targetMatch[1] ?? '';
-        newBlock = block.replace(TARGET_RE, () => `<${ns}target>${escaped}</${ns}target>`);
+        const attrs = targetMatch[2] ?? '';
+        newBlock = block.replace(TARGET_RE, () => `<${ns}target${attrs}>${escaped}</${ns}target>`);
       } else {
         const sourceNsMatch = /<(\w+:)?source>/i.exec(block);
         const ns = sourceNsMatch?.[1] ?? '';
@@ -222,7 +226,8 @@ export class XliffFormatParser implements FormatParser {
       let newSegment: string;
       if (targetMatch) {
         const ns = targetMatch[1] ?? '';
-        newSegment = segment.replace(TARGET_RE, () => `<${ns}target>${escaped}</${ns}target>`);
+        const attrs = targetMatch[2] ?? '';
+        newSegment = segment.replace(TARGET_RE, () => `<${ns}target${attrs}>${escaped}</${ns}target>`);
       } else {
         const sourceNsMatch = /<(\w+:)?source>/i.exec(segment);
         const ns = sourceNsMatch?.[1] ?? '';
