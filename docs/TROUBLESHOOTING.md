@@ -417,19 +417,13 @@ rm ~/.cache/deepl-cli/cache.db   # or ~/.deepl-cli/cache.db for legacy installat
 deepl cache enable
 ```
 
-### "Translation cache backend failed to load" with NODE_MODULE_VERSION mismatch
+### "Translation cache backend failed to load"
 
-**Cause:** The `better-sqlite3` native addon was compiled for a different Node.js version than the one currently running. This happens when you switch Node.js versions (e.g., via `nvm use`, `fnm`, or a system upgrade) without rebuilding native modules.
+**Cause:** The cache uses Node's built-in `node:sqlite` module, which requires Node.js 24 or later (the CLI's minimum supported version). On an older runtime the module doesn't exist, so caching cannot start.
 
-Translation and write commands keep working with caching disabled for the run; your cache database is not modified. `deepl cache` subcommands fail until the backend loads again.
+Translation and write commands keep working with caching disabled for the run; your cache database is not modified. `deepl cache` subcommands fail until the CLI runs on a supported Node.js version.
 
-**Solution:**
-
-```bash
-npm rebuild better-sqlite3
-```
-
-or reinstall the CLI / switch back to the Node.js version it was installed with.
+**Solution:** run the CLI with Node.js 24+ (e.g. `nvm install 24 && nvm use 24`), or install via Homebrew (`brew install deepl/tap/deepl`), which manages Node for you.
 
 ---
 
@@ -534,7 +528,7 @@ If you encounter an issue not covered here, check the [DeepL API documentation](
 
 ## Still Having Issues?
 
-If your problem isn't listed above, [file a bug report](https://github.com/DeepLcom/deepl-cli/issues/new) with:
+If your problem isn't listed above, [file a bug report](https://github.com/DeepL/deepl-cli/issues/new) with:
 
 - The command you ran
 - The full error output

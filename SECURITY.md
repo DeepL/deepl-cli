@@ -4,9 +4,10 @@
 
 | Version | Supported          |
 |---------|--------------------|
-| 1.1.x   | :white_check_mark: |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| 2.x     | :white_check_mark: |
+| < 2.0   | :x:                |
+
+Versions before 2.0.0 were never published to a package registry (source installs only) and are not supported.
 
 ## Reporting a Vulnerability
 

@@ -117,7 +117,7 @@ cat << 'WORKFLOW'
        runs-on: ubuntu-latest
        steps:
          - uses: actions/checkout@v4
-         - run: npm install -g deepl-cli
+         - run: npm install -g @deepl/cli
          - name: Check translations are up to date
            run: deepl sync --frozen
            env:
@@ -133,7 +133,7 @@ cat << 'GITLAB'
      stage: test
      image: node:20
      script:
-       - npm install -g deepl-cli
+       - npm install -g @deepl/cli
        - deepl sync --frozen
      variables:
        DEEPL_API_KEY: $DEEPL_API_KEY
@@ -158,7 +158,7 @@ cat << 'AUTOSYNC'
        runs-on: ubuntu-latest
        steps:
          - uses: actions/checkout@v4
-         - run: npm install -g deepl-cli
+         - run: npm install -g @deepl/cli
          - name: Sync translations
            run: deepl sync --format json
            env:

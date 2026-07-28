@@ -56,6 +56,25 @@ describe('GitHooksService', () => {
     });
   });
 
+  describe('generated hook content', () => {
+    // Regression guard for the class of bug reported in PR #70: docs pointed
+    // at the unpublished `deepl-cli` npm name, and the fix missed this file —
+    // so the CLI itself kept emitting a broken install instruction into
+    // generated hooks. Generated output must only ever name the published
+    // package, @deepl/cli.
+    const hookTypes = ['pre-commit', 'pre-push', 'commit-msg', 'post-commit'] as const;
+
+    it.each(hookTypes)('%s output never references an unpublished package name', (hookType) => {
+      gitHooksService.install(hookType);
+
+      const content = fs.readFileSync(path.join(testHooksDir, hookType), 'utf-8');
+      expect(content).not.toMatch(/install\s+-g\s+deepl-cli\b/);
+      if (/npm install/.test(content)) {
+        expect(content).toContain('npm install -g @deepl/cli');
+      }
+    });
+  });
+
   describe('install()', () => {
     it('should install pre-commit hook', () => {
       gitHooksService.install('pre-commit');

@@ -73,7 +73,7 @@ This directory contains practical, real-world examples of using the DeepL CLI.
 
 All examples assume you have:
 
-1. Installed DeepL CLI (`npm install -g deepl-cli` or `npm link`)
+1. Installed DeepL CLI (`npm install -g @deepl/cli` or `npm link`)
 2. A DeepL API key configured (`deepl auth set-key YOUR_API_KEY`)
 
 ## Running Examples

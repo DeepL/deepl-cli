@@ -2,7 +2,7 @@
 
 > A next-generation command-line interface for DeepL translation and writing enhancement
 
-[![CI](https://github.com/DeepLcom/deepl-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepLcom/deepl-cli/actions/workflows/ci.yml)
+[![CI](https://github.com/DeepL/deepl-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepL/deepl-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blueviolet.svg)](https://opensource.org/licenses/MIT)
 
 **DeepL CLI** is a comprehensive, developer-friendly command-line tool that integrates DeepL's powerful translation API and cutting-edge Write API for grammar and style enhancement. Built with TypeScript and designed for modern development workflows.
@@ -53,11 +53,32 @@ For security policy and vulnerability reporting, see [SECURITY.md](SECURITY.md).
 
 ## 📦 Installation
 
+> **Prerequisite:** Node.js **24 or later** (except for Homebrew, which installs Node for you). The cache uses Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) module — no native compilation, no build toolchain needed.
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install deepl/tap/deepl
+```
+
+Installs the `deepl` command and everything it needs, including Node.
+
+### npm
+
+```bash
+npm install -g @deepl/cli
+
+# Verify installation
+deepl --version
+```
+
+The package is scoped, but the command is just `deepl`.
+
 ### From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/DeepLcom/deepl-cli.git
+git clone https://github.com/DeepL/deepl-cli.git
 cd deepl-cli
 
 # Install dependencies
@@ -71,20 +92,7 @@ npm link
 
 # Verify installation
 deepl --version
-# Output: deepl-cli 1.x.x
 ```
-
-> **Note:** This project uses [`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3) for local caching, which requires native compilation. If `npm install` fails with build errors, ensure you have:
->
-> - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-> - **Linux**: `python3`, `make`, and `gcc` (`apt install python3 make gcc g++`)
-> - **Windows**: Visual Studio Build Tools or `windows-build-tools` (`npm install -g windows-build-tools`)
-
-### From npm (not yet published)
-
-An npm package is not yet published; install from source until then.
-
-> **CI examples below** (and generated hook output) assume a published npm package; source-installed users should substitute the source-install path.
 
 ## 🚀 Quick Start
 
@@ -1331,7 +1339,7 @@ Cache location: `~/.cache/deepl-cli/cache.db` (or `~/.deepl-cli/cache.db` for le
 
 ```bash
 # Clone repository
-git clone https://github.com/DeepLcom/deepl-cli.git
+git clone https://github.com/DeepL/deepl-cli.git
 cd deepl-cli
 
 # Install dependencies

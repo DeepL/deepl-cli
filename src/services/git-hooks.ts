@@ -268,7 +268,7 @@ echo "🔍 Validating all translations before push..."
 # Check if deepl CLI is available
 if ! command -v deepl &> /dev/null; then
   echo "⚠️  DeepL CLI not found in PATH"
-  echo "   Install: npm install -g deepl-cli"
+  echo "   Install: npm install -g @deepl/cli"
   exit 0
 fi
 
