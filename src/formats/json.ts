@@ -206,24 +206,41 @@ export class JsonFormatParser implements FormatParser {
     for (const part of parts) {
       if (typeof current !== 'object' || current === null) return false;
       const record = current as Record<string, unknown>;
-      if (!(part in record)) return false;
+      // Own-property check only: `part in record` reports inherited members, so
+      // an i18n key named "toString" or "__proto__" would be seen as present.
+      if (!Object.hasOwn(record, part)) return false;
       current = record[part];
     }
     return true;
+  }
+
+  /**
+   * Assigns an own, enumerable property. Plain assignment cannot be used:
+   * `obj['__proto__'] = v` invokes the prototype setter instead of creating a
+   * property, which both loses the translation and mutates Object.prototype.
+   */
+  private setOwn(obj: Record<string, unknown>, key: string, value: unknown): void {
+    Object.defineProperty(obj, key, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 
   private setKeyWithParts(obj: Record<string, unknown>, parts: string[], value: string): void {
     let current: Record<string, unknown> = obj;
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i]!;
-      if (typeof current[part] !== 'object' || current[part] === null) {
-        current[part] = {};
+      const existing = Object.hasOwn(current, part) ? current[part] : undefined;
+      if (typeof existing !== 'object' || existing === null) {
+        this.setOwn(current, part, {});
       }
       current = current[part] as Record<string, unknown>;
     }
     const lastPart = parts[parts.length - 1];
     if (lastPart !== undefined) {
-      current[lastPart] = value;
+      this.setOwn(current, lastPart, value);
     }
   }
 

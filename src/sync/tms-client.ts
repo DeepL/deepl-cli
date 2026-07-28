@@ -11,7 +11,7 @@ const KEY_FORBIDDEN_CHARS = /[\x00-\x1f\x7f/\\]/;
 // eslint-disable-next-line no-control-regex -- intentional: strip control chars from untrusted TMS-returned values before they reach the filesystem
 const VALUE_CONTROL_CHARS = /[\x00-\x1f\x7f]/g;
 
-function sanitizePullKeysResponse(raw: unknown): Record<string, string> {
+export function sanitizePullKeysResponse(raw: unknown): Record<string, string> {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new ValidationError(
       'TMS pull response must be a JSON object mapping keys to string values',
@@ -25,7 +25,11 @@ function sanitizePullKeysResponse(raw: unknown): Record<string, string> {
       `Partition the TMS export by locale, or paginate the pull.`,
     );
   }
-  const result: Record<string, string> = {};
+  // Null-prototype: callers test membership with `result[key] !== undefined`
+  // and `??`, so an inherited Object.prototype member for a key named
+  // "toString" or "constructor" would read as an approved translation and
+  // silently replace the real one.
+  const result: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (KEY_FORBIDDEN_CHARS.test(key)) {
       throw new ValidationError(
