@@ -11,7 +11,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve, isAbsolute, extname } from 'path';
 import { ConfigService } from '../storage/config.js';
-import type { CacheService } from '../storage/cache.js';
+import { createCacheServiceGetter } from './cache-loader.js';
 import { resolvePaths } from '../utils/paths.js';
 import type { DeepLClient } from '../api/deepl-client.js';
 import { Logger } from '../utils/logger.js';
@@ -57,22 +57,17 @@ const paths = resolvePaths();
 
 // Create config service - can be overridden by --config flag
 let configService = new ConfigService(paths.configFile);
-let cacheService: CacheService | null = null;
 
-async function getCacheService(): Promise<CacheService> {
-  if (!cacheService) {
-    const { CacheService: CacheSvc } = await import('../storage/cache.js');
-    const configTtl = configService.getValue<number>('cache.ttl');
-    const configMaxSize = configService.getValue<number>('cache.maxSize');
-    cacheService = CacheSvc.getInstance({
-      dbPath: paths.cacheFile,
-      // Config TTL is in seconds, CacheService expects milliseconds
-      ttl: configTtl !== undefined ? configTtl * 1000 : undefined,
-      maxSize: configMaxSize,
-    });
-  }
-  return cacheService;
-}
+const getCacheService = createCacheServiceGetter(() => {
+  const configTtl = configService.getValue<number>('cache.ttl');
+  const configMaxSize = configService.getValue<number>('cache.maxSize');
+  return {
+    dbPath: paths.cacheFile,
+    // Config TTL is in seconds, CacheService expects milliseconds
+    ttl: configTtl !== undefined ? configTtl * 1000 : undefined,
+    maxSize: configMaxSize,
+  };
+});
 
 /**
  * Handle error and exit with appropriate exit code

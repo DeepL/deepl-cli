@@ -6,7 +6,7 @@
 import * as crypto from 'crypto';
 import { DeepLClient } from '../api/deepl-client.js';
 import { ConfigService } from '../storage/config.js';
-import { CacheService } from '../storage/cache.js';
+import type { CacheService } from '../storage/cache.js';
 import { WriteOptions, WriteImprovement, isWriteImprovementArray } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
 import { ValidationError, ConfigError } from '../utils/errors.js';
@@ -18,7 +18,9 @@ export interface WriteServiceOptions {
 export class WriteService {
   private client: DeepLClient;
   private config: ConfigService;
-  private cache: CacheService;
+  // No cache means "run cacheless" — the CLI passes undefined when the
+  // cache backend is unavailable (see cli/cache-loader.ts).
+  private cache?: CacheService;
 
   constructor(client: DeepLClient, config: ConfigService, cache?: CacheService) {
     if (!client) {
@@ -31,7 +33,7 @@ export class WriteService {
 
     this.client = client;
     this.config = config;
-    this.cache = cache ?? CacheService.getInstance();
+    this.cache = cache;
   }
 
   /**
@@ -62,7 +64,7 @@ export class WriteService {
     const cacheKey = this.generateCacheKey(text, options);
 
     if (shouldUseCache) {
-      const cachedResult = this.cache.get(cacheKey, isWriteImprovementArray);
+      const cachedResult = this.cache?.get(cacheKey, isWriteImprovementArray);
       if (cachedResult) {
         Logger.verbose('[verbose] Cache hit');
         return cachedResult;
@@ -73,7 +75,7 @@ export class WriteService {
     const improvements = await this.client.improveText(text, options);
 
     if (shouldUseCache) {
-      this.cache.set(cacheKey, improvements);
+      this.cache?.set(cacheKey, improvements);
     }
 
     return improvements;

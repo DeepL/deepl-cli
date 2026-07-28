@@ -10,6 +10,7 @@ import { resolvePaths } from '../utils/paths.js';
 import { ConfigError } from '../utils/errors.js';
 import { Logger } from '../utils/logger.js';
 import { errorMessage } from '../utils/error-message.js';
+import { isNativeModuleLoadError } from '../utils/native-module-error.js';
 
 export interface CacheServiceOptions {
   dbPath?: string;
@@ -69,6 +70,12 @@ export class CacheService {
     try {
       this.openDatabase(dbPath);
     } catch (error) {
+      // A backend that cannot load (ABI mismatch after a Node upgrade,
+      // missing binding) is not corruption: the database on disk is
+      // healthy, so renaming it aside would throw away a warm cache.
+      if (isNativeModuleLoadError(error)) {
+        throw error;
+      }
       // Corrupted DB: rename-aside rather than unlink, so the user keeps
       // 30 days of cache history (and a forensic artifact) instead of
       // losing both silently. Suffix with a timestamp so repeated
