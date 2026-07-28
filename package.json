@@ -1,6 +1,9 @@
 {
-  "name": "deepl-cli",
+  "name": "@deepl/cli",
   "version": "1.2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Next-generation CLI for DeepL translation and writing enhancement",
   "type": "module",
   "main": "dist/index.js",
@@ -99,10 +102,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DeepLcom/deepl-cli"
+    "url": "https://github.com/DeepL/deepl-cli"
   },
   "bugs": {
-    "url": "https://github.com/DeepLcom/deepl-cli/issues"
+    "url": "https://github.com/DeepL/deepl-cli/issues"
   },
-  "homepage": "https://github.com/DeepLcom/deepl-cli#readme"
+  "homepage": "https://github.com/DeepL/deepl-cli#readme"
 }
