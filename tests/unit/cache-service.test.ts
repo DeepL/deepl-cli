@@ -73,14 +73,14 @@ describe('CacheService', () => {
 
     it('should use WAL journal mode', () => {
       const db = (cacheService as any).db;
-      const result = db.pragma('journal_mode', { simple: true });
-      expect(result).toBe('wal');
+      const result = db.prepare('PRAGMA journal_mode').get();
+      expect(result).toEqual({ journal_mode: 'wal' });
     });
 
     it('should stamp user_version = 1 on a fresh database', () => {
       const db = (cacheService as any).db;
-      const result = db.pragma('user_version', { simple: true });
-      expect(result).toBe(1);
+      const result = db.prepare('PRAGMA user_version').get();
+      expect(result).toEqual({ user_version: 1 });
     });
 
     it('should upgrade-stamp a pre-versioned (user_version=0) database in place', () => {
@@ -88,14 +88,14 @@ describe('CacheService', () => {
       // reopen via a new CacheService, verify it got stamped to 1 and
       // existing data survived.
       const db = (cacheService as any).db;
-      db.pragma('user_version = 0');
+      db.exec('PRAGMA user_version = 0');
       cacheService.set('preexisting', { text: 'survives' });
       cacheService.close();
 
       const reopened = new CacheService({ dbPath: testCachePath });
       try {
         const reopenedDb = (reopened as any).db;
-        expect(reopenedDb.pragma('user_version', { simple: true })).toBe(1);
+        expect(reopenedDb.prepare('PRAGMA user_version').get()).toEqual({ user_version: 1 });
         expect(reopened.get('preexisting')).toEqual({ text: 'survives' });
       } finally {
         reopened.close();

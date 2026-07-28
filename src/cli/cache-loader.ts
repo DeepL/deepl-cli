@@ -1,7 +1,7 @@
 /**
  * Lazy cache-service loader for the CLI entry point.
- * The cache backend (a native module today, node:sqlite tomorrow) can
- * fail to load on runtimes it wasn't built for. Commands that merely
+ * The cache backend (node:sqlite) can fail to load on runtimes that
+ * predate it (Node < 22.5.0). Commands that merely
  * benefit from a cache must degrade to running without one instead of
  * crashing, with a single warning per process.
  */

@@ -1,9 +1,10 @@
 /**
  * E2E Tests for degraded cache backend
- * Simulates a native-module load failure (e.g. ABI mismatch after a
- * `brew upgrade node`) by hijacking module resolution for better-sqlite3
- * in the CLI subprocess. The CLI must keep translating/writing with the
- * cache disabled, warn exactly once, and never touch the cache database.
+ * Simulates the storage backend failing to load (e.g. node:sqlite
+ * missing on a pre-24 Node runtime) by hijacking module resolution for
+ * node:sqlite in the CLI subprocess. The CLI must keep translating/
+ * writing with the cache disabled, warn exactly once, and never touch
+ * the cache database.
  */
 
 import { spawn, ChildProcess } from 'child_process';
@@ -11,19 +12,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createTestConfigDir, createTestDir, makeNodeRunCLI } from '../helpers';
 
-const ABI_ERROR_SNIPPET =
-  'was compiled against a different Node.js version using NODE_MODULE_VERSION 137';
-
 const BREAK_SQLITE_PRELOAD = `'use strict';
 const { registerHooks } = require('node:module');
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === 'better-sqlite3') {
-      const err = new Error(
-        "The module '/fake/better_sqlite3.node' ${ABI_ERROR_SNIPPET}. " +
-        'This version of Node.js requires NODE_MODULE_VERSION 127.',
-      );
-      err.code = 'ERR_DLOPEN_FAILED';
+    if (specifier === 'node:sqlite' || specifier === 'sqlite') {
+      const err = new Error('No such built-in module: node:sqlite');
+      err.code = 'ERR_UNKNOWN_BUILTIN_MODULE';
       throw err;
     }
     return nextResolve(specifier, context);
@@ -84,7 +79,7 @@ describe('CLI with unavailable cache backend E2E', () => {
     runCLIAll = helpers.runCLIAll;
     runCLIExpectError = helpers.runCLIExpectError;
 
-    preloadPath = path.join(testFiles.path, 'break-better-sqlite3.cjs');
+    preloadPath = path.join(testFiles.path, 'break-node-sqlite.cjs');
     fs.writeFileSync(preloadPath, BREAK_SQLITE_PRELOAD);
 
     const mockPort = await startMockServer();

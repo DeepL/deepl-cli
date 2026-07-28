@@ -3,7 +3,7 @@
  * SQLite-based translation cache with LRU eviction
  */
 
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import * as fs from 'fs';
 import * as path from 'path';
 import { resolvePaths } from '../utils/paths.js';
@@ -49,7 +49,7 @@ const CACHE_SCHEMA_VERSION = 1;
 export class CacheService {
   private static instance: CacheService | null = null;
   private static handlersRegistered: boolean = false;
-  private db!: Database.Database;
+  private db!: DatabaseSync;
   private maxSize: number;
   private ttl: number;
   private enabled: boolean = true;
@@ -70,8 +70,8 @@ export class CacheService {
     try {
       this.openDatabase(dbPath);
     } catch (error) {
-      // A backend that cannot load (ABI mismatch after a Node upgrade,
-      // missing binding) is not corruption: the database on disk is
+      // A backend that cannot load (node:sqlite missing on an older
+      // Node runtime) is not corruption: the database on disk is
       // healthy, so renaming it aside would throw away a warm cache.
       if (isNativeModuleLoadError(error)) {
         throw error;
@@ -103,7 +103,7 @@ export class CacheService {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
-    this.db = new Database(dbPath);
+    this.db = new DatabaseSync(dbPath);
     fs.chmodSync(dbPath, 0o600);
     this.initialize();
   }
@@ -140,13 +140,15 @@ export class CacheService {
   }
 
   private initialize(): void {
-    this.db.pragma('journal_mode = WAL');
+    this.db.exec('PRAGMA journal_mode = WAL');
 
     // Schema version check: pre-versioned DBs report user_version = 0
     // and are upgrade-stamped in place (current schema is compatible).
     // Higher-than-current means the DB was written by a newer CLI
     // version than this one — refuse rather than risk data loss.
-    const userVersion = this.db.pragma('user_version', { simple: true }) as number;
+    const { user_version: userVersion } = this.db
+      .prepare('PRAGMA user_version')
+      .get() as { user_version: number };
     if (userVersion > CACHE_SCHEMA_VERSION) {
       throw new ConfigError(
         `Cache DB schema version ${userVersion} is newer than this CLI supports (${CACHE_SCHEMA_VERSION}). Upgrade the CLI, or delete the cache DB to start fresh.`,
@@ -164,7 +166,7 @@ export class CacheService {
     `);
 
     if (userVersion < CACHE_SCHEMA_VERSION) {
-      this.db.pragma(`user_version = ${CACHE_SCHEMA_VERSION}`);
+      this.db.exec(`PRAGMA user_version = ${CACHE_SCHEMA_VERSION}`);
     }
 
     const row = this.db.prepare('SELECT COALESCE(SUM(size), 0) as total FROM cache').get() as { total: number };
