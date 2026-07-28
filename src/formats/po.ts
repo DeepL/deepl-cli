@@ -85,7 +85,7 @@ function makeKey(entry: PoEntry): string {
 }
 
 function parseEntries(content: string): PoEntry[] {
-  const lines = content.split('\n');
+  const lines = content.split(/\r?\n/);
   const entries: PoEntry[] = [];
   let current: PoEntry = createEmptyEntry();
   let target: ParseTarget | undefined;
@@ -303,7 +303,7 @@ export class PoFormatParser implements FormatParser {
     }
 
     const emittedKeys = new Set<string>();
-    const lines = content.split('\n');
+    const lines = content.split(/\r?\n/);
     const result: string[] = [];
     let i = 0;
 

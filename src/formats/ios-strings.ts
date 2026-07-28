@@ -12,7 +12,7 @@ export class IosStringsFormatParser implements FormatParser {
 
   extract(content: string): ExtractedEntry[] {
     const entries: ExtractedEntry[] = [];
-    const lines = content.split('\n');
+    const lines = content.split(/\r?\n/);
     let pendingComment: string | undefined;
 
     for (let i = 0; i < lines.length; i++) {
@@ -78,7 +78,7 @@ export class IosStringsFormatParser implements FormatParser {
       translations.set(entry.key, entry.translation);
     }
 
-    const lines = content.split('\n');
+    const lines = content.split(/\r?\n/);
     const result: string[] = [];
     let pendingComments: string[] = [];
     let inBlockComment = false;

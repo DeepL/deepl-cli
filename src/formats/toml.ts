@@ -53,7 +53,7 @@ export class TomlFormatParser implements FormatParser {
     }
 
     const trailingNewline = content.endsWith('\n');
-    const lines = content.split('\n');
+    const lines = content.split(/\r?\n/);
     const out: string[] = [];
     const usedKeys = new Set<string>();
     let currentSection = '';
