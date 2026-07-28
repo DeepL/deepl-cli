@@ -12,7 +12,7 @@ project maintainer.
 
 ## Prerequisites
 
-- **Node.js** >= 20.0.0
+- **Node.js** >= 24.0.0
 - **npm** >= 9.0.0
 - A [DeepL API key](https://www.deepl.com/pro-api) (free tier works for development)
 
@@ -20,7 +20,7 @@ project maintainer.
 
 ```bash
 # Clone the repository
-git clone https://github.com/DeepLcom/deepl-cli.git
+git clone https://github.com/DeepL/deepl-cli.git
 cd deepl-cli
 
 # Install dependencies
@@ -228,4 +228,4 @@ When filing a bug report, include:
 - [docs/API.md](./docs/API.md) -- Complete CLI command reference
 - [DeepL API Docs](https://www.deepl.com/docs-api) -- Official API documentation
 
-[issues]: https://github.com/DeepLcom/deepl-cli/issues
+[issues]: https://github.com/DeepL/deepl-cli/issues

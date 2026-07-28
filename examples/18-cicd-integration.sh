@@ -139,7 +139,7 @@ jobs:
           node-version: '20'
 
       - name: Install DeepL CLI
-        run: npm install -g deepl-cli
+        run: npm install -g @deepl/cli
 
       - name: Configure API Key
         env:
