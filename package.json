@@ -55,12 +55,11 @@
   "author": "DeepL SE",
   "license": "MIT",
   "engines": {
-    "node": ">=20.19.0",
+    "node": ">=24.0.0",
     "npm": ">=9.0.0"
   },
   "dependencies": {
     "axios": "^1.7.9",
-    "better-sqlite3": "^12.11.1",
     "chalk": "^5.3.0",
     "chokidar": "^5.0.0",
     "cli-table3": "^0.6.5",
@@ -80,7 +79,6 @@
     "@commitlint/cli": "^21.2.1",
     "@commitlint/config-conventional": "^21.1.0",
     "@eslint/js": "^10.0.0",
-    "@types/better-sqlite3": "^7.6.8",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.1.2",
     "@types/ws": "^8.18.1",

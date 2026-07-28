@@ -24,7 +24,7 @@ Sync Engine (src/sync)        Format Parsers (src/formats — 11 i18n formats)
 API Client (Translate, Write, Glossary, Document, Voice,
             StyleRules, Admin, TMS)
            ↓
-Storage (SQLite Cache, Config) + Static Data (src/data — language registry)
+Storage (node:sqlite Cache, Config) + Static Data (src/data — language registry)
 ```
 
 ### Configuration
@@ -105,7 +105,7 @@ src/
 ├── sync/             # Continuous localization engine (scan, diff, translate, write, lock)
 ├── formats/          # i18n file format parsers (JSON, YAML, PO, XLIFF, Android XML, etc.)
 ├── api/              # DeepL API client
-├── storage/          # Data persistence (SQLite cache, config)
+├── storage/          # Data persistence (node:sqlite cache, config)
 ├── data/             # Static data (language registry)
 ├── utils/            # Utility functions
 └── types/            # Type definitions

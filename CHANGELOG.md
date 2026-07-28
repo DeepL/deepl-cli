@@ -9,11 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING — cache/runtime**: The translation cache now uses Node's built-in `node:sqlite` module instead of the `better-sqlite3` native addon, and the CLI consequently requires **Node.js >= 24** (`engines.node` is now `>=24.0.0`). Node 24 is the first release where `node:sqlite` is non-experimental; Node 18/20 lack the module entirely and Node 22 would both warn on every invocation and downgrade the bundled SQLite (3.50.4 vs 3.53.1). Existing cache databases are read in place with no migration — the on-disk format is unchanged (SQLite 3.53.2-written files verified readable, WAL mode and `user_version` stamp included). **Migration**: upgrade to Node 24 (current LTS), e.g. `nvm install 24`; no other action is needed, and the cache keeps its contents.
+
 - **ci**: `.nvmrc` now pins Node 24, matching the CI matrix. It still read `20`, so `nvm use` handed local developers a runtime that cannot load `node:sqlite` and does not satisfy `commander`'s `engines.node >=22.12.0`.
 - **build**: `npm run build` now runs a `clean` step first, removing `dist/` and `tsconfig.tsbuildinfo` before compiling. Without it, `tsc` leaves output for sources that no longer exist, so a file rename could ship stale artifacts — verified reproducible: planting `dist/sync/strings-client.js` and rebuilding left both files in `npm pack` output. Removing the build-info file is required too; deleting only `dist/` makes the incremental compiler report the output as up to date and emit nothing.
 - **tests**: Raised the timeout for the `watchAndSync` test block to 30s and replaced its fixed-round setup flush with a wait on an observable readiness signal. These tests intermittently exceeded the 10s default on CI runners — always as timeouts, never assertions — failing unrelated dependency PRs. Suite duration was measured to be flat across 250/25/5 flush rounds, so the historical 20 → 50 → 250 escalation could not have addressed it; the cost is runner CPU starvation (1.8s locally vs 10.8s observed on CI). The flush now also fails with the pending state rather than a bare timeout if setup genuinely stalls.
 - **deps**: `commander` 14.0.3 → 15.0.0. commander 15 is ESM-only (`"type": "module"`) and requires Node >=22.12.0, so it was unmergeable until the Node 24 baseline landed. Jest's `transformIgnorePatterns` allowlist gains `commander` so ts-jest transforms it under CommonJS test execution; without that, 28 suites fail to load with `SyntaxError: Cannot use import statement outside a module`.
 - **ci**: Test matrix, release workflow, and security workflow now target Node 24 (previously Node 20 and 22). Node 20 reached end-of-life in April 2026, and Node 24 is the current LTS. This aligns CI with the runtime the project is moving to; the `engines.node` range is unchanged in this entry and is bumped separately.
+
+### Removed
+
+- **deps**: `better-sqlite3` and `@types/better-sqlite3`. The production dependency tree no longer contains any native addon, removing the entire class of ABI-mismatch failures (`ERR_DLOPEN_FAILED` / `NODE_MODULE_VERSION` errors after a Node major upgrade, e.g. via `brew upgrade node`), a 1.9 MB platform-specific binary, and the C++ compilation-toolchain requirement for installs from source. The cacheless-degradation safety net remains: a runtime whose `node:sqlite` is missing (Node < 22.5.0) warns once and runs uncached rather than crashing, and never touches the cache database.
 
 ### Fixed
 

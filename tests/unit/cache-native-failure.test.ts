@@ -1,9 +1,9 @@
 /**
- * Tests for CacheService native-module load failure classification.
- * A native binding that fails to load (e.g. ABI mismatch after a Node
- * upgrade) must NOT be treated as database corruption: the DB file and
- * its -wal/-shm sidecars must be left untouched. Genuine open failures
- * must still trigger the rename-aside recovery path.
+ * Tests for CacheService storage-backend load failure classification.
+ * A backend that fails to load (e.g. node:sqlite missing on an older
+ * Node runtime) must NOT be treated as database corruption: the DB file
+ * and its -wal/-shm sidecars must be left untouched. Genuine open
+ * failures must still trigger the rename-aside recovery path.
  */
 
 import * as fs from 'fs';
@@ -24,11 +24,11 @@ let mockConstructorError: Error | null = null;
 
 // A plain function, not jest.fn(): the project's resetMocks setting would
 // strip a jest.fn implementation between tests.
-jest.mock('better-sqlite3', () =>
-  function MockDatabase(): never {
+jest.mock('node:sqlite', () => ({
+  DatabaseSync: function MockDatabaseSync(): never {
     throw mockConstructorError ?? new Error('mockConstructorError not set');
   },
-);
+}));
 
 import { CacheService } from '../../src/storage/cache';
 import { Logger } from '../../src/utils/logger';
