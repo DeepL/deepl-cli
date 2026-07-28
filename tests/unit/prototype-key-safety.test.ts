@@ -17,6 +17,9 @@
 
 import { JsonFormatParser } from '../../src/formats/json';
 import { sanitizePullKeysResponse } from '../../src/sync/tms-client';
+import { GlossaryService } from '../../src/services/glossary';
+import { sortedKeysReplacer } from '../../src/sync/sync-lock';
+import { Logger } from '../../src/utils/logger';
 
 const PROTO_KEYS = ['__proto__', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty'];
 
@@ -109,6 +112,55 @@ describe('prototype-named key safety', () => {
 
       expect(Object.hasOwn(result, 'toString')).toBe(true);
       expect(result['toString']).toBe('In Text umwandeln');
+    });
+  });
+
+  describe('GlossaryService.tsvToEntries', () => {
+    it.each(PROTO_KEYS)('should keep a %s source term instead of dropping it', (key) => {
+      const tsv = `hello\tHallo\n${key}\tPrototyp\nworld\tWelt\n`;
+
+      const entries = GlossaryService.tsvToEntries(tsv);
+
+      expect(Object.keys(entries).sort()).toEqual([key, 'hello', 'world'].sort());
+      expect(entries[key]).toBe('Prototyp');
+    });
+
+    it('should not report a prototype-named term as a duplicate', () => {
+      const warn = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+      try {
+        GlossaryService.tsvToEntries('toString\tIn Text umwandeln\n');
+
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('Duplicate source'));
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('should still report a genuine duplicate', () => {
+      const warn = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+      try {
+        GlossaryService.tsvToEntries('hello\tHallo\nhello\tGuten Tag\n');
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Duplicate source'));
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
+  describe('sortedKeysReplacer', () => {
+    it.each(PROTO_KEYS)('should preserve a %s lockfile key when sorting', (key) => {
+      // Built by JSON.parse so the prototype-named key is a real own property.
+      const src = JSON.parse(`{"zebra": 1, ${JSON.stringify(key)}: 2, "alpha": 3}`) as Record<
+        string,
+        unknown
+      >;
+
+      const out = sortedKeysReplacer('entries', src) as Record<string, unknown>;
+
+      expect(Object.hasOwn(out, key)).toBe(true);
+      expect(out[key]).toBe(2);
+      expect(JSON.parse(JSON.stringify(out)) as Record<string, unknown>).toHaveProperty(key, 2);
     });
   });
 });

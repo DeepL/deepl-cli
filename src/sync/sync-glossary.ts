@@ -49,7 +49,9 @@ export class SyncGlossaryManager {
     }
 
     for (const [locale, localeEntries] of targetEntries) {
-      const terms: Record<string, string> = {};
+      // Null-prototype: keyed by untrusted source strings, which may be
+      // named after Object.prototype members.
+      const terms: Record<string, string> = Object.create(null) as Record<string, string>;
 
       for (const [sourceText, keys] of sourceTextToKeys) {
         if (keys.size < MIN_KEY_COUNT) continue;
@@ -94,7 +96,7 @@ export class SyncGlossaryManager {
     targetEntries: Map<string, Map<string, string>>,
   ): Promise<Record<string, string>> {
     const terms = this.extractTerms(sourceEntries, targetEntries);
-    const glossaryIds: Record<string, string> = {};
+    const glossaryIds: Record<string, string> = Object.create(null) as Record<string, string>;
 
     for (const targetLocale of this.options.targetLocales) {
       const localeTerms = terms.get(targetLocale);
