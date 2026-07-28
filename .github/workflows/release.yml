@@ -1,4 +1,4 @@
-name: Publish to npm
+name: Release
 
 on:
   push:
@@ -6,10 +6,9 @@ on:
       - 'v*'
 
 jobs:
+  # The publish and release jobs are deliberately independent: a failure
+  # in one must not suppress the other.
   publish:
-    # Disabled until npm publish permission is granted.
-    # To enable: remove the `if: false` line and add an NPM_TOKEN secret.
-    if: false
     runs-on: ubuntu-latest
 
     permissions:
@@ -27,6 +26,79 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+      # First publish authenticates with a granular NPM_TOKEN scoped to
+      # @deepl/cli. Switch to OIDC trusted publishing once the package
+      # exists on npmjs.com, then revoke the token (tracked in beads).
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Release notes come from the tag's CHANGELOG section; releases are
+      # immutable once published, but notes stay editable afterwards.
+      - name: Extract changelog section
+        id: notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ -s release-notes.md ]; then
+            echo "has_notes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ steps.notes.outputs.has_notes }}" = "true" ]; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag \
+              --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag \
+              --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+
+  # Gated until DeepL/homebrew-tap exists and a HOMEBREW_TAP_TOKEN secret
+  # (a fine-grained PAT with contents + pull-requests write on that repo)
+  # is configured — see the Homebrew tap issue. github.token cannot push
+  # cross-repo. To enable: change `if:` to `if: ${{ !cancelled() }}`.
+  homebrew:
+    if: false
+    needs: publish
+    runs-on: ubuntu-latest
+
+    permissions: {}
+
+    steps:
+      - name: Bump formula version and sha256
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          url="https://registry.npmjs.org/@deepl/cli/-/cli-${version}.tgz"
+          curl -fsSL -o cli.tgz "$url"
+          sha256="$(sha256sum cli.tgz | cut -d' ' -f1)"
+
+          gh repo clone DeepL/homebrew-tap tap
+          cd tap
+          branch="bump-deepl-${version}"
+          git checkout -b "$branch"
+          sed -i -E "s|^(  url \").*(\")$|\1${url}\2|" Formula/deepl.rb
+          sed -i -E "s|^(  sha256 \").*(\")$|\1${sha256}\2|" Formula/deepl.rb
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -am "deepl ${version}"
+          git push -u origin "$branch"
+          gh pr create --title "deepl ${version}" \
+            --body "Automated formula bump for @deepl/cli ${version}. sha256: \`${sha256}\`"
