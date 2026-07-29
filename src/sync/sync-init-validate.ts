@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ValidationError } from '../utils/errors.js';
 import { getTargetLanguages } from '../data/language-registry.js';
+import { LOCALE_CODE_RE } from './sync-config.js';
 
 export interface SyncInitFlagValidation {
   sourceLocale: string;
@@ -30,12 +31,6 @@ export interface TargetLocaleChoice {
   value: string;
   checked?: boolean;
 }
-
-// Loose BCP-47 matcher. Accepts plain codes (`de`, `ja`), script/region
-// subtags (`zh-Hans`, `pt-BR`), and multi-subtag variants (`en-US-POSIX`).
-// Each subtag is 2-8 alphanumeric chars; case is not enforced because
-// operators commonly type codes in whatever case they remember.
-const LOCALE_CODE_RE = /^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$/;
 
 // Pre-checked subset. These are the locales most sync users pick first;
 // everything else in the registry remains available but unchecked so the

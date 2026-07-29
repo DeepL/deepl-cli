@@ -8,7 +8,6 @@ import type { SyncLockFile } from '../../../src/sync/types';
 import type { WalkedBucketFile } from '../../../src/sync/sync-bucket-walker';
 import type { LocaleTranslator, TranslateLocaleResult } from '../../../src/sync/sync-locale-translator';
 import type { GlossaryService } from '../../../src/services/glossary';
-import type { TranslationService } from '../../../src/services/translation';
 import { ValidationError } from '../../../src/utils/errors';
 import { createMockTranslationService } from '../../helpers/mock-factories';
 
