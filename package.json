@@ -70,7 +70,7 @@
     "fast-glob": "^3.3.3",
     "form-data": "^4.0.4",
     "inquirer": "^14.0.2",
-    "minimatch": "^10.2.1",
+    "minimatch": "^10.2.6",
     "ora": "^9.4.1",
     "p-limit": "^7.3.1",
     "php-parser": "3.7.0",
