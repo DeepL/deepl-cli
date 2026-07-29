@@ -618,7 +618,6 @@ describe('DeepLClient', () => {
       it('should handle 503 service unavailable', async () => {
         nock(baseUrl)
           .post(path)
-          .times(4)
           .reply(503, { message: 'Service temporarily unavailable' });
 
         await expect(call(client)).rejects.toThrow('Service temporarily unavailable');
@@ -627,7 +626,6 @@ describe('DeepLClient', () => {
       it('should handle network errors', async () => {
         nock(baseUrl)
           .post(path)
-          .times(4)
           .replyWithError('Network error');
 
         await expect(call(client)).rejects.toThrow();
@@ -667,7 +665,7 @@ describe('DeepLClient', () => {
 
     it('should strip ANSI escape sequences from a 5xx server message before interpolating into the thrown error', async () => {
       const maliciousBody = { message: '\x1b[31mInternal failure\x1b[0m' };
-      nock(baseUrl).post('/v2/translate').times(4).reply(500, maliciousBody);
+      nock(baseUrl).post('/v2/translate').reply(500, maliciousBody);
 
       await expect(client.translate('Hello', { targetLang: 'es' })).rejects.toThrow(
         expect.objectContaining({ message: expect.not.stringContaining('\x1b') }),
@@ -856,31 +854,38 @@ describe('DeepLClient', () => {
   });
 
   describe('retry logic', () => {
-    it('should retry on transient failures', async () => {
+    it('should retry an idempotent request on transient failures', async () => {
       nock(baseUrl)
-        .post('/v2/translate')
+        .get('/v2/usage')
         .reply(503)
-        .post('/v2/translate')
+        .get('/v2/usage')
         .reply(503)
-        .post('/v2/translate')
-        .reply(200, {
-          translations: [{ text: 'Hola' }],
-        });
+        .get('/v2/usage')
+        .reply(200, { character_count: 1, character_limit: 2 });
 
-      const result = await client.translate('Hello', { targetLang: 'es' });
+      const usage = await client.getUsage();
 
-      expect(result.text).toBe('Hola');
+      expect(usage.characterCount).toBe(1);
+    });
+
+    it('should not replay a translate request on transient failures', async () => {
+      const scope = nock(baseUrl).post('/v2/translate').reply(503);
+
+      await expect(
+        client.translate('Hello', { targetLang: 'es' })
+      ).rejects.toThrow('Service temporarily unavailable');
+
+      expect(scope.isDone()).toBe(true);
+      expect(nock.pendingMocks()).toHaveLength(0);
     });
 
     it('should give up after max retries', async () => {
       nock(baseUrl)
-        .post('/v2/translate')
+        .get('/v2/usage')
         .times(4)
         .reply(503);
 
-      await expect(
-        client.translate('Hello', { targetLang: 'es' })
-      ).rejects.toThrow();
+      await expect(client.getUsage()).rejects.toThrow();
     });
 
     it('should not retry on 4xx errors', async () => {
@@ -993,13 +998,11 @@ describe('DeepLClient', () => {
       const customClient = new DeepLClient(apiKey, { maxRetries: 1 });
 
       nock(baseUrl)
-        .post('/v2/translate')
+        .get('/v2/usage')
         .times(2) // Should only retry 1 time + initial = 2 requests total
         .reply(503);
 
-      await expect(
-        customClient.translate('Hello', { targetLang: 'es' })
-      ).rejects.toThrow();
+      await expect(customClient.getUsage()).rejects.toThrow();
 
       expect(nock.isDone()).toBe(true);
     });
@@ -1008,13 +1011,11 @@ describe('DeepLClient', () => {
       const customClient = new DeepLClient(apiKey, { maxRetries: 0 });
 
       nock(baseUrl)
-        .post('/v2/translate')
+        .get('/v2/usage')
         .times(1) // Should not retry, only 1 request
         .reply(503);
 
-      await expect(
-        customClient.translate('Hello', { targetLang: 'es' })
-      ).rejects.toThrow();
+      await expect(customClient.getUsage()).rejects.toThrow();
 
       expect(nock.isDone()).toBe(true);
     });
@@ -1023,13 +1024,11 @@ describe('DeepLClient', () => {
       const customClient = new DeepLClient(apiKey, { maxRetries: 2 });
 
       nock(baseUrl)
-        .post('/v2/translate')
+        .get('/v2/usage')
         .times(3) // Should retry 2 times + initial = 3 requests total
         .reply(503);
 
-      await expect(
-        customClient.translate('Hello', { targetLang: 'es' })
-      ).rejects.toThrow();
+      await expect(customClient.getUsage()).rejects.toThrow();
 
       expect(nock.isDone()).toBe(true);
     });

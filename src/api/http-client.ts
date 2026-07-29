@@ -31,6 +31,9 @@ export interface DeepLClientOptions {
   usePro?: boolean;
   timeout?: number;
   maxRetries?: number;
+  /** Wall-clock budget for all attempts of one request, excluding backoff
+   *  sleeps. Defaults to `timeout * 2`. */
+  totalTimeout?: number;
   baseUrl?: string;
   proxy?: ProxyConfig;
 }
@@ -58,6 +61,44 @@ const KEEP_ALIVE_MSECS = 1000;
 const RETRY_INITIAL_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 10000;
 const RETRY_AFTER_MAX_SECONDS = 60;
+const TOTAL_TIMEOUT_FACTOR = 2;
+
+/**
+ * Methods a failed attempt may be replayed on. A POST is excluded because a
+ * client-side abort (timeout, mid-flight reset) says nothing about whether
+ * the server already accepted — and billed — the request; replaying it
+ * duplicates the work (a second translation, a second uploaded document, a
+ * second API key whose secret is only returned once).
+ */
+const IDEMPOTENT_METHODS = new Set([
+  'GET',
+  'HEAD',
+  'PUT',
+  'DELETE',
+  'OPTIONS',
+  'TRACE',
+]);
+
+/** Transport errors that prove the request never reached the server, so even
+ *  a non-idempotent request is safe to replay. */
+const UNSENT_REQUEST_CODES = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+]);
+
+/** Axios codes for a request the client itself gave up on. */
+const CLIENT_ABORT_CODES = new Set([
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'ERR_CANCELED',
+]);
+
+/** Per-request overrides for the retry policy and timeouts. */
+export interface RequestPolicy {
+  maxRetries?: number;
+  timeout?: number;
+}
 
 /**
  * Compute a retry delay for attempt `n` with full jitter: a uniform
@@ -68,6 +109,14 @@ const RETRY_AFTER_MAX_SECONDS = 60;
  * Exported for unit testing; the caller pulls the randomized value
  * and passes it straight to `sleep()`.
  */
+/** Prefixes a transport failure without stuttering when the underlying
+ *  message already carries the label. */
+function prefixNetwork(detail: string, label: string): string {
+  return /^network (error|timeout)\b/i.test(detail)
+    ? detail
+    : `${label}: ${detail}`;
+}
+
 export function computeBackoffWithJitter(attempt: number): number {
   const cap = Math.min(RETRY_INITIAL_DELAY_MS * 2 ** attempt, RETRY_MAX_DELAY_MS);
   return Math.floor(Math.random() * cap);
@@ -76,6 +125,8 @@ export function computeBackoffWithJitter(attempt: number): number {
 export class HttpClient {
   protected client: AxiosInstance;
   protected maxRetries: number;
+  protected requestTimeout: number;
+  protected totalTimeout: number;
   protected _lastTraceId?: string;
 
   private static parseProxyFromEnv(): ProxyConfig | undefined {
@@ -133,6 +184,9 @@ export class HttpClient {
       options.baseUrl ?? (options.usePro ? PRO_API_URL : FREE_API_URL);
 
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.requestTimeout = options.timeout ?? DEFAULT_TIMEOUT;
+    this.totalTimeout =
+      options.totalTimeout ?? this.requestTimeout * TOTAL_TIMEOUT_FACTOR;
 
     const axiosConfig: Record<string, unknown> = {
       baseURL,
@@ -266,54 +320,66 @@ export class HttpClient {
   protected async makeRawRequest<T>(
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
-    buildConfig: () => Record<string, unknown>
+    buildConfig: () => Record<string, unknown>,
+    policy?: RequestPolicy
   ): Promise<T> {
-    return this.executeWithRetry<T>(method, path, buildConfig);
+    return this.executeWithRetry<T>(method, path, buildConfig, policy);
   }
 
   protected async executeWithRetry<T>(
     method: string,
     path: string,
-    buildConfig: () => Record<string, unknown>
+    buildConfig: () => Record<string, unknown>,
+    policy?: RequestPolicy
   ): Promise<T> {
+    const maxRetries = policy?.maxRetries ?? this.maxRetries;
+    const requestTimeout = policy?.timeout ?? this.requestTimeout;
+    // Backoff sleeps are deliberately excluded from the budget: a
+    // server-directed Retry-After wait is not time spent waiting on a dead
+    // connection, and collapsing the two would abandon honest rate limits.
+    let remainingBudget = Math.max(this.totalTimeout, requestTimeout);
     let lastError: Error | undefined;
+    let traceId: string | undefined;
 
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const requestStart = Date.now();
       try {
         const config = buildConfig();
 
-        const requestStart = Date.now();
         const response = await this.client.request<T>({
           method,
           url: path,
           ...config,
+          timeout: Math.min(requestTimeout, remainingBudget),
         });
         const requestElapsed = Date.now() - requestStart;
         Logger.verbose(
           `[verbose] HTTP ${method} ${path} completed in ${requestElapsed}ms (status ${response.status})`
         );
 
-        const traceId = response.headers?.['x-trace-id'] as string | undefined;
-        if (traceId) {
-          this._lastTraceId = traceId;
+        const responseTraceId = response.headers?.['x-trace-id'] as
+          | string
+          | undefined;
+        if (responseTraceId) {
+          this._lastTraceId = responseTraceId;
         }
 
         return response.data;
       } catch (error) {
+        remainingBudget -= Date.now() - requestStart;
         lastError = error as Error;
 
         if (this.isAxiosError(error)) {
-          const traceId = error.response?.headers?.['x-trace-id'] as
+          const responseTraceId = error.response?.headers?.['x-trace-id'] as
             | string
             | undefined;
-          if (traceId) {
-            this._lastTraceId = traceId;
+          if (responseTraceId) {
+            traceId = responseTraceId;
+            this._lastTraceId = responseTraceId;
           }
-        }
 
-        if (this.isAxiosError(error)) {
           const status = error.response?.status;
-          if (status === 429 && attempt < this.maxRetries) {
+          if (status === 429 && attempt < maxRetries) {
             const retryAfterDelay = this.parseRetryAfter(
               error.response?.headers?.['retry-after'] as string | undefined
             );
@@ -324,43 +390,70 @@ export class HttpClient {
             const delay =
               retryAfterDelay ?? computeBackoffWithJitter(attempt);
             Logger.verbose(
-              `[verbose] HTTP ${method} ${path} retry ${attempt + 1}/${this.maxRetries} in ${delay}ms (status 429${retryAfterDelay !== null && retryAfterDelay !== undefined ? ', Retry-After' : ', jitter backoff'})`
+              `[verbose] HTTP ${method} ${path} retry ${attempt + 1}/${maxRetries} in ${delay}ms (status 429${retryAfterDelay !== null && retryAfterDelay !== undefined ? ', Retry-After' : ', jitter backoff'})`
             );
             await this.sleep(delay);
             continue;
           }
           if (status && status >= 400 && status < 500) {
-            throw this.handleError(error);
+            throw this.handleError(error, undefined, traceId);
           }
         }
 
-        if (attempt < this.maxRetries) {
+        if (
+          attempt < maxRetries &&
+          remainingBudget > 0 &&
+          this.isReplayable(method, error)
+        ) {
           const delay = computeBackoffWithJitter(attempt);
           const status = this.isAxiosError(error) ? error.response?.status : undefined;
           Logger.verbose(
-            `[verbose] HTTP ${method} ${path} retry ${attempt + 1}/${this.maxRetries} in ${delay}ms (${status ? `status ${status}` : 'network error'}, jitter backoff)`
+            `[verbose] HTTP ${method} ${path} retry ${attempt + 1}/${maxRetries} in ${delay}ms (${status ? `status ${status}` : 'network error'}, jitter backoff)`
           );
           await this.sleep(delay);
+          continue;
         }
+
+        break;
       }
     }
 
     throw lastError
-      ? this.handleError(lastError)
+      ? this.handleError(lastError, undefined, traceId)
       : new NetworkError('Request failed after retries');
   }
 
-  protected handleError(error: unknown, context?: string): Error {
-    const result = this.classifyError(error);
+  /**
+   * Whether a failed attempt may be sent again. 4xx responses never reach
+   * here (they throw immediately) and 429 is handled by the caller, so the
+   * cases left are 5xx responses and transport failures.
+   */
+  private isReplayable(method: string, error: unknown): boolean {
+    if (!this.isAxiosError(error)) {
+      return false;
+    }
+    if (!error.response && error.code && UNSENT_REQUEST_CODES.has(error.code)) {
+      return true;
+    }
+    return IDEMPOTENT_METHODS.has(method.toUpperCase());
+  }
+
+  protected handleError(
+    error: unknown,
+    context?: string,
+    traceId?: string
+  ): Error {
+    const result = this.classifyError(error, traceId);
     if (context) {
       result.message = `${result.message} [${context}]`;
     }
     return result;
   }
 
-  private classifyError(error: unknown): Error {
-    const traceIdSuffix = this._lastTraceId
-      ? ` (Trace ID: ${this._lastTraceId})`
+  private classifyError(error: unknown, traceId?: string): Error {
+    const requestTraceId = traceId ?? this._lastTraceId;
+    const traceIdSuffix = requestTraceId
+      ? ` (Trace ID: ${requestTraceId})`
       : '';
 
     if (this.isAxiosError(error)) {
@@ -377,6 +470,10 @@ export class HttpClient {
       const message = sanitizeForTerminal(responseData?.message ?? error.message ?? '');
 
       switch (status) {
+        case 401:
+          return new AuthError(
+            `Authentication failed: Invalid or missing API key${traceIdSuffix}`
+          );
         case 403:
           return new AuthError(
             `Authentication failed: Invalid API key${traceIdSuffix}`
@@ -399,8 +496,14 @@ export class HttpClient {
               `Server error (${status}): ${message}${traceIdSuffix}`
             );
           }
-          if (!error.response && this.isNetworkLevelError(error)) {
-            return new NetworkError(`Network error: ${error.message}`);
+          // No response at all means the request never completed a round
+          // trip: a refused connection, a DNS failure, a reset socket, or a
+          // client-side abort. All of those are network conditions, and the
+          // axios `code` is the reliable signal — the message is not (a
+          // timeout reads "timeout of 30000ms exceeded" and matches no
+          // substring list).
+          if (!error.response) {
+            return this.transportError(error);
           }
           return new ValidationError(`API error: ${message}${traceIdSuffix}`);
       }
@@ -408,12 +511,21 @@ export class HttpClient {
 
     if (error instanceof Error) {
       if (this.isNetworkLevelError(error)) {
-        return new NetworkError(`Network error: ${error.message}`);
+        return new NetworkError(prefixNetwork(error.message, 'Network error'));
       }
       return error;
     }
 
     return new NetworkError('Unknown error occurred');
+  }
+
+  private transportError(error: AxiosError): NetworkError {
+    const detail = sanitizeForTerminal(error.message ?? '');
+    const label =
+      error.code && CLIENT_ABORT_CODES.has(error.code)
+        ? 'Network timeout'
+        : 'Network error';
+    return new NetworkError(prefixNetwork(detail, label));
   }
 
   private isNetworkLevelError(error: Error): boolean {

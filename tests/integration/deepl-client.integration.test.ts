@@ -309,9 +309,7 @@ describe('DeepLClient Integration', () => {
       const client = new DeepLClient(API_KEY, { maxRetries: 2 });
       clients.push(client);
 
-      // Mock all retry attempts (initial + 2 retries = 3 total)
-      nock(FREE_API_URL).post('/v2/translate').reply(503, { message: 'Service temporarily unavailable' });
-      nock(FREE_API_URL).post('/v2/translate').reply(503, { message: 'Service temporarily unavailable' });
+      // A translate POST is not replayed, so one attempt is all the server sees.
       nock(FREE_API_URL).post('/v2/translate').reply(503, { message: 'Service temporarily unavailable' });
 
       await expect(client.translate('Hello', { targetLang: 'es' })).rejects.toThrow(
@@ -341,21 +339,35 @@ describe('DeepLClient Integration', () => {
       );
     });
 
-    it('should retry on 500 errors', async () => {
+    it('should retry an idempotent request on 500 errors', async () => {
       const client = new DeepLClient(API_KEY, { maxRetries: 2 });
       clients.push(client);
 
       // First two attempts fail with 500, third succeeds
-      nock(FREE_API_URL).post('/v2/translate').reply(500, 'Internal Server Error');
-      nock(FREE_API_URL).post('/v2/translate').reply(500, 'Internal Server Error');
+      nock(FREE_API_URL).get('/v2/usage').reply(500, 'Internal Server Error');
+      nock(FREE_API_URL).get('/v2/usage').reply(500, 'Internal Server Error');
       nock(FREE_API_URL)
-        .post('/v2/translate')
-        .reply(200, {
-          translations: [{ text: 'Hola' }],
-        });
+        .get('/v2/usage')
+        .reply(200, { character_count: 10, character_limit: 100 });
 
-      const result = await client.translate('Hello', { targetLang: 'es' });
-      expect(result.text).toBe('Hola');
+      const usage = await client.getUsage();
+      expect(usage.characterCount).toBe(10);
+    });
+
+    it('should not replay a translate request on 500 errors', async () => {
+      const client = new DeepLClient(API_KEY, { maxRetries: 2 });
+      clients.push(client);
+
+      const scope = nock(FREE_API_URL)
+        .post('/v2/translate')
+        .reply(500, { message: 'Internal Server Error' });
+
+      await expect(
+        client.translate('Hello', { targetLang: 'es' })
+      ).rejects.toThrow(/Server error \(500\)/);
+
+      expect(scope.isDone()).toBe(true);
+      expect(nock.pendingMocks()).toHaveLength(0);
     });
 
     it('should NOT retry on 4xx errors', async () => {
