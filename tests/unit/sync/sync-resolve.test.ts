@@ -359,7 +359,9 @@ describe('per-entry decision report', () => {
     expect(theirs!.reason).toContain('2026-04-20T08:12:03Z');
   });
 
-  it('tags a decision as length-heuristic when JSON.parse fails and logs a warning', () => {
+  it('tags a decision as length-heuristic when JSON.parse fails without logging itself', () => {
+    // The command layer prints the warning once from the decision; the
+    // library must stay silent so it is not printed twice.
     const warnSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
       const content = [
@@ -382,9 +384,9 @@ describe('per-entry decision report', () => {
 
       const warned = warnSpy.mock.calls.some((args) => {
         const joined = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
-        return /locales\/de\/app\.json/.test(joined) && /length-heuristic|parse-error/i.test(joined);
+        return /parse-error fallback/i.test(joined);
       });
-      expect(warned).toBe(true);
+      expect(warned).toBe(false);
     } finally {
       warnSpy.mockRestore();
     }

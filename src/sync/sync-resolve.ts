@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import { Logger } from '../utils/logger.js';
 import type { SyncLockFile } from './types.js';
 
 const CONFLICT_START = /^<{7}/m;
@@ -117,11 +116,9 @@ function mergeConflictSections(
   const reasonMsg = parseError
     ? `JSON.parse failed on "${preview}": ${truncate(parseError, MAX_REASON_LEN)}`
     : 'conflict fragment could not be parsed';
-  const label = file ? `${file}:<conflict-region>` : '<conflict-region>';
-  Logger.warn(
-    `WARN  ${label} — parse-error fallback used, ${reasonMsg}. Review this region and consider resolving manually.`,
-  );
 
+  // The decision below carries the warning; the command layer prints it once
+  // with a project-relative path.
   const winningSide: 'ours' | 'theirs' = ours.length >= theirs.length ? 'ours' : 'theirs';
   const decision: ResolveDecision = {
     file,
