@@ -75,7 +75,9 @@ export function __getInFlightTmpCount(): number {
 
 /**
  * Write a file atomically by writing to a temp file then renaming.
- * Prevents partial writes from corrupting output files.
+ * Prevents partial writes from corrupting output files. An existing
+ * target's mode is preserved across the rename (chmod is not subject to
+ * the umask, unlike the mode applied at file creation).
  */
 export async function atomicWriteFile(
   filePath: string,
@@ -83,9 +85,18 @@ export async function atomicWriteFile(
   encoding?: BufferEncoding,
 ): Promise<void> {
   const tmpPath = filePath + '.tmp.' + process.pid + '.' + Math.random().toString(36).slice(2, 8);
+  let existingMode: number | undefined;
+  try {
+    existingMode = (await fs.promises.stat(filePath)).mode & 0o7777;
+  } catch {
+    /* target does not exist — keep default mode for new files */
+  }
   registerTmp(tmpPath);
   try {
     await fs.promises.writeFile(tmpPath, content, encoding ? { encoding } : undefined);
+    if (existingMode !== undefined) {
+      await fs.promises.chmod(tmpPath, existingMode);
+    }
     await fs.promises.rename(tmpPath, filePath);
   } catch (error) {
     try { await fs.promises.unlink(tmpPath); } catch { /* ignore cleanup errors */ }
@@ -104,9 +115,18 @@ export function atomicWriteFileSync(
   encoding?: BufferEncoding,
 ): void {
   const tmpPath = filePath + '.tmp.' + process.pid + '.' + Math.random().toString(36).slice(2, 8);
+  let existingMode: number | undefined;
+  try {
+    existingMode = fs.statSync(filePath).mode & 0o7777;
+  } catch {
+    /* target does not exist — keep default mode for new files */
+  }
   registerTmp(tmpPath);
   try {
     fs.writeFileSync(tmpPath, content, encoding ? { encoding } : undefined);
+    if (existingMode !== undefined) {
+      fs.chmodSync(tmpPath, existingMode);
+    }
     fs.renameSync(tmpPath, filePath);
   } catch (error) {
     try { fs.unlinkSync(tmpPath); } catch { /* ignore cleanup errors */ }
