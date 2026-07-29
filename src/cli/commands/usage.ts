@@ -7,7 +7,27 @@ import chalk from 'chalk';
 import Table from 'cli-table3';
 import type { UsageService } from '../../services/usage.js';
 import { UsageInfo } from '../../api/deepl-client.js';
+import type { ProductUsage } from '../../api/translation-client.js';
 import { isColorEnabled } from '../../utils/formatters.js';
+
+const DURATION_BILLING_UNITS = new Set(['milliseconds', 'minutes']);
+
+/** The API reports product types in camelCase; display uses the documented snake_case. */
+function productDisplayName(productType: string): string {
+  return productType.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+}
+
+function isDurationBilled(product: ProductUsage): boolean {
+  return product.billingUnit !== undefined && DURATION_BILLING_UNITS.has(product.billingUnit);
+}
+
+/** Duration-billed usage in milliseconds: total and API-key-scoped amounts. */
+function productDurationsMs(product: ProductUsage): { used: number; apiKeyUsed: number } {
+  const scale = product.billingUnit === 'minutes' ? 60_000 : 1;
+  const used = product.unitCount ?? product.apiKeyUnitCount ?? product.characterCount;
+  const apiKeyUsed = product.apiKeyUnitCount ?? product.apiKeyCharacterCount;
+  return { used: used * scale, apiKeyUsed: apiKeyUsed * scale };
+}
 
 export class UsageCommand {
   private service: UsageService;
@@ -108,15 +128,17 @@ export class UsageCommand {
       lines.push('');
       lines.push(chalk.bold('Product Breakdown:'));
       for (const product of usage.products) {
-        if (product.billingUnit === 'milliseconds') {
-          lines.push(`  ${product.productType}: ${this.formatMilliseconds(product.characterCount)} (API key: ${this.formatMilliseconds(product.apiKeyCharacterCount)})`);
+        const name = productDisplayName(product.productType);
+        if (isDurationBilled(product)) {
+          const { used, apiKeyUsed } = productDurationsMs(product);
+          lines.push(`  ${name}: ${this.formatMilliseconds(used)} (API key: ${this.formatMilliseconds(apiKeyUsed)})`);
         } else if (product.unitCount !== undefined) {
           const apiKeyPart = product.apiKeyUnitCount !== undefined
             ? ` (API key: ${formatNumber(product.apiKeyUnitCount)} units)`
             : ` (API key: ${formatNumber(product.apiKeyCharacterCount)} characters)`;
-          lines.push(`  ${product.productType}: ${formatNumber(product.unitCount)} units${apiKeyPart}`);
+          lines.push(`  ${name}: ${formatNumber(product.unitCount)} units${apiKeyPart}`);
         } else {
-          lines.push(`  ${product.productType}: ${formatNumber(product.characterCount)} characters (API key: ${formatNumber(product.apiKeyCharacterCount)})`);
+          lines.push(`  ${name}: ${formatNumber(product.characterCount)} characters (API key: ${formatNumber(product.apiKeyCharacterCount)})`);
         }
       }
     }
@@ -125,9 +147,6 @@ export class UsageCommand {
   }
 
   private formatMilliseconds(ms: number): string {
-    if (ms === 0) {
-      return '0ms';
-    }
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
@@ -137,7 +156,7 @@ export class UsageCommand {
     if (minutes > 0) {
       return `${minutes}m ${seconds % 60}s`;
     }
-    return `${seconds}s ${ms % 1000}ms`;
+    return `${seconds}s`;
   }
 
   /** Format usage statistics as a cli-table3 table. */
@@ -208,24 +227,26 @@ export class UsageCommand {
         ...(colorDisabled && { style: { head: [], border: [] } }),
       });
       for (const product of usage.products) {
-        if (product.billingUnit === 'milliseconds') {
+        const name = productDisplayName(product.productType);
+        if (isDurationBilled(product)) {
+          const { used, apiKeyUsed } = productDurationsMs(product);
           productTable.push([
-            product.productType,
-            this.formatMilliseconds(product.characterCount),
-            this.formatMilliseconds(product.apiKeyCharacterCount),
+            name,
+            this.formatMilliseconds(used),
+            this.formatMilliseconds(apiKeyUsed),
           ]);
         } else if (product.unitCount !== undefined) {
           const apiKeyVal = product.apiKeyUnitCount !== undefined
             ? `${formatNumber(product.apiKeyUnitCount)} units`
             : `${formatNumber(product.apiKeyCharacterCount)} chars`;
           productTable.push([
-            product.productType,
+            name,
             `${formatNumber(product.unitCount)} units`,
             apiKeyVal,
           ]);
         } else {
           productTable.push([
-            product.productType,
+            name,
             `${formatNumber(product.characterCount)} chars`,
             `${formatNumber(product.apiKeyCharacterCount)} chars`,
           ]);

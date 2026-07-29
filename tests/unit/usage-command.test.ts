@@ -328,7 +328,7 @@ describe('UsageCommand', () => {
       expect(formatted).toContain('Warning: You are approaching your speech-to-text limit');
     });
 
-    it('should format zero speech-to-text usage', () => {
+    it('should format zero speech-to-text usage in seconds, not milliseconds', () => {
       const formatted = usageCommand.formatUsage({
         characterCount: 100,
         characterLimit: 500000,
@@ -337,7 +337,8 @@ describe('UsageCommand', () => {
       });
 
       expect(formatted).toContain('Speech-to-Text Usage:');
-      expect(formatted).toContain('0ms');
+      expect(formatted).toContain('0s');
+      expect(formatted).not.toContain('0ms');
     });
 
     it('should omit speech-to-text section when not available', () => {
@@ -362,6 +363,57 @@ describe('UsageCommand', () => {
       expect(formatted).toContain('Product Breakdown:');
       expect(formatted).toContain('translate: 900,000 characters');
       expect(formatted).toContain('speech_to_text: 1h 1m 1s');
+    });
+
+    it('should format product with minutes billing unit as a duration', () => {
+      const formatted = usageCommand.formatUsage({
+        characterCount: 0,
+        characterLimit: 20000000,
+        products: [
+          {
+            productType: 'speechToText',
+            characterCount: 0,
+            apiKeyCharacterCount: 0,
+            apiKeyUnitCount: 1463,
+            billingUnit: 'minutes',
+          },
+        ],
+      });
+
+      expect(formatted).toContain('speech_to_text: 24h 23m 0s (API key: 24h 23m 0s)');
+      expect(formatted).not.toContain('speech_to_text: 0 characters');
+    });
+
+    it('should prefer unitCount over apiKeyUnitCount for minutes-billed totals', () => {
+      const formatted = usageCommand.formatUsage({
+        characterCount: 0,
+        characterLimit: 20000000,
+        products: [
+          {
+            productType: 'speechToText',
+            characterCount: 0,
+            apiKeyCharacterCount: 0,
+            unitCount: 120,
+            apiKeyUnitCount: 60,
+            billingUnit: 'minutes',
+          },
+        ],
+      });
+
+      expect(formatted).toContain('speech_to_text: 2h 0m 0s (API key: 1h 0m 0s)');
+    });
+
+    it('should render camelCase product types with the documented snake_case names', () => {
+      const formatted = usageCommand.formatUsage({
+        characterCount: 0,
+        characterLimit: 20000000,
+        products: [
+          { productType: 'textTranslation', characterCount: 900000, apiKeyCharacterCount: 880000 },
+        ],
+      });
+
+      expect(formatted).toContain('text_translation: 900,000 characters');
+      expect(formatted).not.toContain('textTranslation');
     });
 
     it('should display full Pro response with speech-to-text', () => {
@@ -446,6 +498,25 @@ describe('UsageCommand', () => {
       expect(result).toContain('Product Breakdown:');
       expect(result).toContain('translate');
       expect(result).toContain('speech_to_text');
+    });
+
+    it('should render minutes-billed products as durations with snake_case names', () => {
+      const result = usageCommand.formatUsageTable({
+        characterCount: 1000,
+        characterLimit: 10000,
+        products: [
+          {
+            productType: 'speechToText',
+            characterCount: 0,
+            apiKeyCharacterCount: 0,
+            apiKeyUnitCount: 1463,
+            billingUnit: 'minutes',
+          },
+        ],
+      });
+      expect(result).toContain('speech_to_text');
+      expect(result).toContain('24h 23m 0s');
+      expect(result).not.toContain('speechToText');
     });
   });
 });
