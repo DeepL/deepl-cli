@@ -21,9 +21,13 @@ export function resolveFormat(
 }
 
 /**
- * Resolve --locale across parent (`sync`) and subcommand scopes so push/pull
- * narrow the fan-out regardless of where the flag sits on the invocation
+ * Resolve --locale across parent (`sync`) and subcommand scopes so a
+ * subcommand narrows regardless of where the flag sits on the invocation
  * line. Subcommand value wins; otherwise fall back to the parent's.
+ *
+ * Without positional options, commander keeps matching the parent's flags
+ * after the subcommand name, so `deepl sync status --locale de` binds `de` to
+ * the parent `sync` command and leaves the subcommand's own store undefined.
  */
 export function resolveLocale(
   opts: { locale?: string },
@@ -31,6 +35,28 @@ export function resolveLocale(
 ): string | undefined {
   if (opts.locale !== undefined) return opts.locale;
   return command.parent?.opts()['locale'] as string | undefined;
+}
+
+/**
+ * Resolve --sync-config across parent (`sync`) and subcommand scopes. Same
+ * parent/child binding rule as {@link resolveLocale}: a subcommand that reads
+ * only its own store silently falls back to the auto-detected config.
+ */
+export function resolveSyncConfig(
+  opts: { syncConfig?: string },
+  command: Command,
+): string | undefined {
+  if (opts.syncConfig !== undefined) return opts.syncConfig;
+  return command.parent?.opts()['syncConfig'] as string | undefined;
+}
+
+/**
+ * Split a resolved --locale value into the comma-separated filter list that
+ * `loadSyncConfig` validates against `target_locales`.
+ */
+export function parseLocaleFilter(locale: string | undefined): string[] | undefined {
+  if (!locale) return undefined;
+  return locale.split(',').map((l) => l.trim());
 }
 
 /**

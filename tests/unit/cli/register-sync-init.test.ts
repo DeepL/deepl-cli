@@ -1,10 +1,10 @@
 /**
  * Unit tests for `deepl sync init`'s flag vocabulary.
  *
- * Exercises the --source-locale / --target-locales rename and the
- * --source-lang / --target-langs deprecation aliases. The new primary
- * flags work silently; the old aliases continue to work but emit a
- * stderr deprecation warning pointing at the replacement.
+ * --source-locale / --target-locales are the only accepted spellings. The
+ * --source-lang / --target-langs aliases were removed at the 2.0 cut per the
+ * documented deprecation policy, so they must now be rejected outright rather
+ * than silently accepted.
  */
 
 import * as fs from 'fs';
@@ -82,65 +82,31 @@ describe('deepl sync init flag vocabulary', () => {
     expect(stderrText()).not.toMatch(/\[deprecated\]/);
   });
 
-  it('--source-lang works but emits a stderr deprecation warning naming --source-locale', async () => {
+  it.each([
+    ['--source-lang', 'en'],
+    ['--target-langs', 'de,fr'],
+  ])('rejects the removed %s alias as an unknown option', async (flag, value) => {
     const deps = makeDeps(handleError);
-    await runSyncInit(
-      [
-        '--source-lang', 'en',
-        '--target-locales', 'de,fr',
-        '--file-format', 'json',
-        '--path', 'locales/en.json',
-      ],
-      deps,
-    );
-    expect(handleError).not.toHaveBeenCalled();
-    expect(fs.existsSync(path.join(tmpDir, '.deepl-sync.yaml'))).toBe(true);
-    const err = stderrText();
-    expect(err).toMatch(/\[deprecated\] --source-lang is renamed to --source-locale/);
-    expect(err).toMatch(/next major release/);
+    await expect(
+      runSyncInit(
+        [
+          '--source-locale', 'en',
+          '--target-locales', 'de,fr',
+          '--file-format', 'json',
+          '--path', 'locales/en.json',
+          flag, value,
+        ],
+        deps,
+      ),
+    ).rejects.toThrow(new RegExp(`unknown option '${flag}'`));
+    expect(fs.existsSync(path.join(tmpDir, '.deepl-sync.yaml'))).toBe(false);
   });
 
-  it('--target-langs works but emits a stderr deprecation warning naming --target-locales', async () => {
+  it('no longer emits a deprecation warning for the canonical flags', async () => {
     const deps = makeDeps(handleError);
     await runSyncInit(
       [
         '--source-locale', 'en',
-        '--target-langs', 'de,fr',
-        '--file-format', 'json',
-        '--path', 'locales/en.json',
-      ],
-      deps,
-    );
-    expect(handleError).not.toHaveBeenCalled();
-    expect(fs.existsSync(path.join(tmpDir, '.deepl-sync.yaml'))).toBe(true);
-    const err = stderrText();
-    expect(err).toMatch(/\[deprecated\] --target-langs is renamed to --target-locales/);
-    expect(err).toMatch(/next major release/);
-  });
-
-  it('both deprecated aliases together emit both warnings', async () => {
-    const deps = makeDeps(handleError);
-    await runSyncInit(
-      [
-        '--source-lang', 'en',
-        '--target-langs', 'de,fr',
-        '--file-format', 'json',
-        '--path', 'locales/en.json',
-      ],
-      deps,
-    );
-    expect(handleError).not.toHaveBeenCalled();
-    const err = stderrText();
-    expect(err).toMatch(/--source-lang is renamed to --source-locale/);
-    expect(err).toMatch(/--target-langs is renamed to --target-locales/);
-  });
-
-  it('new flag wins when both new and old are supplied (no warning for the flag with the new form)', async () => {
-    const deps = makeDeps(handleError);
-    await runSyncInit(
-      [
-        '--source-locale', 'en',
-        '--source-lang', 'xx',
         '--target-locales', 'de',
         '--file-format', 'json',
         '--path', 'locales/en.json',
@@ -148,10 +114,8 @@ describe('deepl sync init flag vocabulary', () => {
       deps,
     );
     expect(handleError).not.toHaveBeenCalled();
-    expect(fs.existsSync(path.join(tmpDir, '.deepl-sync.yaml'))).toBe(true);
     const yaml = fs.readFileSync(path.join(tmpDir, '.deepl-sync.yaml'), 'utf-8');
     expect(yaml).toMatch(/source_locale:\s*en/);
-    expect(yaml).not.toMatch(/source_locale:\s*xx/);
-    expect(stderrText()).not.toMatch(/--source-lang is renamed/);
+    expect(stderrText()).not.toMatch(/\[deprecated\]/);
   });
 });

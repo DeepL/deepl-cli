@@ -344,12 +344,22 @@ export function generateSyncConfig(opts: {
   return YAML.stringify(config);
 }
 
-export async function writeSyncConfig(rootDir: string, content: string): Promise<string> {
-  const configPath = path.join(rootDir, SYNC_CONFIG_FILENAME);
+/**
+ * Resolve the config file `deepl sync init` should create. `--sync-config`
+ * names the file itself (any basename, matching what `loadSyncConfig` accepts),
+ * so its directory becomes the project root that detection and the generated
+ * globs are relative to.
+ */
+export function resolveInitConfigPath(cwd: string, configPath?: string): string {
+  return configPath ? path.resolve(cwd, configPath) : path.join(cwd, SYNC_CONFIG_FILENAME);
+}
+
+export async function writeSyncConfig(configPath: string, content: string): Promise<string> {
+  await fs.promises.mkdir(path.dirname(configPath), { recursive: true });
   await atomicWriteFile(configPath, content, 'utf-8');
   return configPath;
 }
 
-export function configExists(rootDir: string): boolean {
-  return fs.existsSync(path.join(rootDir, SYNC_CONFIG_FILENAME));
+export function configExists(configPath: string): boolean {
+  return fs.existsSync(configPath);
 }

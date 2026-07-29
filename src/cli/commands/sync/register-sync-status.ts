@@ -1,7 +1,13 @@
 import { Command, Option } from 'commander';
 import { Logger } from '../../../utils/logger.js';
 import type { ServiceDeps } from '../service-factory.js';
-import { emitJsonErrorAndExit, resolveFormat } from './sync-options.js';
+import {
+  emitJsonErrorAndExit,
+  parseLocaleFilter,
+  resolveFormat,
+  resolveLocale,
+  resolveSyncConfig,
+} from './sync-options.js';
 
 interface StatusOptions {
   locale?: string;
@@ -37,20 +43,17 @@ async function handleSyncStatus(
     const { createDefaultRegistry } = await import('../../../formats/index.js');
     const { computeSyncStatus } = await import('../../../sync/sync-status.js');
 
-    const config = await loadSyncConfig(process.cwd(), { configPath: options.syncConfig });
+    const localeFilter = parseLocaleFilter(resolveLocale(options, command));
+    const config = await loadSyncConfig(process.cwd(), {
+      configPath: resolveSyncConfig(options, command),
+      localeFilter,
+    });
     const registry = await createDefaultRegistry();
     const status = await computeSyncStatus(config, registry);
 
-    let locales = status.locales;
-    if (options.locale) {
-      const filterLocales = options.locale.split(',').map((l) => l.trim());
-      locales = locales.filter((l) => filterLocales.includes(l.locale));
-      if (locales.length === 0) {
-        Logger.warn(
-          `No matching locales for filter. Available: ${config.target_locales.join(', ')}`,
-        );
-      }
-    }
+    const locales = localeFilter
+      ? status.locales.filter((l) => localeFilter.includes(l.locale))
+      : status.locales;
 
     if (options.format === 'json') {
       process.stdout.write(JSON.stringify({ ...status, locales }, null, 2) + '\n');
