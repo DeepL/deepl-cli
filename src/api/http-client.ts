@@ -110,17 +110,17 @@ export interface RequestPolicy {
  * Exported for unit testing; the caller pulls the randomized value
  * and passes it straight to `sleep()`.
  */
+export function computeBackoffWithJitter(attempt: number): number {
+  const cap = Math.min(RETRY_INITIAL_DELAY_MS * 2 ** attempt, RETRY_MAX_DELAY_MS);
+  return Math.floor(Math.random() * cap);
+}
+
 /** Prefixes a transport failure without stuttering when the underlying
  *  message already carries the label. */
 function prefixNetwork(detail: string, label: string): string {
   return /^network (error|timeout)\b/i.test(detail)
     ? detail
     : `${label}: ${detail}`;
-}
-
-export function computeBackoffWithJitter(attempt: number): number {
-  const cap = Math.min(RETRY_INITIAL_DELAY_MS * 2 ** attempt, RETRY_MAX_DELAY_MS);
-  return Math.floor(Math.random() * cap);
 }
 
 export class HttpClient {

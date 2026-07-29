@@ -99,10 +99,10 @@ export class VoiceClient extends HttpClient {
       this.dispatchMessage(message, callbacks);
     });
 
-    // Transport errors are deliberately not routed into `callbacks.onError`:
-    // that made a dropped connection indistinguishable from a server error
-    // message and gave every socket a second 'error' listener. The caller
-    // owns the socket lifecycle and handles 'error'/'close' itself.
+    // Transport errors stay on the socket: `callbacks.onError` carries
+    // server error messages only, so a dropped connection is
+    // distinguishable from a protocol error, and the socket keeps a single
+    // 'error' listener owned by whoever drives its lifecycle.
     return ws;
   }
 
