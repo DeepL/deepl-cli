@@ -40,6 +40,7 @@ import { registerDetect } from './commands/register-detect.js';
 import { registerDescribe } from './commands/register-describe.js';
 import { validateApiUrl } from '../utils/validate-url.js';
 import { resolveEndpoint } from '../utils/resolve-endpoint.js';
+import { installSignalExit } from '../utils/signal-exit.js';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -351,6 +352,10 @@ program.on('command:*', (operands: string[]) => {
   Logger.error(`Run ${chalk.bold('deepl --help')} to see available commands.`);
   process.exit(ExitCode.InvalidInput);
 });
+
+// Own process termination on signals, so no component's cleanup handler has to
+// call process.exit() and thereby preempt the others.
+installSignalExit();
 
 // Show help and exit 0 if no arguments provided
 if (!process.argv.slice(2).length) {

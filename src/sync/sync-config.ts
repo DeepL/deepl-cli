@@ -388,6 +388,15 @@ export function validateSyncConfig(raw: unknown): SyncConfig {
   if (obj['sync'] !== undefined) {
     assertOnlyKnownKeys(obj['sync'] as Record<string, unknown>, KNOWN_SYNC_BEHAVIOR_KEYS, 'sync');
     const syncBlock = obj['sync'] as Record<string, unknown>;
+    if (syncBlock['concurrency'] !== undefined) {
+      const c = syncBlock['concurrency'];
+      if (!Number.isInteger(c) || (c as number) <= 0) {
+        throw new ConfigError(
+          `sync.concurrency must be a positive integer, got: ${String(c)}`,
+          'Set sync.concurrency to a positive integer in .deepl-sync.yaml (default 5).',
+        );
+      }
+    }
     if (syncBlock['max_scan_files'] !== undefined) {
       const m = syncBlock['max_scan_files'];
       if (!Number.isInteger(m) || (m as number) <= 0) {

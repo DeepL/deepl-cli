@@ -20,8 +20,11 @@ export async function mapWithConcurrency<T, R>(
       }
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
-  );
+  // Normalize before sizing the worker pool: Math.min(NaN, n) is NaN and
+  // Array.from({length: NaN}) is empty, so an invalid concurrency previously
+  // spawned zero workers and returned [] without doing or reporting any work.
+  const requested = Number.isFinite(concurrency) ? Math.floor(concurrency) : 1;
+  const workerCount = Math.min(Math.max(1, requested), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
   return results;
 }
