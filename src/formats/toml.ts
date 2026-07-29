@@ -139,22 +139,68 @@ export class TomlFormatParser implements FormatParser {
     // Emit any trailing pending block (typically blank lines at EOF).
     pending.flushToOutput(out);
 
-    // Append new keys that weren't matched in source. Insert a blank separator
-    // if the last line is not already blank.
+    // Insert new keys into their own section. Appending `section.key` at end
+    // of file would nest it under whichever [section] header is still in
+    // scope there, producing `section.section.key` — and because the intended
+    // key then remained missing, it was re-appended on every later run.
     const newEntries = entries.filter((e) => !usedKeys.has(e.key));
     if (newEntries.length > 0) {
-      const hadTrailingSentinel = out.length > 0 && out[out.length - 1] === '';
-      if (hadTrailingSentinel) out.pop();
-      if (out.length > 0 && out[out.length - 1] !== '') out.push('');
-      for (const entry of newEntries) {
-        out.push(`${entry.key} = ${encodeTomlString(entry.translation, true)}`);
-      }
-      if (hadTrailingSentinel) out.push('');
+      this.insertNewEntries(out, newEntries);
     }
 
     let result = out.join('\n');
     if (trailingNewline && !result.endsWith('\n')) result += '\n';
     return result;
+  }
+
+  /**
+   * Places each new entry inside the section its key belongs to, appending a
+   * new `[section]` header only when that section is absent. Mutates `out`.
+   */
+  private insertNewEntries(out: string[], newEntries: TranslatedEntry[]): void {
+    // Map section name -> index just past the end of its block in `out`.
+    const sectionEnd = new Map<string, number>();
+    let seen = '';
+    sectionEnd.set('', 0);
+    for (let i = 0; i < out.length; i++) {
+      const sectionMatch = out[i]!.trim().match(SECTION_RE);
+      if (sectionMatch) {
+        seen = sectionMatch[1]!.trim();
+      }
+      sectionEnd.set(seen, i + 1);
+    }
+
+    // Group by section so each section is touched once.
+    const bySection = new Map<string, { leaf: string; entry: TranslatedEntry }[]>();
+    for (const entry of newEntries) {
+      const lastDot = entry.key.lastIndexOf('.');
+      const section = lastDot === -1 ? '' : entry.key.slice(0, lastDot);
+      const leaf = lastDot === -1 ? entry.key : entry.key.slice(lastDot + 1);
+      const group = bySection.get(section);
+      if (group) group.push({ leaf, entry });
+      else bySection.set(section, [{ leaf, entry }]);
+    }
+
+    // Insert from the highest index downward so earlier indices stay valid.
+    const existing = [...bySection.entries()]
+      .filter(([section]) => sectionEnd.has(section))
+      .sort((a, b) => sectionEnd.get(b[0])! - sectionEnd.get(a[0])!);
+
+    for (const [section, group] of existing) {
+      const at = sectionEnd.get(section)!;
+      out.splice(at, 0, ...group.map(({ leaf, entry }) =>
+        `${leaf} = ${encodeTomlString(entry.translation, true)}`));
+    }
+
+    // Sections not present in the file get appended with a header.
+    for (const [section, group] of bySection) {
+      if (sectionEnd.has(section)) continue;
+      if (out.length > 0 && out[out.length - 1] !== '') out.push('');
+      out.push(`[${section}]`);
+      for (const { leaf, entry } of group) {
+        out.push(`${leaf} = ${encodeTomlString(entry.translation, true)}`);
+      }
+    }
   }
 
   private walk(obj: Record<string, unknown>, prefix: string, entries: ExtractedEntry[]): void {
