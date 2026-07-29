@@ -256,4 +256,85 @@ describe('DocumentClient', () => {
       ).rejects.toThrow();
     });
   });
+
+  describe('transfer policy', () => {
+    // The result endpoint is effectively single-use: a replay can consume the
+    // download of an already-billed translation and lose it permanently.
+    const unsentError = {
+      isAxiosError: true,
+      code: 'ECONNREFUSED',
+      message: 'connect ECONNREFUSED 127.0.0.1:443',
+    };
+
+    beforeEach(() => {
+      jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+    });
+
+    it('should never retry the download endpoint, even on a refused connection', async () => {
+      mockAxiosInstance.request.mockRejectedValue(unsentError);
+
+      await expect(
+        client.downloadDocument({ documentId: 'doc-1', documentKey: 'key-1' })
+      ).rejects.toThrow();
+
+      expect(mockAxiosInstance.request).toHaveBeenCalledTimes(1);
+    });
+
+    it('should still retry an upload whose connection was refused', async () => {
+      mockAxiosInstance.request.mockRejectedValue(unsentError);
+
+      await expect(
+        client.uploadDocument(Buffer.from('content'), {
+          targetLang: 'de',
+          filename: 'test.txt',
+        })
+      ).rejects.toThrow();
+
+      expect(mockAxiosInstance.request).toHaveBeenCalledTimes(4);
+    });
+
+    it('should give document transfers a larger timeout than the default request timeout', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: Buffer.from('content'),
+        status: 200,
+        headers: {},
+      });
+
+      await client.downloadDocument({ documentId: 'doc-1', documentKey: 'key-1' });
+
+      expect(mockAxiosInstance.request).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: 300000 }),
+      );
+    });
+
+    it('should honour an explicitly configured timeout larger than the transfer default', async () => {
+      const slowClient = new DocumentClient('test-api-key', { timeout: 600000 });
+      mockAxiosInstance.request.mockResolvedValue({
+        data: Buffer.from('content'),
+        status: 200,
+        headers: {},
+      });
+
+      await slowClient.downloadDocument({ documentId: 'doc-1', documentKey: 'key-1' });
+
+      expect(mockAxiosInstance.request).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: 600000 }),
+      );
+      slowClient.destroy();
+    });
+
+    it('should leave status polling on the default request timeout', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: { document_id: 'doc-1', status: 'done' },
+        status: 200,
+        headers: {},
+      });
+
+      await client.getDocumentStatus({ documentId: 'doc-1', documentKey: 'key-1' });
+
+      expect(mockAxiosInstance.request).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: 30000 }),
+      );
+    });
+  });
 });

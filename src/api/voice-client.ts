@@ -99,15 +99,10 @@ export class VoiceClient extends HttpClient {
       this.dispatchMessage(message, callbacks);
     });
 
-    ws.on('error', (error: Error) => {
-      callbacks.onError?.({
-        request_type: 'unknown',
-        error_code: 0,
-        reason_code: 0,
-        error_message: error.message,
-      });
-    });
-
+    // Transport errors stay on the socket: `callbacks.onError` carries
+    // server error messages only, so a dropped connection is
+    // distinguishable from a protocol error, and the socket keeps a single
+    // 'error' listener owned by whoever drives its lifecycle.
     return ws;
   }
 

@@ -252,25 +252,31 @@ describe('VoiceStreamSession', () => {
   });
 
   describe('error handling', () => {
-    it('should reject with VoiceError on WebSocket error', async () => {
+    // A socket error is always followed by a close event; the transport
+    // failure is reported from there so reconnect stays reachable.
+    it('should reject with VoiceError on WebSocket error when reconnect is disabled', async () => {
       const EventEmitter = require('events');
-      const mockWs = new EventEmitter();
-      mockWs.readyState = 1;
-      mockWs.send = jest.fn();
-      mockWs.close = jest.fn();
 
       mockClient.createWebSocket.mockImplementation(() => {
+        const mockWs = new EventEmitter();
+        mockWs.readyState = 1;
+        mockWs.send = jest.fn();
+        mockWs.close = jest.fn();
+
         process.nextTick(() => {
           mockWs.emit('error', new Error('Connection refused'));
+          mockWs.readyState = 3;
+          mockWs.emit('close');
         });
         return mockWs;
       });
 
-      const streamSession = new VoiceStreamSession(mockClient, session, options);
-
-      await expect(streamSession.run(emptyChunks())).rejects.toThrow(VoiceError);
+      const noReconnect = { ...options, reconnect: false };
       await expect(
-        new VoiceStreamSession(mockClient, session, options).run(emptyChunks()),
+        new VoiceStreamSession(mockClient, session, noReconnect).run(emptyChunks()),
+      ).rejects.toThrow(VoiceError);
+      await expect(
+        new VoiceStreamSession(mockClient, session, noReconnect).run(emptyChunks()),
       ).rejects.toThrow(/WebSocket connection failed: Connection refused/);
     });
 
@@ -319,6 +325,117 @@ describe('VoiceStreamSession', () => {
   });
 
   describe('reconnection', () => {
+    it('should reconnect after a transport error closes the socket', async () => {
+      const EventEmitter = require('events');
+      const onReconnecting = jest.fn();
+
+      mockClient.reconnectSession.mockResolvedValue({
+        streaming_url: 'wss://test-new.deepl.com/stream',
+        token: 'token-2',
+      });
+
+      let wsCallCount = 0;
+      mockClient.createWebSocket.mockImplementation((_url, _token, callbacks) => {
+        wsCallCount++;
+        const mockWs = new EventEmitter();
+        mockWs.readyState = 1;
+        mockWs.send = jest.fn();
+        mockWs.close = jest.fn();
+
+        if (wsCallCount === 1) {
+          process.nextTick(() => {
+            mockWs.emit('open');
+            process.nextTick(() => {
+              mockWs.emit('error', new Error('read ECONNRESET'));
+              mockWs.readyState = 3;
+              mockWs.emit('close');
+            });
+          });
+        } else {
+          process.nextTick(() => {
+            mockWs.emit('open');
+            process.nextTick(() => callbacks.onEndOfStream?.());
+          });
+        }
+        return mockWs;
+      });
+
+      const streamSession = new VoiceStreamSession(
+        mockClient, session, options, { onReconnecting },
+      );
+      const result = await streamSession.run(emptyChunks());
+
+      expect(result.sessionId).toBe('session-1');
+      expect(mockClient.reconnectSession).toHaveBeenCalledTimes(1);
+      expect(mockClient.reconnectSession).toHaveBeenCalledWith('token-1');
+      expect(onReconnecting).toHaveBeenCalledWith(1);
+    });
+
+    it('should reject with the transport error once reconnect attempts are exhausted', async () => {
+      const EventEmitter = require('events');
+
+      mockClient.reconnectSession.mockResolvedValue({
+        streaming_url: 'wss://test-new.deepl.com/stream',
+        token: 'token-2',
+      });
+
+      mockClient.createWebSocket.mockImplementation(() => {
+        const mockWs = new EventEmitter();
+        mockWs.readyState = 1;
+        mockWs.send = jest.fn();
+        mockWs.close = jest.fn();
+
+        process.nextTick(() => {
+          mockWs.emit('open');
+          process.nextTick(() => {
+            mockWs.emit('error', new Error('read ECONNRESET'));
+            mockWs.readyState = 3;
+            mockWs.emit('close');
+          });
+        });
+        return mockWs;
+      });
+
+      await expect(
+        new VoiceStreamSession(mockClient, session, {
+          ...options,
+          maxReconnectAttempts: 1,
+        }).run(emptyChunks()),
+      ).rejects.toThrow(/WebSocket connection failed: read ECONNRESET/);
+      expect(mockClient.reconnectSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('should close the audio input when reconnect fails', async () => {
+      const EventEmitter = require('events');
+      const input = trackedChunks();
+
+      mockClient.reconnectSession.mockRejectedValue(
+        new VoiceError('Voice API access denied.'),
+      );
+
+      mockClient.createWebSocket.mockImplementation(() => {
+        const mockWs = new EventEmitter();
+        // Never open for writing, so the chunk pump parks waiting for a
+        // usable socket — the state that used to leak the generator.
+        mockWs.readyState = 3;
+        mockWs.send = jest.fn();
+        mockWs.close = jest.fn();
+
+        process.nextTick(() => {
+          mockWs.emit('open');
+          process.nextTick(() => {
+            process.nextTick(() => mockWs.emit('close'));
+          });
+        });
+        return mockWs;
+      });
+
+      const streamSession = new VoiceStreamSession(mockClient, session, options);
+      await expect(streamSession.run(input.chunks)).rejects.toThrow(VoiceError);
+
+      expect(input.closed()).toBe(true);
+    });
+
     it('should reconnect on unexpected WebSocket close', async () => {
       const EventEmitter = require('events');
       const onReconnecting = jest.fn();
@@ -658,4 +775,18 @@ async function* singleChunk(data: Buffer): AsyncGenerator<Buffer> {
 // eslint-disable-next-line require-yield
 async function* throwingChunks(): AsyncGenerator<Buffer> {
   throw new Error('chunk error');
+}
+
+/** A chunk source that reports whether the session closed it. */
+function trackedChunks(): { chunks: AsyncGenerator<Buffer>; closed: () => boolean } {
+  let closed = false;
+  async function* generate(): AsyncGenerator<Buffer> {
+    try {
+      yield Buffer.from('audio-1');
+      yield Buffer.from('audio-2');
+    } finally {
+      closed = true;
+    }
+  }
+  return { chunks: generate(), closed: () => closed };
 }
