@@ -669,6 +669,25 @@ describe('sync-init', () => {
       expect(configPath).toBe(path.join(testDir, '.deepl-sync.yaml'));
       expect(fs.readFileSync(configPath, 'utf-8')).toBe(content);
     });
+
+    it('should leave no temp sibling behind and keep the previous config on write failure', async () => {
+      const configPath = path.join(testDir, '.deepl-sync.yaml');
+      fs.writeFileSync(configPath, 'version: 1\nsource_locale: en\n', 'utf-8');
+
+      const renameSpy = jest
+        .spyOn(fs.promises, 'rename')
+        .mockRejectedValue(new Error('rename failed'));
+      try {
+        await expect(writeSyncConfig(testDir, 'version: 1\nsource_locale: de\n')).rejects.toThrow(
+          'rename failed',
+        );
+      } finally {
+        renameSpy.mockRestore();
+      }
+
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe('version: 1\nsource_locale: en\n');
+      expect(fs.readdirSync(testDir).filter(name => name.includes('.tmp.'))).toEqual([]);
+    });
   });
 
   describe('non-interactive generation', () => {

@@ -29,9 +29,17 @@ export class HooksCommand {
       throw new ValidationError('Not in a git repository. Run this command from within a git repository.');
     }
 
-    this.gitHooksService.install(hookType);
+    const result = this.gitHooksService.install(hookType);
 
-    return chalk.green(`✓ Installed ${hookType} hook`);
+    const lines = [chalk.green(`✓ Installed ${hookType} hook`)];
+    if (result?.hookPath) {
+      lines.push(chalk.gray(`  Path: ${result.hookPath}`));
+    }
+    if (result?.backupPath) {
+      lines.push(chalk.gray(`  Previous hook backed up to: ${result.backupPath}`));
+    }
+
+    return lines.join('\n');
   }
 
   /**

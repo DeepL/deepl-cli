@@ -4,6 +4,7 @@ import * as YAML from 'yaml';
 import fg from 'fast-glob';
 import { SYNC_CONFIG_FILENAME } from './sync-config.js';
 import { safeReadFileSync } from '../utils/safe-read-file.js';
+import { atomicWriteFile } from '../utils/atomic-write.js';
 import { createDefaultRegistry, type FormatRegistry } from '../formats/index.js';
 
 export interface DetectedProject {
@@ -345,7 +346,7 @@ export function generateSyncConfig(opts: {
 
 export async function writeSyncConfig(rootDir: string, content: string): Promise<string> {
   const configPath = path.join(rootDir, SYNC_CONFIG_FILENAME);
-  await fs.promises.writeFile(configPath, content, 'utf-8');
+  await atomicWriteFile(configPath, content, 'utf-8');
   return configPath;
 }
 

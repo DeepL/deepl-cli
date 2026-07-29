@@ -73,17 +73,36 @@ describe('HooksCommand', () => {
 
   describe('install()', () => {
     it('should install pre-commit hook', () => {
-      mockGitHooksService.install.mockReturnValue(undefined);
+      mockGitHooksService.install.mockReturnValue({
+        hookPath: '/path/to/.git/hooks/pre-commit',
+        backupPath: null,
+      });
       const command = new HooksCommand('/path/to/.git');
 
       const result = command.install('pre-commit');
 
       expect(mockGitHooksService.install).toHaveBeenCalledWith('pre-commit');
       expect(result).toContain('Installed pre-commit hook');
+      expect(result).toContain('/path/to/.git/hooks/pre-commit');
+    });
+
+    it('should report the backup path when an existing hook was backed up', () => {
+      mockGitHooksService.install.mockReturnValue({
+        hookPath: '/path/to/.git/hooks/pre-commit',
+        backupPath: '/path/to/.git/hooks/pre-commit.backup',
+      });
+      const command = new HooksCommand('/path/to/.git');
+
+      const result = command.install('pre-commit');
+
+      expect(result).toContain('backed up to: /path/to/.git/hooks/pre-commit.backup');
     });
 
     it('should install pre-push hook', () => {
-      mockGitHooksService.install.mockReturnValue(undefined);
+      mockGitHooksService.install.mockReturnValue({
+        hookPath: '/path/to/.git/hooks/pre-push',
+        backupPath: null,
+      });
       const command = new HooksCommand('/path/to/.git');
 
       const result = command.install('pre-push');

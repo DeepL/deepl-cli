@@ -13,6 +13,7 @@ import {
 import { Logger } from '../utils/logger.js';
 import { errorMessage } from '../utils/error-message.js';
 import { sanitizeForTerminal } from '../utils/control-chars.js';
+import { sanitizeUrl } from '../utils/sanitize-url.js';
 import { VERSION } from '../version.js';
 
 export const USER_AGENT = `deepl-cli/${VERSION} node/${process.versions.node}`;
@@ -35,18 +36,7 @@ export interface DeepLClientOptions {
   proxy?: ProxyConfig;
 }
 
-export function sanitizeUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (parsed.username || parsed.password) {
-      parsed.username = '***';
-      parsed.password = '***';
-    }
-    return parsed.toString();
-  } catch {
-    return '[invalid URL]';
-  }
-}
+export { sanitizeUrl };
 
 export const FREE_API_URL = 'https://api-free.deepl.com';
 export const PRO_API_URL = 'https://api.deepl.com';

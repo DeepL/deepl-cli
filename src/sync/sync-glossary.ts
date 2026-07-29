@@ -1,6 +1,7 @@
 import type { GlossaryService } from '../services/glossary.js';
 import type { Language } from '../types/index.js';
 import { Logger } from '../utils/logger.js';
+import { errorMessage } from '../utils/error-message.js';
 
 export interface SyncGlossaryManagerOptions {
   sourceLocale: string;
@@ -10,13 +11,36 @@ export interface SyncGlossaryManagerOptions {
 
 const MAX_TERM_LENGTH = 50;
 const MIN_KEY_COUNT = 3;
+const TERM_FORBIDDEN_CHARS = /[\t\r\n]/;
+
+/**
+ * A term the glossary TSV format cannot carry: tabs and newlines are the
+ * column and row separators, so uploading one either splits the term or
+ * fabricates a different entry pair.
+ */
+function isUnusableTerm(text: string): boolean {
+  return text.trim() === '' || TERM_FORBIDDEN_CHARS.test(text);
+}
+
+/**
+ * Normalize the way the glossary TSV round trip does — the API returns entries
+ * parsed back out of TSV, which trims each field. Comparing raw local terms
+ * against that could never be equal, so every sync re-uploaded the dictionary.
+ */
+function normalizeForComparison(entries: Record<string, string>): Map<string, string> {
+  const normalized = new Map<string, string>();
+  for (const [source, target] of Object.entries(entries)) {
+    normalized.set(source.trim(), target.trim());
+  }
+  return normalized;
+}
 
 function entriesEqual(a: Record<string, string>, b: Record<string, string>): boolean {
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const key of aKeys) {
-    if (a[key] !== b[key]) return false;
+  const normalizedA = normalizeForComparison(a);
+  const normalizedB = normalizeForComparison(b);
+  if (normalizedA.size !== normalizedB.size) return false;
+  for (const [key, value] of normalizedA) {
+    if (normalizedB.get(key) !== value) return false;
   }
   return true;
 }
@@ -74,9 +98,17 @@ export class SyncGlossaryManager {
           }
         }
 
-        if (isConsistent && consistentTranslation !== undefined) {
-          terms[sourceText] = consistentTranslation;
+        if (!isConsistent || consistentTranslation === undefined) continue;
+
+        if (isUnusableTerm(sourceText) || isUnusableTerm(consistentTranslation)) {
+          const sampleKey = keys.values().next().value;
+          Logger.warn(
+            `Skipping glossary term from key "${sampleKey}" (${locale}): source or translation is empty or contains a tab, carriage return or newline.`,
+          );
+          continue;
         }
+
+        terms[sourceText] = consistentTranslation;
       }
 
       if (Object.keys(terms).length > 0) {
@@ -105,40 +137,48 @@ export class SyncGlossaryManager {
       }
 
       const name = this.getGlossaryName(targetLocale);
-      const existing = await this.options.glossaryService.getGlossaryByName(name);
       const sourceLang = this.options.sourceLocale as Language;
       const targetLang = targetLocale as Language;
+      const localePair = `${this.options.sourceLocale}-${targetLocale}`;
 
-      if (existing) {
-        const currentEntries = await this.options.glossaryService.getGlossaryEntries(
-          existing.glossary_id,
-          sourceLang,
-          targetLang,
-        );
+      // One rejected dictionary must not abandon the remaining locales.
+      try {
+        const existing = await this.options.glossaryService.getGlossaryByName(name);
 
-        const localePair = `${this.options.sourceLocale}-${targetLocale}`;
-        glossaryIds[localePair] = existing.glossary_id;
+        if (existing) {
+          const currentEntries = await this.options.glossaryService.getGlossaryEntries(
+            existing.glossary_id,
+            sourceLang,
+            targetLang,
+          );
 
-        if (!entriesEqual(currentEntries, localeTerms)) {
-          await this.options.glossaryService.updateGlossary(existing.glossary_id, {
-            dictionaries: [{
-              sourceLang,
-              targetLang,
-              entries: localeTerms,
-            }],
-          });
-          Logger.info(`Updated glossary "${name}" (${existing.glossary_id})`);
+          glossaryIds[localePair] = existing.glossary_id;
+
+          if (!entriesEqual(currentEntries, localeTerms)) {
+            await this.options.glossaryService.updateGlossary(existing.glossary_id, {
+              dictionaries: [{
+                sourceLang,
+                targetLang,
+                entries: localeTerms,
+              }],
+            });
+            Logger.info(`Updated glossary "${name}" (${existing.glossary_id})`);
+          }
+        } else {
+          const created = await this.options.glossaryService.createGlossary(
+            name,
+            sourceLang,
+            [targetLang],
+            localeTerms,
+          );
+          glossaryIds[localePair] = created.glossary_id;
+          Logger.info(`Created glossary "${name}" (${created.glossary_id})`);
         }
-      } else {
-        const created = await this.options.glossaryService.createGlossary(
-          name,
-          sourceLang,
-          [targetLang],
-          localeTerms,
+      } catch (error) {
+        delete glossaryIds[localePair];
+        Logger.warn(
+          `Glossary sync failed for ${localePair} (glossary "${name}", ${Object.keys(localeTerms).length} terms): ${errorMessage(error)}`,
         );
-        const localePair = `${this.options.sourceLocale}-${targetLocale}`;
-        glossaryIds[localePair] = created.glossary_id;
-        Logger.info(`Created glossary "${name}" (${created.glossary_id})`);
       }
     }
 
