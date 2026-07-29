@@ -39,23 +39,24 @@ export class CacheCommand {
   }
 
   /**
-   * Enable cache with optional max size
+   * Enable cache with optional max size.
+   * Persisted to config: the in-memory flag alone would die with this process.
    */
   async enable(maxSize?: number): Promise<void> {
-    // Set max size if provided
     if (maxSize !== undefined) {
       this.config.set('cache.maxSize', maxSize);
       this.cache.setMaxSize(maxSize);
     }
 
-    // Enable cache
+    this.config.set('cache.enabled', true);
     this.cache.enable();
   }
 
   /**
-   * Disable cache
+   * Disable cache. Persisted to config, as with enable().
    */
   async disable(): Promise<void> {
+    this.config.set('cache.enabled', false);
     this.cache.disable();
   }
 

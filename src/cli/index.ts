@@ -11,7 +11,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve, isAbsolute, extname } from 'path';
 import { ConfigService } from '../storage/config.js';
-import { createCacheServiceGetter } from './cache-loader.js';
+import { createCacheServiceGetter, resolveCacheOptions } from './cache-loader.js';
 import { resolvePaths } from '../utils/paths.js';
 import type { DeepLClient } from '../api/deepl-client.js';
 import { Logger } from '../utils/logger.js';
@@ -59,16 +59,9 @@ const paths = resolvePaths();
 // Create config service - can be overridden by --config flag
 let configService = new ConfigService(paths.configFile);
 
-const getCacheService = createCacheServiceGetter(() => {
-  const configTtl = configService.getValue<number>('cache.ttl');
-  const configMaxSize = configService.getValue<number>('cache.maxSize');
-  return {
-    dbPath: paths.cacheFile,
-    // Config TTL is in seconds, CacheService expects milliseconds
-    ttl: configTtl !== undefined ? configTtl * 1000 : undefined,
-    maxSize: configMaxSize,
-  };
-});
+const getCacheService = createCacheServiceGetter(() =>
+  resolveCacheOptions(configService, paths.cacheFile),
+);
 
 /**
  * Handle error and exit with appropriate exit code
