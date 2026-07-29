@@ -84,6 +84,51 @@ describe('translation-validator', () => {
       });
     });
 
+    describe('ICU-aware placeholders', () => {
+      it('should not report plural branch bodies as placeholders', () => {
+        const source = '{count, plural, one {# item} other {# items}}';
+        const translation = '{count, plural, one {Artikel} other {Artikel}}';
+        const result = validateTranslation('key', source, translation);
+        const phIssues = result.issues.filter((i) => i.check === 'placeholders');
+        expect(phIssues).toHaveLength(0);
+      });
+
+      it('should not report select branch bodies as placeholders', () => {
+        const source = '{gender, select, male {He} female {She} other {They}}';
+        const translation = '{gender, select, male {Er} female {Sie} other {Sie}}';
+        const result = validateTranslation('key', source, translation);
+        const phIssues = result.issues.filter((i) => i.check === 'placeholders');
+        expect(phIssues).toHaveLength(0);
+      });
+
+      it('should still error when a placeholder inside a branch is dropped', () => {
+        const source = '{count, plural, one {{name} has # item} other {{name} has # items}}';
+        const translation = '{count, plural, one {hat # Artikel} other {hat # Artikel}}';
+        const result = validateTranslation('key', source, translation);
+        const issue = result.issues.find((i) => i.check === 'placeholders' && i.severity === 'error');
+        expect(issue).toBeDefined();
+        expect(issue!.message).toContain('{name}');
+      });
+
+      it('should pass when placeholders inside branches are preserved', () => {
+        const source = '{count, plural, one {{name} has # item} other {{name} has # items}}';
+        const translation = '{count, plural, one {{name} hat # Artikel} other {{name} hat # Artikel}}';
+        const result = validateTranslation('key', source, translation);
+        const phIssues = result.issues.filter((i) => i.check === 'placeholders');
+        expect(phIssues).toHaveLength(0);
+      });
+
+      it('should warn when a branch gains an extra placeholder', () => {
+        const source = '{count, plural, one {# item} other {# items}}';
+        const translation = '{count, plural, one {{extra} Artikel} other {Artikel}}';
+        const result = validateTranslation('key', source, translation);
+        const issue = result.issues.find((i) => i.check === 'placeholders');
+        expect(issue).toBeDefined();
+        expect(issue!.severity).toBe('warn');
+        expect(issue!.message).toContain('{extra}');
+      });
+    });
+
     describe('ICU brackets', () => {
       it('should pass when ICU brackets are balanced', () => {
         const source = '{count, plural, one {# item} other {# items}}';
