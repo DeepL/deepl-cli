@@ -441,6 +441,12 @@ export class HttpClient {
     if (headerValue === undefined || headerValue === null) {
       return undefined;
     }
+    // Number('') and Number('   ') are 0, which passes the finite check below
+    // and returns a 0 ms delay — collapsing 429 backoff into a tight retry
+    // loop against an endpoint that is already rate-limiting us.
+    if (headerValue.trim() === '') {
+      return undefined;
+    }
 
     const seconds = Number(headerValue);
     if (!isNaN(seconds) && isFinite(seconds)) {
