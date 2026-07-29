@@ -78,6 +78,10 @@ describe('CLI sync option routing E2E', () => {
         DEEPL_API_KEY: 'mock-api-key-for-testing:fx',
         NO_COLOR: '1',
         CI: undefined,
+        // Ambient NODE_OPTIONS can make node print warnings to stderr, which
+        // the JSON-envelope assertions parse.
+        NODE_OPTIONS: undefined,
+        NODE_NO_WARNINGS: '1',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 15000,
