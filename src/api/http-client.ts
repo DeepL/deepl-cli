@@ -16,6 +16,9 @@ import { errorMessage } from '../utils/error-message.js';
 import { sanitizeForTerminal } from '../utils/control-chars.js';
 import { sanitizeUrl } from '../utils/sanitize-url.js';
 import { VERSION } from '../version.js';
+import { FREE_API_URL, PRO_API_URL } from './endpoints.js';
+
+export { FREE_API_URL, PRO_API_URL };
 
 export const USER_AGENT = `deepl-cli/${VERSION} node/${process.versions.node}`;
 
@@ -42,8 +45,6 @@ export interface DeepLClientOptions {
 
 export { sanitizeUrl };
 
-export const FREE_API_URL = 'https://api-free.deepl.com';
-export const PRO_API_URL = 'https://api.deepl.com';
 const DEFAULT_TIMEOUT = 30000;
 const DEFAULT_MAX_RETRIES = 3;
 const MAX_SOCKETS = 10;
