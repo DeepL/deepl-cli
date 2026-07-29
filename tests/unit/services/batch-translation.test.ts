@@ -707,6 +707,36 @@ describe('BatchTranslationService', () => {
       expect(result.failed[0]!.error).toContain('mismatch');
     });
 
+    it('should read files per batch instead of loading the whole set up-front', async () => {
+      const files: string[] = [];
+      for (let i = 0; i < 52; i++) {
+        const f = path.join(testDir, `stream${i}.txt`);
+        fs.writeFileSync(f, `Text ${i}`);
+        files.push(f);
+      }
+      const lastFile = files[51]!;
+
+      mockTranslationService.translateBatch.mockImplementation(async (texts) => {
+        // Removing a later file while the first batch translates proves it
+        // has not been read yet when this call happens.
+        if (fs.existsSync(lastFile)) {
+          fs.rmSync(lastFile);
+        }
+        return texts.map((t) => ({ text: `translated: ${t}` }));
+      });
+
+      const result = await batchServiceWithTranslation.translateFiles(
+        files,
+        { targetLang: 'es' },
+        { outputDir: testDir }
+      );
+
+      expect(result.successful).toHaveLength(51);
+      expect(result.failed).toHaveLength(1);
+      expect(result.failed[0]!.file).toBe(lastFile);
+      expect(mockTranslationService.translateBatch).toHaveBeenCalledTimes(2);
+    });
+
     it('should reject files exceeding MAX_TEXT_BYTES', async () => {
       const bigFile = path.join(testDir, 'huge.txt');
       fs.writeFileSync(bigFile, 'x'.repeat(MAX_TEXT_BYTES + 1));
