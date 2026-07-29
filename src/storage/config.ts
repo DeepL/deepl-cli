@@ -99,7 +99,12 @@ export class ConfigService {
     let current: unknown = this.config;
 
     for (const k of keys) {
-      if (current && typeof current === 'object' && k in (current as Record<string, unknown>)) {
+      if (
+        current &&
+        typeof current === 'object' &&
+        !FORBIDDEN_KEY_SEGMENTS.has(k) &&
+        Object.hasOwn(current, k)
+      ) {
         current = (current as Record<string, unknown>)[k];
       } else {
         return defaultValue;
@@ -117,7 +122,12 @@ export class ConfigService {
     let current: unknown = this.config;
 
     for (const k of keys) {
-      if (current && typeof current === 'object' && k in (current as Record<string, unknown>)) {
+      if (
+        current &&
+        typeof current === 'object' &&
+        !FORBIDDEN_KEY_SEGMENTS.has(k) &&
+        Object.hasOwn(current, k)
+      ) {
         current = (current as Record<string, unknown>)[k];
       } else {
         return false;
@@ -132,18 +142,19 @@ export class ConfigService {
    */
   delete(key: string): void {
     const keys = key.split('.');
+    this.validateSegments(keys);
     let current: Record<string, unknown> = this.config as unknown as Record<string, unknown>;
 
     for (let i = 0; i < keys.length - 1; i++) {
       const k = keys[i];
-      if (!k || !(k in current)) {
+      if (!k || !Object.hasOwn(current, k)) {
         return;
       }
       current = current[k] as Record<string, unknown>;
     }
 
     const lastKey = keys[keys.length - 1];
-    if (lastKey && lastKey in current) {
+    if (lastKey && Object.hasOwn(current, lastKey)) {
       delete current[lastKey];
       this.save();
     }
@@ -275,7 +286,11 @@ export class ConfigService {
     };
   }
 
-  private validatePath(keys: string[], value: unknown): void {
+  /**
+   * Reject path segments that could escape plain config data (prototype
+   * pollution, traversal, separators). Shared by set() and delete().
+   */
+  private validateSegments(keys: string[]): void {
     if (keys.length === 0) {
       throw new ConfigError('Invalid path: empty');
     }
@@ -307,6 +322,10 @@ export class ConfigService {
         );
       }
     }
+  }
+
+  private validatePath(keys: string[], value: unknown): void {
+    this.validateSegments(keys);
 
     const path = keys.join('.');
 

@@ -472,6 +472,48 @@ describe('ConfigService', () => {
       }).toThrow('Invalid path');
     });
 
+    it('delete() should reject __proto__ paths instead of deleting Object.prototype members', () => {
+      const originalToString = Object.prototype.toString;
+      try {
+        expect(() => {
+          configService.delete('__proto__.toString');
+        }).toThrow('Invalid path');
+        expect(Object.prototype.toString).toBe(originalToString);
+      } finally {
+        if (Object.prototype.toString !== originalToString) {
+          Object.defineProperty(Object.prototype, 'toString', {
+            value: originalToString,
+            writable: true,
+            configurable: true,
+            enumerable: false,
+          });
+        }
+      }
+    });
+
+    it('delete() should reject constructor and prototype segments', () => {
+      expect(() => configService.delete('constructor.polluted')).toThrow('Invalid path');
+      expect(() => configService.delete('auth.prototype')).toThrow('Invalid path');
+    });
+
+    it('delete() should not walk inherited properties', () => {
+      const originalHasOwnProperty = Object.prototype.hasOwnProperty;
+      configService.delete('auth.hasOwnProperty');
+      expect(Object.prototype.hasOwnProperty).toBe(originalHasOwnProperty);
+    });
+
+    it('getValue() should not walk the prototype chain', () => {
+      expect(configService.getValue('__proto__.toString')).toBeUndefined();
+      expect(configService.getValue('auth.hasOwnProperty')).toBeUndefined();
+      expect(configService.getValue('constructor')).toBeUndefined();
+    });
+
+    it('has() should not report inherited properties as present', () => {
+      expect(configService.has('__proto__.toString')).toBe(false);
+      expect(configService.has('auth.hasOwnProperty')).toBe(false);
+      expect(configService.has('constructor')).toBe(false);
+    });
+
     it('should not treat inherited properties as valid config paths', () => {
       expect(() => {
         configService.set('toString', 'PWNED');
