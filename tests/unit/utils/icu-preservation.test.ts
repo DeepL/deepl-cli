@@ -124,6 +124,53 @@ describe('icu-preservation', () => {
       });
     });
 
+    describe('offset', () => {
+      it('should parse plural with offset:1', () => {
+        const result = parseIcu('{count, plural, offset:1 one {you and # other} other {you and # others}}');
+        expect(result.isIcu).toBe(true);
+        expect(result.segments).toHaveLength(2);
+        expect(result.segments[0]!.text).toBe('you and # other');
+        expect(result.segments[1]!.text).toBe('you and # others');
+      });
+
+      it('should preserve offset:1 verbatim on reassembly', () => {
+        const input = '{count, plural, offset:1 one {you and # other} other {you and # others}}';
+        const result = parseIcu(input);
+        const roundTrip = result.reassemble(result.segments.map((s) => s.text));
+        expect(roundTrip).toBe(input);
+      });
+
+      it('should parse offset:0', () => {
+        const result = parseIcu('{count, plural, offset:0 one {# item} other {# items}}');
+        expect(result.isIcu).toBe(true);
+        expect(result.reassemble(['# item', '# items'])).toBe(
+          '{count, plural, offset:0 one {# item} other {# items}}',
+        );
+      });
+
+      it('should parse selectordinal with offset', () => {
+        const result = parseIcu('{count, selectordinal, offset:2 one {#st} other {#th}}');
+        expect(result.isIcu).toBe(true);
+        expect(result.segments).toHaveLength(2);
+        expect(result.reassemble(['#st', '#th'])).toBe(
+          '{count, selectordinal, offset:2 one {#st} other {#th}}',
+        );
+      });
+
+      it('should parse nested plural with offset', () => {
+        const input = '{count, plural, offset:1 one {{gender, select, male {He} other {They}}} other {# guests}}';
+        const result = parseIcu(input);
+        expect(result.isIcu).toBe(true);
+        expect(result.segments).toHaveLength(3);
+        expect(result.reassemble(result.segments.map((s) => s.text))).toBe(input);
+      });
+
+      it('should NOT treat offset as valid for select', () => {
+        const result = parseIcu('{gender, select, offset:1 male {He} other {They}}');
+        expect(result.isIcu).toBe(false);
+      });
+    });
+
     describe('non-ICU passthrough', () => {
       it('should return identity reassemble for non-ICU text', () => {
         const result = parseIcu('Hello {name}');

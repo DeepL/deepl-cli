@@ -93,6 +93,8 @@ interface ParseBlockResult {
   endIndex: number;
 }
 
+const OFFSET_RE = /^offset\s*:\s*\d+/;
+
 function parseIcuBlock(text: string, start: number): ParseBlockResult | null {
   let i = start;
 
@@ -132,6 +134,16 @@ function parseIcuBlock(text: string, start: number): ParseBlockResult | null {
   const isPluralType = keyword === 'plural' || keyword === 'selectordinal';
   const segments: IcuSegment[] = [];
   let template = `{${varName}, ${keyword},`;
+
+  // Optional offset:N (plural/selectordinal only), preserved verbatim
+  if (isPluralType) {
+    const offsetStart = skipWhitespace(text, i);
+    const offsetMatch = OFFSET_RE.exec(text.slice(offsetStart));
+    if (offsetMatch) {
+      template += ` ${offsetMatch[0]}`;
+      i = offsetStart + offsetMatch[0].length;
+    }
+  }
 
   // Parse branches: selector {content}
   while (i < text.length) {
