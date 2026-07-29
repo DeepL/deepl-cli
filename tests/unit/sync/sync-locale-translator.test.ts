@@ -747,7 +747,7 @@ describe('LocaleTranslator', () => {
       expect(parser.reconstruct).toHaveBeenCalledWith(existingTarget, expect.any(Array));
     });
 
-    it('should create a .bak copy of the existing target when the target exists and backup is not disabled', async () => {
+    it('should create a .deepl.bak copy of the existing target when the target exists and backup is not disabled', async () => {
       mockReadFile.mockResolvedValueOnce('{"prior":"X"}');
       const copyFileSpy = fs.promises.copyFile as jest.MockedFunction<typeof fs.promises.copyFile>;
       copyFileSpy.mockResolvedValueOnce(undefined);
@@ -760,7 +760,7 @@ describe('LocaleTranslator', () => {
 
       expect(copyFileSpy).toHaveBeenCalled();
       const copyArgs = copyFileSpy.mock.calls[0]!;
-      expect(String(copyArgs[1])).toMatch(/\.bak$/);
+      expect(String(copyArgs[1])).toMatch(/\.deepl\.bak$/);
     });
 
     it('should skip the backup when sync.backup is explicitly false', async () => {

@@ -3,7 +3,14 @@ import * as path from 'path';
 import { Logger } from '../utils/logger.js';
 
 /**
- * Default age (seconds) above which a leftover `.bak` sibling is considered
+ * Suffix appended to target files when the sync engine writes a backup.
+ * Distinctive on purpose: the startup sweep only ever deletes files with
+ * this exact suffix, so user-owned `*.bak` files are never touched.
+ */
+export const BACKUP_SUFFIX = '.deepl.bak';
+
+/**
+ * Default age (seconds) above which a leftover backup sibling is considered
  * orphaned and safe to sweep at sync startup. Matches the watch-mode
  * precedent (5 minutes) and is overridable via `sync.bak_sweep_max_age_seconds`
  * in `.deepl-sync.yaml`.
@@ -44,10 +51,11 @@ export function bucketSweepRoots(
 }
 
 /**
- * Walk `projectRoot` breadth-first and remove `.bak` files whose mtime is
- * older than `maxAgeMs`. When the sibling (the `.bak`'s target) is missing or
- * empty, restore it from the backup before unlinking — this is the same
- * recovery path the watch-mode startup sweep uses.
+ * Walk `projectRoot` breadth-first and remove `.deepl.bak` files whose mtime
+ * is older than `maxAgeMs`. When the sibling (the backup's target) exists but
+ * is zero-length, restore it from the backup before unlinking. A missing
+ * sibling is never recreated, and files with any other suffix (including
+ * plain `.bak`) are left untouched.
  *
  * When `buckets` is provided the sweep is scoped to the directories implied by
  * each bucket's `include` globs instead of the entire project tree, keeping
@@ -97,17 +105,17 @@ async function sweepDir(dir: string, visited: Set<string>, threshold: number): P
       await sweepDir(full, visited, threshold);
       continue;
     }
-    if (!entry.isFile() || !entry.name.endsWith('.bak')) continue;
+    if (!entry.isFile() || !entry.name.endsWith(BACKUP_SUFFIX)) continue;
     try {
       const stat = await fs.promises.stat(full);
       if (stat.mtimeMs >= threshold) continue;
-      const sibling = full.slice(0, -'.bak'.length);
-      let siblingEmpty = true;
+      const sibling = full.slice(0, -BACKUP_SUFFIX.length);
+      let siblingEmpty = false;
       try {
         const sStat = await fs.promises.stat(sibling);
         siblingEmpty = sStat.size === 0;
       } catch {
-        siblingEmpty = true;
+        siblingEmpty = false;
       }
       if (siblingEmpty) {
         try {

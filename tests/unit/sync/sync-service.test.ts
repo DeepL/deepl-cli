@@ -378,9 +378,9 @@ describe('SyncService', () => {
 
       expect(mockCopyFile).toHaveBeenCalledWith(
         '/test/locales/de.json',
-        '/test/locales/de.json.bak',
+        '/test/locales/de.json.deepl.bak',
       );
-      expect(mockUnlink).toHaveBeenCalledWith('/test/locales/de.json.bak');
+      expect(mockUnlink).toHaveBeenCalledWith('/test/locales/de.json.deepl.bak');
     });
 
     it('should NOT create .bak in dry-run mode', async () => {
@@ -442,7 +442,7 @@ describe('SyncService', () => {
       const result = await service.sync(makeConfig());
       expect(result.success).toBe(true);
       // Backup was created, then unlinked (normal post-success path).
-      expect(mockUnlink).toHaveBeenCalledWith('/test/locales/de.json.bak');
+      expect(mockUnlink).toHaveBeenCalledWith('/test/locales/de.json.deepl.bak');
     });
   });
 
@@ -591,7 +591,7 @@ describe('SyncService', () => {
       expect(mockCopyFile).toHaveBeenCalledTimes(1);
       expect(mockCopyFile).toHaveBeenCalledWith(
         '/test/Localizable.xcstrings',
-        '/test/Localizable.xcstrings.bak',
+        '/test/Localizable.xcstrings.deepl.bak',
       );
     });
 

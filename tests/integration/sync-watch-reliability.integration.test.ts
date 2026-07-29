@@ -270,7 +270,7 @@ describe('watch mode reliability', () => {
     });
 
     it('removes stale .bak siblings older than the age threshold', async () => {
-      const staleBak = path.join(tmpDir, 'locales', 'de.json.bak');
+      const staleBak = path.join(tmpDir, 'locales', 'de.json.deepl.bak');
       fs.mkdirSync(path.dirname(staleBak), { recursive: true });
       fs.writeFileSync(staleBak, 'stale', 'utf-8');
       // backdate the mtime by 10 minutes
@@ -291,7 +291,7 @@ describe('watch mode reliability', () => {
     });
 
     it('leaves fresh .bak siblings alone during startup sweep', async () => {
-      const freshBak = path.join(tmpDir, 'locales', 'fr.json.bak');
+      const freshBak = path.join(tmpDir, 'locales', 'fr.json.deepl.bak');
       fs.mkdirSync(path.dirname(freshBak), { recursive: true });
       fs.writeFileSync(freshBak, 'fresh', 'utf-8');
 

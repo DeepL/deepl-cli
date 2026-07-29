@@ -78,21 +78,21 @@ describe('sweepStaleBackups() with bucket config', () => {
     fs.mkdirSync(localesDir, { recursive: true });
     fs.mkdirSync(outsideDir, { recursive: true });
 
-    // Place a stale .bak in locales (should be swept)
-    const staleBak = path.join(localesDir, 'de.json.bak');
+    // Place a stale .deepl.bak in locales (should be swept)
+    const staleBak = path.join(localesDir, 'de.json.deepl.bak');
     fs.writeFileSync(staleBak, 'stale', 'utf-8');
     const tenMinAgo = new Date(Date.now() - 10 * 60_000);
     fs.utimesSync(staleBak, tenMinAgo, tenMinAgo);
 
-    // Place a .bak outside the bucket dir (should NOT be touched by a scoped sweep)
-    const outsideBak = path.join(outsideDir, 'other.json.bak');
+    // Place a .deepl.bak outside the bucket dir (should NOT be touched by a scoped sweep)
+    const outsideBak = path.join(outsideDir, 'other.json.deepl.bak');
     fs.writeFileSync(outsideBak, 'outside', 'utf-8');
     fs.utimesSync(outsideBak, tenMinAgo, tenMinAgo);
 
     const buckets = { json: { include: ['locales/**/*.json'] } };
     await sweepStaleBackups(tmpDir, 5 * 60_000, buckets);
 
-    // The stale .bak inside the bucket dir must be removed
+    // The stale .deepl.bak inside the bucket dir must be removed
     expect(fs.existsSync(staleBak)).toBe(false);
 
     // No readdir call should have touched outsideDir
@@ -100,11 +100,11 @@ describe('sweepStaleBackups() with bucket config', () => {
     expect(readdirCalls.some((p) => p.startsWith(outsideDir))).toBe(false);
   });
 
-  it('removes a stale .bak file within bucket dirs', async () => {
+  it('removes a stale .deepl.bak file within bucket dirs', async () => {
     const localesDir = path.join(tmpDir, 'locales');
     fs.mkdirSync(localesDir, { recursive: true });
 
-    const staleBak = path.join(localesDir, 'fr.json.bak');
+    const staleBak = path.join(localesDir, 'fr.json.deepl.bak');
     fs.writeFileSync(staleBak, 'stale', 'utf-8');
     const tenMinAgo = new Date(Date.now() - 10 * 60_000);
     fs.utimesSync(staleBak, tenMinAgo, tenMinAgo);
@@ -113,23 +113,40 @@ describe('sweepStaleBackups() with bucket config', () => {
     expect(fs.existsSync(staleBak)).toBe(false);
   });
 
-  it('leaves a fresh .bak file alone', async () => {
+  it('leaves a fresh .deepl.bak file alone', async () => {
     const localesDir = path.join(tmpDir, 'locales');
     fs.mkdirSync(localesDir, { recursive: true });
 
-    const freshBak = path.join(localesDir, 'en.json.bak');
+    const freshBak = path.join(localesDir, 'en.json.deepl.bak');
     fs.writeFileSync(freshBak, 'fresh', 'utf-8');
 
     await sweepStaleBackups(tmpDir, 5 * 60_000, { json: { include: ['locales/**/*.json'] } });
     expect(fs.existsSync(freshBak)).toBe(true);
   });
 
-  it('restores sibling from .bak when sibling is absent before unlinking', async () => {
+  it('leaves user-owned *.bak files completely untouched, even when stale', async () => {
+    const localesDir = path.join(tmpDir, 'locales');
+    fs.mkdirSync(localesDir, { recursive: true });
+
+    const userBak = path.join(localesDir, 'my-important-notes.bak');
+    fs.writeFileSync(userBak, 'user data', 'utf-8');
+    const tenMinAgo = new Date(Date.now() - 10 * 60_000);
+    fs.utimesSync(userBak, tenMinAgo, tenMinAgo);
+    const sibling = path.join(localesDir, 'my-important-notes');
+
+    await sweepStaleBackups(tmpDir, 5 * 60_000, { json: { include: ['locales/**/*.json'] } });
+
+    expect(fs.existsSync(userBak)).toBe(true);
+    expect(fs.readFileSync(userBak, 'utf-8')).toBe('user data');
+    expect(fs.existsSync(sibling)).toBe(false);
+  });
+
+  it('does not resurrect a sibling that does not exist', async () => {
     const localesDir = path.join(tmpDir, 'locales');
     fs.mkdirSync(localesDir, { recursive: true });
 
     const sibling = path.join(localesDir, 'de.json');
-    const bakFile = `${sibling}.bak`;
+    const bakFile = `${sibling}.deepl.bak`;
     fs.writeFileSync(bakFile, '{"key":"value"}', 'utf-8');
     const tenMinAgo = new Date(Date.now() - 10 * 60_000);
     fs.utimesSync(bakFile, tenMinAgo, tenMinAgo);
@@ -137,8 +154,41 @@ describe('sweepStaleBackups() with bucket config', () => {
 
     await sweepStaleBackups(tmpDir, 5 * 60_000, { json: { include: ['locales/**/*.json'] } });
 
-    expect(fs.existsSync(sibling)).toBe(true);
+    expect(fs.existsSync(sibling)).toBe(false);
+    expect(fs.existsSync(bakFile)).toBe(false);
+  });
+
+  it('restores a zero-length sibling from .deepl.bak before unlinking', async () => {
+    const localesDir = path.join(tmpDir, 'locales');
+    fs.mkdirSync(localesDir, { recursive: true });
+
+    const sibling = path.join(localesDir, 'de.json');
+    const bakFile = `${sibling}.deepl.bak`;
+    fs.writeFileSync(sibling, '', 'utf-8');
+    fs.writeFileSync(bakFile, '{"key":"value"}', 'utf-8');
+    const tenMinAgo = new Date(Date.now() - 10 * 60_000);
+    fs.utimesSync(bakFile, tenMinAgo, tenMinAgo);
+
+    await sweepStaleBackups(tmpDir, 5 * 60_000, { json: { include: ['locales/**/*.json'] } });
+
     expect(fs.readFileSync(sibling, 'utf-8')).toBe('{"key":"value"}');
+    expect(fs.existsSync(bakFile)).toBe(false);
+  });
+
+  it('leaves a non-empty sibling untouched while removing the stale .deepl.bak', async () => {
+    const localesDir = path.join(tmpDir, 'locales');
+    fs.mkdirSync(localesDir, { recursive: true });
+
+    const sibling = path.join(localesDir, 'de.json');
+    const bakFile = `${sibling}.deepl.bak`;
+    fs.writeFileSync(sibling, '{"current":"content"}', 'utf-8');
+    fs.writeFileSync(bakFile, '{"old":"content"}', 'utf-8');
+    const tenMinAgo = new Date(Date.now() - 10 * 60_000);
+    fs.utimesSync(bakFile, tenMinAgo, tenMinAgo);
+
+    await sweepStaleBackups(tmpDir, 5 * 60_000, { json: { include: ['locales/**/*.json'] } });
+
+    expect(fs.readFileSync(sibling, 'utf-8')).toBe('{"current":"content"}');
     expect(fs.existsSync(bakFile)).toBe(false);
   });
 
@@ -176,11 +226,11 @@ describe('sweepStaleBackups() without bucket config (fallback)', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('still removes stale .bak files anywhere under projectRoot', async () => {
+  it('still removes stale .deepl.bak files anywhere under projectRoot', async () => {
     const nested = path.join(tmpDir, 'a', 'b');
     fs.mkdirSync(nested, { recursive: true });
 
-    const staleBak = path.join(nested, 'x.json.bak');
+    const staleBak = path.join(nested, 'x.json.deepl.bak');
     fs.writeFileSync(staleBak, 'stale', 'utf-8');
     const tenMinAgo = new Date(Date.now() - 10 * 60_000);
     fs.utimesSync(staleBak, tenMinAgo, tenMinAgo);
@@ -189,11 +239,11 @@ describe('sweepStaleBackups() without bucket config (fallback)', () => {
     expect(fs.existsSync(staleBak)).toBe(false);
   });
 
-  it('leaves fresh .bak files alone when no bucket config given', async () => {
+  it('leaves fresh .deepl.bak files alone when no bucket config given', async () => {
     const nested = path.join(tmpDir, 'a');
     fs.mkdirSync(nested, { recursive: true });
 
-    const freshBak = path.join(nested, 'y.json.bak');
+    const freshBak = path.join(nested, 'y.json.deepl.bak');
     fs.writeFileSync(freshBak, 'fresh', 'utf-8');
 
     await sweepStaleBackups(tmpDir, 5 * 60_000);

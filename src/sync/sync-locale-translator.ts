@@ -14,6 +14,7 @@ import { validateBatch } from './translation-validator.js';
 import { atomicWriteFile } from '../utils/atomic-write.js';
 import { mapWithConcurrency } from '../utils/concurrency.js';
 import { resolveTargetPath, assertPathWithinRoot } from './sync-utils.js';
+import { BACKUP_SUFFIX } from './sync-bak-cleanup.js';
 import { Logger } from '../utils/logger.js';
 import { preserveVariables, restorePlaceholders } from '../utils/text-preservation.js';
 import { expandPlurals, detectIcu, reassembleIcu, writebackPlurals } from './sync-message-preprocess.js';
@@ -528,8 +529,8 @@ export class LocaleTranslator {
       templateContent = content;
     }
 
-    if (targetExists && config.sync?.backup !== false && !this.backupPaths.has(targetAbsPath + '.bak')) {
-      const bakPath = targetAbsPath + '.bak';
+    if (targetExists && config.sync?.backup !== false && !this.backupPaths.has(targetAbsPath + BACKUP_SUFFIX)) {
+      const bakPath = targetAbsPath + BACKUP_SUFFIX;
       try {
         await fs.promises.copyFile(targetAbsPath, bakPath);
         this.backupPaths.add(bakPath);
