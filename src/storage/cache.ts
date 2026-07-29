@@ -126,10 +126,9 @@ export class CacheService {
       });
 
       // Close the database but never exit: this handler is registered during
-      // service construction, so it runs before the sync engine's own handler.
-      // Calling process.exit(0) here preempted that cleanup — leaking the sync
-      // pidfile — and reported success for an interrupted run. Terminating is
-      // the CLI entry point's job (see installSignalExit).
+      // service construction, so it runs before the sync engine's own handler,
+      // and exiting here would preempt that cleanup. Terminating is the CLI
+      // entry point's job (see installSignalExit).
       process.once('SIGINT', () => {
         CacheService.instance?.close();
       });
