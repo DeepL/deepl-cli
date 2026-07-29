@@ -381,5 +381,87 @@ describe('xliff parser', () => {
 </body></file></xliff>`;
       expect(() => parser.extract(xliff)).not.toThrow();
     });
+
+    it('accepts a <note> CDATA that sits between <source> and <target>', () => {
+      const xliff = `<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2"><file source-language="en" target-language="de"><body>
+<trans-unit id="a"><source>Hello</source><note><![CDATA[see <docs>]]></note><target>Hallo</target></trans-unit>
+</body></file></xliff>`;
+      expect(() => parser.extract(xliff)).not.toThrow();
+      expect(parser.extract(xliff).map((e) => e.key)).toEqual(['a']);
+    });
+  });
+
+  describe('elements with no closing tag', () => {
+    const unclosed = `<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2">
+  <file source-language="en" target-language="de">
+    <body>
+      <trans-unit id="greeting">
+        <source>Hello</source>
+        <target>Hallo</target>
+      </trans-unit>
+      <trans-unit id="dangling">
+        <source>Never closed</source>
+    </body>
+  </file>
+</xliff>`;
+
+    it('should still extract the well-formed units before the dangling tag', () => {
+      expect(parser.extract(unclosed).map((e) => e.key)).toEqual(['greeting']);
+    });
+
+    it('should leave the dangling unit untouched on reconstruct', () => {
+      const result = parser.reconstruct(unclosed, [
+        { key: 'greeting', value: 'Hello', translation: 'Guten Tag' },
+      ]);
+      expect(result).toContain('<target>Guten Tag</target>');
+      expect(result).toContain('<trans-unit id="dangling">');
+    });
+  });
+
+  describe('adversarial input scaling', () => {
+    // A file of opening tags that never close: the parser must not rescan the
+    // remainder of the input once per opening tag.
+    function unclosedOpeners(bytes: number, version: '1.2' | '2.0'): string {
+      const head = `<?xml version="1.0" encoding="UTF-8"?>\n<xliff version="${version}">\n<file id="f1"><body>\n`;
+      const opener =
+        version === '2.0'
+          ? '      <unit id="k"><segment><source>v</source>\n'
+          : '      <trans-unit id="k"><source>v</source>\n';
+      return head + opener.repeat(Math.ceil((bytes - head.length) / opener.length));
+    }
+
+    const v12 = unclosedOpeners(4 * 1024 * 1024, '1.2');
+    const v20 = unclosedOpeners(4 * 1024 * 1024, '2.0');
+
+    it('should extract a 4 MiB v1.2 file of unclosed openers in linear time', () => {
+      const start = process.hrtime.bigint();
+      parser.extract(v12);
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      expect(ms).toBeLessThan(2000);
+    });
+
+    it('should reconstruct a 4 MiB v1.2 file of unclosed openers in linear time', () => {
+      const start = process.hrtime.bigint();
+      parser.reconstruct(v12, [{ key: 'k', value: 'v', translation: 'w' }]);
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      expect(ms).toBeLessThan(2000);
+    });
+
+    it('should extract a 4 MiB v2.0 file of unclosed openers in linear time', () => {
+      const start = process.hrtime.bigint();
+      parser.extract(v20);
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      expect(ms).toBeLessThan(2000);
+    });
+
+    it('should scan a 4 MiB file for CDATA in translatable content in linear time', () => {
+      const withTrailingCdata = v12 + '<note><![CDATA[x]]></note>\n';
+      const start = process.hrtime.bigint();
+      parser.extract(withTrailingCdata);
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      expect(ms).toBeLessThan(2000);
+    });
   });
 });

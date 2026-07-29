@@ -273,6 +273,22 @@ describe('android-xml parser', () => {
       expect(result).not.toContain('name="sizes"');
     });
 
+    it('should keep a self-closing string element untouched', () => {
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="empty"/>
+    <string name="greeting">Hello</string>
+</resources>`;
+      const entries = parser.extract(xml);
+      expect(entries.map((e) => e.key)).toEqual(['greeting']);
+
+      const result = parser.reconstruct(xml, [
+        { key: 'greeting', value: 'Hello', translation: 'Hallo' },
+      ]);
+      expect(result).toContain('<string name="empty"/>');
+      expect(result).toContain('<string name="greeting">Hallo</string>');
+    });
+
     it('should preserve translatable="false" strings even when not in entries', () => {
       const xml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -285,6 +301,65 @@ describe('android-xml parser', () => {
       const result = parser.reconstruct(xml, translated);
       expect(result).toContain('name="app_name"');
       expect(result).toContain('name="greeting"');
+    });
+  });
+
+  describe('elements with no closing tag', () => {
+    const unclosed = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="greeting">Hello</string>
+    <string name="dangling">Never closed
+</resources>`;
+
+    it('should still extract the well-formed entries before the dangling tag', () => {
+      expect(parser.extract(unclosed).map((e) => e.key)).toEqual(['greeting']);
+    });
+
+    it('should leave the dangling element untouched on reconstruct', () => {
+      const result = parser.reconstruct(unclosed, [
+        { key: 'greeting', value: 'Hello', translation: 'Hallo' },
+      ]);
+      expect(result).toContain('<string name="greeting">Hallo</string>');
+      expect(result).toContain('<string name="dangling">Never closed');
+    });
+
+    it('should not let a CDATA body swallow the closing tag', () => {
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="snippet"><![CDATA[use <string name="x">y</string> here]]></string>
+    <string name="plain">Plain</string>
+</resources>`;
+      expect(parser.extract(xml)).toEqual([
+        { key: 'snippet', value: 'use <string name="x">y</string> here' },
+        { key: 'plain', value: 'Plain' },
+      ]);
+    });
+  });
+
+  describe('adversarial input scaling', () => {
+    // A file of opening tags that never close: the parser must not rescan the
+    // remainder of the input once per opening tag.
+    function unclosedOpeners(bytes: number): string {
+      const head = '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n';
+      const opener =
+        '    <string name="k">v\n    <plurals name="p">\n    <string-array name="a">\n';
+      return head + opener.repeat(Math.ceil((bytes - head.length) / opener.length));
+    }
+
+    const content = unclosedOpeners(4 * 1024 * 1024);
+
+    it('should extract a 4 MiB file of unclosed openers in linear time', () => {
+      const start = process.hrtime.bigint();
+      parser.extract(content);
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      expect(ms).toBeLessThan(2000);
+    });
+
+    it('should reconstruct a 4 MiB file of unclosed openers in linear time', () => {
+      const start = process.hrtime.bigint();
+      parser.reconstruct(content, [{ key: 'k', value: 'v', translation: 'w' }]);
+      const ms = Number(process.hrtime.bigint() - start) / 1e6;
+      expect(ms).toBeLessThan(2000);
     });
   });
 });

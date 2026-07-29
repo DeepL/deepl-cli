@@ -1,26 +1,45 @@
 import type { ExtractedEntry, FormatParser, TranslatedEntry } from './format.js';
 import { ValidationError } from '../utils/errors.js';
+import {
+  replaceElements,
+  scanElements,
+  type ElementPattern,
+  type ScannedElement,
+} from './xml-scan.js';
 
 interface PluralItem {
   quantity: string;
   value: string;
 }
 
-const STRING_RE =
-  /<string\s+name="([^"]+)"((?:\s+[a-zA-Z_:][a-zA-Z0-9_:.-]*="[^"]*")*)>([\s\S]*?)<\/string>/g;
+const ATTRS = String.raw`((?:\s+[a-zA-Z_:][a-zA-Z0-9_:.-]*=(?:"[^"<]*"|'[^'<]*'))*)`;
+
+const STRING_EL: ElementPattern = {
+  open: new RegExp(String.raw`<string\s+name="([^"<]+)"${ATTRS}>`, 'y'),
+  close: /<\/string>/y,
+};
+
+const PLURALS_EL: ElementPattern = {
+  open: new RegExp(String.raw`<plurals\s+name="([^"<]+)"${ATTRS}>`, 'y'),
+  close: /<\/plurals>/y,
+};
+
+const PLURAL_ITEM_EL: ElementPattern = {
+  open: new RegExp(String.raw`<item\s+quantity="([^"<]+)"${ATTRS}>`, 'y'),
+  close: /<\/item>/y,
+};
+
+const STRING_ARRAY_EL: ElementPattern = {
+  open: new RegExp(String.raw`<string-array\s+name="([^"<]+)"${ATTRS}>`, 'y'),
+  close: /<\/string-array>/y,
+};
+
+const ARRAY_ITEM_EL: ElementPattern = {
+  open: /<item>/y,
+  close: /<\/item>/y,
+};
 
 const TRANSLATABLE_FALSE_RE = /\btranslatable\s*=\s*"false"/;
-
-const PLURALS_RE =
-  /<plurals\s+name="([^"]+)"([^>]*)>([\s\S]*?)<\/plurals>/g;
-
-const PLURAL_ITEM_RE =
-  /<item\s+quantity="([^"]+)"[^>]*>([\s\S]*?)<\/item>/g;
-
-const STRING_ARRAY_RE =
-  /<string-array\s+name="([^"]+)"([^>]*)>([\s\S]*?)<\/string-array>/g;
-
-const ARRAY_ITEM_RE = /<item>([\s\S]*?)<\/item>/g;
 
 const XML_ENTITY_RE = /&(?:#x([0-9a-fA-F]+)|#(\d+)|(amp|lt|gt|quot|apos));/g;
 
@@ -112,6 +131,7 @@ export class AndroidXmlFormatParser implements FormatParser {
     const translations = new Map<string, string>();
     const pluralTranslations = new Map<string, Map<string, string>>();
     const arrayTranslations = new Map<string, Map<number, string>>();
+    let arrayNames: Set<string> | undefined;
 
     for (const entry of entries) {
       if (entry.metadata?.['plurals']) {
@@ -124,10 +144,12 @@ export class AndroidXmlFormatParser implements FormatParser {
       } else if (entry.key.includes('.')) {
         const lastDot = entry.key.lastIndexOf('.');
         const arrayName = entry.key.substring(0, lastDot);
-        const indexStr = entry.key.substring(lastDot + 1);
-        const index = parseInt(indexStr, 10);
+        const index = parseInt(entry.key.substring(lastDot + 1), 10);
+        arrayNames ??= new Set(
+          scanElements(originalContent, STRING_ARRAY_EL).map((el) => el.groups[0]!),
+        );
 
-        if (!isNaN(index) && this.isStringArrayKey(originalContent, arrayName)) {
+        if (!isNaN(index) && arrayNames.has(arrayName)) {
           if (!arrayTranslations.has(arrayName)) {
             arrayTranslations.set(arrayName, new Map());
           }
@@ -140,115 +162,76 @@ export class AndroidXmlFormatParser implements FormatParser {
       }
     }
 
-    let result = originalContent;
-
-    result = result.replace(STRING_RE, (match, name: string, attrs: string, innerText: string) => {
+    let result = replaceElements(originalContent, STRING_EL, (el) => {
+      const attrs = el.groups[1] ?? '';
       if (TRANSLATABLE_FALSE_RE.test(attrs)) {
-        return match;
+        return el.text;
       }
-      const translation = translations.get(name);
-      if (translation !== undefined) {
-        const escapedTranslation = this.escapeForReconstruct(innerText, translation);
-        return `<string name="${name}"${attrs}>${escapedTranslation}</string>`;
+      const translation = translations.get(el.groups[0]!);
+      if (translation === undefined) {
+        return null;
       }
-      return match;
+      return this.rewriteInner(el, this.escapeForReconstruct(el.inner, translation));
     });
 
-    result = result.replace(PLURALS_RE, (match, name: string, extraAttrs: string, innerContent: string) => {
-      const quantityMap = pluralTranslations.get(name);
+    result = replaceElements(result, PLURALS_EL, (el) => {
+      const quantityMap = pluralTranslations.get(el.groups[0]!);
       if (!quantityMap) {
-        return match;
+        return null;
       }
-      const updatedInner = innerContent.replace(
-        PLURAL_ITEM_RE,
-        (itemMatch, quantity: string, value: string) => {
-          const translation = quantityMap.get(quantity);
-          if (translation !== undefined) {
-            return `<item quantity="${quantity}">${this.escapeForReconstruct(value, translation)}</item>`;
-          }
-          return itemMatch;
-        },
-      );
-      return `<plurals name="${name}"${extraAttrs}>${updatedInner}</plurals>`;
+      const inner = replaceElements(el.inner, PLURAL_ITEM_EL, (item) => {
+        const translation = quantityMap.get(item.groups[0]!);
+        if (translation === undefined) {
+          return item.text;
+        }
+        return this.rewriteInner(item, this.escapeForReconstruct(item.inner, translation));
+      });
+      return this.rewriteInner(el, inner);
     });
 
-    result = result.replace(STRING_ARRAY_RE, (match, name: string, extraAttrs: string, innerContent: string) => {
-      const indexMap = arrayTranslations.get(name);
+    result = replaceElements(result, STRING_ARRAY_EL, (el) => {
+      const indexMap = arrayTranslations.get(el.groups[0]!);
       if (!indexMap) {
-        return match;
+        return null;
       }
-      let idx = 0;
-      const updatedInner = innerContent.replace(
-        ARRAY_ITEM_RE,
-        (itemMatch, value: string) => {
-          const translation = indexMap.get(idx);
-          idx++;
-          if (translation !== undefined) {
-            return `<item>${this.escapeForReconstruct(value, translation)}</item>`;
-          }
-          return itemMatch;
-        },
-      );
-      return `<string-array name="${name}"${extraAttrs}>${updatedInner}</string-array>`;
+      let index = 0;
+      const inner = replaceElements(el.inner, ARRAY_ITEM_EL, (item) => {
+        const translation = indexMap.get(index);
+        index++;
+        if (translation === undefined) {
+          return item.text;
+        }
+        return this.rewriteInner(item, this.escapeForReconstruct(item.inner, translation));
+      });
+      return this.rewriteInner(el, inner);
     });
-
-    const stringKeys = new Set([...translations.keys()]);
-    const pluralKeys = new Set([...pluralTranslations.keys()]);
-    const arrayKeys = new Set([...arrayTranslations.keys()]);
-
-    result = result.replace(
-      /[ \t]*<string\s+name="([^"]+)"[^>]*>[\s\S]*?<\/string>\s*\n?/g,
-      (match, name: string) => stringKeys.has(name) || TRANSLATABLE_FALSE_RE.test(match) ? match : '',
-    );
-    result = result.replace(
-      /[ \t]*<plurals\s+name="([^"]+)"[^>]*>[\s\S]*?<\/plurals>\s*\n?/g,
-      (match, name: string) => pluralKeys.has(name) ? match : '',
-    );
-    result = result.replace(
-      /[ \t]*<string-array\s+name="([^"]+)"[^>]*>[\s\S]*?<\/string-array>\s*\n?/g,
-      (match, name: string) => arrayKeys.has(name) ? match : '',
-    );
 
     return result;
   }
 
-  private extractStrings(content: string, entries: ExtractedEntry[]): void {
-    const regex = new RegExp(STRING_RE.source, STRING_RE.flags);
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(content)) !== null) {
-      const name = match[1]!;
-      const attrs = match[2] ?? '';
-      const rawValue = match[3]!;
+  private rewriteInner(element: ScannedElement, inner: string): string {
+    return `${element.openTag}${inner}${element.closeTag}`;
+  }
 
-      if (TRANSLATABLE_FALSE_RE.test(attrs)) {
+  private extractStrings(content: string, entries: ExtractedEntry[]): void {
+    for (const el of scanElements(content, STRING_EL)) {
+      if (TRANSLATABLE_FALSE_RE.test(el.groups[1] ?? '')) {
         continue;
       }
-
-      const value = this.decodeValue(rawValue);
-      entries.push({ key: name, value });
+      entries.push({ key: el.groups[0]!, value: this.decodeValue(el.inner) });
     }
   }
 
   private extractPlurals(content: string, entries: ExtractedEntry[]): void {
-    const pluralsRegex = new RegExp(PLURALS_RE.source, PLURALS_RE.flags);
-    let match: RegExpExecArray | null;
-    while ((match = pluralsRegex.exec(content)) !== null) {
-      const name = match[1]!;
-      const innerContent = match[3]!;
-
-      const plurals: PluralItem[] = [];
-      const itemRegex = new RegExp(PLURAL_ITEM_RE.source, PLURAL_ITEM_RE.flags);
-      let itemMatch: RegExpExecArray | null;
-      while ((itemMatch = itemRegex.exec(innerContent)) !== null) {
-        plurals.push({
-          quantity: itemMatch[1]!,
-          value: this.decodeValue(itemMatch[2]!),
-        });
-      }
+    for (const el of scanElements(content, PLURALS_EL)) {
+      const plurals: PluralItem[] = scanElements(el.inner, PLURAL_ITEM_EL).map((item) => ({
+        quantity: item.groups[0]!,
+        value: this.decodeValue(item.inner),
+      }));
 
       const defaultItem = plurals.find(p => p.quantity === 'other') ?? plurals[0];
       entries.push({
-        key: name,
+        key: el.groups[0]!,
         value: defaultItem?.value ?? '',
         metadata: { plurals },
       });
@@ -256,20 +239,11 @@ export class AndroidXmlFormatParser implements FormatParser {
   }
 
   private extractStringArrays(content: string, entries: ExtractedEntry[]): void {
-    const arrayRegex = new RegExp(STRING_ARRAY_RE.source, STRING_ARRAY_RE.flags);
-    let match: RegExpExecArray | null;
-    while ((match = arrayRegex.exec(content)) !== null) {
-      const name = match[1]!;
-      const innerContent = match[3]!;
-
-      const itemRegex = new RegExp(ARRAY_ITEM_RE.source, ARRAY_ITEM_RE.flags);
-      let itemMatch: RegExpExecArray | null;
+    for (const el of scanElements(content, STRING_ARRAY_EL)) {
+      const name = el.groups[0]!;
       let index = 0;
-      while ((itemMatch = itemRegex.exec(innerContent)) !== null) {
-        entries.push({
-          key: `${name}.${index}`,
-          value: this.decodeValue(itemMatch[1]!),
-        });
+      for (const item of scanElements(el.inner, ARRAY_ITEM_EL)) {
+        entries.push({ key: `${name}.${index}`, value: this.decodeValue(item.inner) });
         index++;
       }
     }
@@ -298,11 +272,5 @@ export class AndroidXmlFormatParser implements FormatParser {
       return `<![CDATA[${translation}]]>`;
     }
     return escapeAndroid(translation);
-  }
-
-  private isStringArrayKey(content: string, name: string): boolean {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`<string-array\\s+name="${escaped}"`);
-    return regex.test(content);
   }
 }
