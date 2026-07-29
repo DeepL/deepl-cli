@@ -58,7 +58,7 @@ export class WriteClient extends HttpClient {
         (options.writingStyle !== undefined || options.tone !== undefined)
       ) {
         throw new ValidationError(
-          `${translated.message} See docs/API.md for supported target language / style / tone combinations.`
+          `${translated.message} See https://github.com/DeepL/deepl-cli/blob/main/docs/API.md#write for supported target language / style / tone combinations.`
         );
       }
       throw translated;

@@ -217,7 +217,7 @@ describe('WriteClient', () => {
 
       await expect(
         client.improveText('Test', { targetLang: 'ja', writingStyle: 'business' })
-      ).rejects.toThrow(/See docs\/API\.md for supported target language \/ style \/ tone combinations/);
+      ).rejects.toThrow(/See https:\/\/github\.com\/DeepL\/deepl-cli\/blob\/main\/docs\/API\.md#write for supported target language \/ style \/ tone combinations/);
     });
 
     it('should append docs hint on 400 when tone was sent', async () => {
@@ -231,7 +231,7 @@ describe('WriteClient', () => {
 
       await expect(
         client.improveText('Test', { targetLang: 'ko', tone: 'friendly' })
-      ).rejects.toThrow(/See docs\/API\.md for supported target language \/ style \/ tone combinations/);
+      ).rejects.toThrow(/See https:\/\/github\.com\/DeepL\/deepl-cli\/blob\/main\/docs\/API\.md#write for supported target language \/ style \/ tone combinations/);
     });
 
     it('should NOT append docs hint on 400 when neither style nor tone was sent', async () => {
@@ -245,7 +245,7 @@ describe('WriteClient', () => {
 
       await expect(
         client.improveText('Test', { targetLang: 'ja' })
-      ).rejects.not.toThrow(/See docs\/API\.md/);
+      ).rejects.not.toThrow(/See https:\/\/github\.com\/DeepL\/deepl-cli/);
     });
   });
 });
