@@ -284,6 +284,7 @@ const deps = {
   getCacheService,
   createDeepLClient,
   getApiKeyAndOptions,
+  getHttpOptions: () => httpOptions,
   handleError,
 };
 
