@@ -8,6 +8,7 @@ import {
   QuotaError,
   NetworkError,
   ConfigError,
+  DeepLCLIError,
   ValidationError,
 } from '../utils/errors.js';
 import { Logger } from '../utils/logger.js';
@@ -334,9 +335,9 @@ export class HttpClient {
   ): Promise<T> {
     const maxRetries = policy?.maxRetries ?? this.maxRetries;
     const requestTimeout = policy?.timeout ?? this.requestTimeout;
-    // Backoff sleeps are deliberately excluded from the budget: a
-    // server-directed Retry-After wait is not time spent waiting on a dead
-    // connection, and collapsing the two would abandon honest rate limits.
+    // The budget covers time spent inside attempts only; backoff and
+    // Retry-After sleeps are excluded, so an honest rate-limit wait is not
+    // charged against the deadline.
     let remainingBudget = Math.max(this.totalTimeout, requestTimeout);
     let lastError: Error | undefined;
     let traceId: string | undefined;
@@ -425,8 +426,8 @@ export class HttpClient {
 
   /**
    * Whether a failed attempt may be sent again. 4xx responses never reach
-   * here (they throw immediately) and 429 is handled by the caller, so the
-   * cases left are 5xx responses and transport failures.
+   * here (they throw immediately) and 429 is handled above, so the cases
+   * left are 5xx responses and transport failures.
    */
   private isReplayable(method: string, error: unknown): boolean {
     if (!this.isAxiosError(error)) {
@@ -451,6 +452,14 @@ export class HttpClient {
   }
 
   private classifyError(error: unknown, traceId?: string): Error {
+    // Classification is idempotent: callers that wrap their own catch in
+    // handleError (write-client, document-client) hand back errors this
+    // method already produced, and re-deriving a class from them would
+    // discard the specific one.
+    if (error instanceof DeepLCLIError) {
+      return error;
+    }
+
     const requestTraceId = traceId ?? this._lastTraceId;
     const traceIdSuffix = requestTraceId
       ? ` (Trace ID: ${requestTraceId})`

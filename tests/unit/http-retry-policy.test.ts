@@ -12,6 +12,7 @@ import {
   AuthError,
   NetworkError,
   RateLimitError,
+  ValidationError,
 } from '../../src/utils/errors';
 import { ExitCode, exitCodeForError } from '../../src/utils/exit-codes';
 
@@ -30,6 +31,10 @@ class TestHttpClient extends HttpClient {
 
   delete<T>(path: string): Promise<T> {
     return this.makeRequest<T>('DELETE', path);
+  }
+
+  classify(error: unknown): Error {
+    return this.handleError(error);
   }
 }
 
@@ -267,6 +272,8 @@ describe('HttpClient retry policy', () => {
       await expect(client.get('/v2/usage')).rejects.toThrow(NetworkError);
       const elapsed = Date.now() - start;
 
+      // Retries happen, but the budget cuts them short of maxRetries + 1 = 6.
+      expect(requests()).toBeGreaterThanOrEqual(2);
       expect(requests()).toBeLessThanOrEqual(3);
       expect(elapsed).toBeLessThan(1500);
     });
@@ -282,6 +289,8 @@ describe('HttpClient retry policy', () => {
       const client = makeClient({ timeout: 200, maxRetries: 5, totalTimeout: undefined });
       await expect(client.get('/v2/usage')).rejects.toThrow(NetworkError);
 
+      // Default budget is twice the timeout, so far short of six attempts.
+      expect(requests()).toBeGreaterThanOrEqual(2);
       expect(requests()).toBeLessThanOrEqual(3);
     });
   });
@@ -295,6 +304,12 @@ describe('HttpClient retry policy', () => {
         .catch((e: unknown) => e);
 
       expect((error as Error).message).not.toMatch(/Network error: Network error/);
+    });
+
+    it('leaves an already-classified error untouched', () => {
+      const classified = new ValidationError('API error: Tone is not supported');
+
+      expect(makeClient().classify(classified)).toBe(classified);
     });
   });
 });
