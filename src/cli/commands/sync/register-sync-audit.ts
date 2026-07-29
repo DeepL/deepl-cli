@@ -93,7 +93,7 @@ async function handleSyncAudit(
             for (const entry of entries) keyMap.set(entry.key, entry.value);
             fileLocaleMap.set(locale, keyMap);
           } catch {
-            // Unreadable / unparseable target file — fall through to hash identity.
+            // Unreadable / unparseable target file — reported as a missing target.
           }
         }
         if (fileLocaleMap.size > 0) targetTranslations.set(relPath, fileLocaleMap);
@@ -115,6 +115,15 @@ async function handleSyncAudit(
             `  "${inc.sourceText}" [${inc.locale}]: ${inc.translations.length} different translations`,
           );
           Logger.info(`    Files: ${inc.files.join(', ')}`);
+        }
+      }
+
+      if (report.missingTargets.length > 0) {
+        Logger.info(
+          `\n${report.missingTargets.length} target(s) could not be read and were excluded from the comparison:`,
+        );
+        for (const target of report.missingTargets) {
+          Logger.info(`  ${target.filePath} [${target.locale}]`);
         }
       }
     }

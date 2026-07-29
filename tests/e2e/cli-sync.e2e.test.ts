@@ -1069,6 +1069,76 @@ describe('CLI Sync E2E', () => {
       // Clean up the nested dirs created above so the next test's beforeEach
       // doesn't inherit them (beforeEach only wipes locales/ at the top).
     });
+
+    it('reports a not-yet-created locale file as missing instead of an inconsistency', () => {
+      const sourceDir = path.join(testFiles.path, 'locales', 'en');
+      fs.mkdirSync(sourceDir, { recursive: true });
+      fs.writeFileSync(path.join(sourceDir, 'common.json'), JSON.stringify({ greeting: 'Dashboard' }, null, 2));
+      fs.writeFileSync(path.join(sourceDir, 'admin.json'), JSON.stringify({ header: 'Dashboard' }, null, 2));
+
+      // Only one of the two German files exists yet.
+      const targetDir = path.join(testFiles.path, 'locales', 'de');
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.writeFileSync(path.join(targetDir, 'common.json'), JSON.stringify({ greeting: 'Armaturenbrett' }, null, 2));
+
+      fs.writeFileSync(
+        path.join(testFiles.path, '.deepl-sync.yaml'),
+        [
+          'version: 1',
+          'source_locale: en',
+          'target_locales:',
+          '  - de',
+          'buckets:',
+          '  json:',
+          '    include:',
+          '      - "locales/en/*.json"',
+          '',
+        ].join('\n'),
+      );
+
+      const lockContent = {
+        _comment: 'test',
+        version: 1,
+        generated_at: '2026-04-19T00:00:00Z',
+        source_locale: 'en',
+        entries: {
+          'locales/en/common.json': {
+            greeting: {
+              source_hash: 'sh',
+              source_text: 'Dashboard',
+              translations: {
+                de: { hash: 'de-hash-a', translated_at: '2026-04-19T00:00:00Z', status: 'translated' },
+              },
+            },
+          },
+          'locales/en/admin.json': {
+            header: {
+              source_hash: 'sh',
+              source_text: 'Dashboard',
+              translations: {
+                de: { hash: 'de-hash-a', translated_at: '2026-04-19T00:00:00Z', status: 'translated' },
+              },
+            },
+          },
+        },
+        stats: { total_keys: 2, total_translations: 2, last_sync: '2026-04-19T00:00:00Z' },
+      };
+      fs.writeFileSync(path.join(testFiles.path, '.deepl-sync.lock'), JSON.stringify(lockContent, null, 2));
+
+      const output = runSyncAll('audit --format json');
+      const jsonMatch = output.match(/\{[\s\S]*\}/);
+      expect(jsonMatch).not.toBeNull();
+      const parsed = JSON.parse(jsonMatch![0]) as {
+        inconsistencies: Array<{ translations: string[] }>;
+        missingTargets: Array<{ filePath: string; locale: string }>;
+      };
+
+      expect(parsed.inconsistencies).toHaveLength(0);
+      expect(parsed.missingTargets).toEqual([
+        { filePath: 'locales/en/admin.json', locale: 'de' },
+      ]);
+      expect(output).not.toContain('de-hash-a');
+    });
   });
 
   describe('sync export output safety', () => {
