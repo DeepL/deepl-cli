@@ -27,6 +27,4 @@ jobs:
       - run: npm run lint
       - run: npm run type-check
       - run: npm run build
-      - name: Link CLI for E2E tests
-        run: npm link
       - run: npm test
