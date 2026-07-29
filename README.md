@@ -1047,22 +1047,24 @@ DeepL CLI includes built-in retry logic and timeout handling for robust API comm
 
 **Automatic Retry Logic:**
 
-- Automatically retries failed requests on transient errors (5xx, network failures)
-- Default: 3 retries with exponential backoff
-- Does not retry on client errors (4xx - bad request, auth failures, etc.)
-- Exponential backoff delays: 1s, 2s, 4s, 8s, 10s (capped at 10s)
+- Idempotent requests (GET, HEAD, PUT, DELETE) are retried on 5xx responses and transient network failures
+- Non-idempotent requests (POST — translations, uploads, glossary and key creation) are replayed only when the error proves the request never reached the server (connection refused, DNS failure), so a slow response can never be submitted and billed twice
+- Rate limiting (429) is retried for all methods, honoring the `Retry-After` header when the server sends one
+- Other client errors (4xx — bad request, auth failures, etc.) are not retried
+- Default: 3 retries with full-jitter exponential backoff (capped at 10s)
 
 **Timeout Configuration:**
 
-- Default timeout: 30 seconds per request
+- Default timeout: 30 seconds per request, with an overall time budget across retries
 - Applies to all API requests (translate, usage, languages, etc.)
+- Override per invocation with the global `--timeout <ms>` and `--max-retries <n>` flags
 
 **Features:**
 
 - ✅ Automatic retry on transient failures
 - ✅ Exponential backoff to avoid overwhelming the API
-- ✅ Smart error detection (retries 5xx, not 4xx)
-- ✅ Configurable via library-consumer options; not exposed as a CLI flag
+- ✅ Retry policy aware of request idempotency
+- ✅ Configurable via `--timeout` / `--max-retries` (or library-consumer options)
 - ✅ Works across all DeepL API endpoints
 
 **Retry Behavior Examples:**
@@ -1081,7 +1083,7 @@ deepl translate "Hello" --to es
 # otherwise falls back to jittered exponential backoff
 ```
 
-**Note:** Retry and timeout settings use sensible defaults optimized for the DeepL API. These are internal features that work automatically - no configuration required.
+**Note:** Retry and timeout settings use sensible defaults optimized for the DeepL API. No configuration is required; `--timeout` and `--max-retries` are available when a specific invocation needs different bounds (e.g. very large documents on a slow uplink).
 
 ### Glossaries
 
