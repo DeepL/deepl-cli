@@ -1,4 +1,5 @@
 import type { ExtractedEntry, FormatParser, TranslatedEntry } from './format.js';
+import { ValidationError } from '../utils/errors.js';
 
 interface PluralItem {
   quantity: string;
@@ -74,6 +75,22 @@ function escapeAndroid(value: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/**
+ * Refuse a value that would close the CDATA section it is written into.
+ * Nothing inside a CDATA body is entity-escaped, so the text after a "]]>"
+ * would be parsed as XML — an injected element in a generated resource file.
+ * Fail fast rather than rewrite the value into something the round-trip
+ * cannot reproduce, matching the XLIFF parser's stance on CDATA.
+ */
+function assertNoCdataBreakout(value: string): void {
+  if (value.includes(']]>')) {
+    throw new ValidationError(
+      'Android CDATA values containing "]]>" are not supported.',
+      'Remove the "]]>" sequence from the text, or drop the <![CDATA[...]]> wrapper in the source file so the value is entity-escaped instead.',
+    );
+  }
 }
 
 export class AndroidXmlFormatParser implements FormatParser {
@@ -260,8 +277,7 @@ export class AndroidXmlFormatParser implements FormatParser {
 
   private decodeValue(raw: string): string {
     if (raw.startsWith('<![CDATA[')) {
-      // Concatenate adjacent sections: escapeForReconstruct splits on "]]>"
-      // into `]]]]><![CDATA[>`, so a literal "]]>" spans two sections.
+      // Adjacent sections concatenate, so `<![CDATA[a]]><![CDATA[b]]>` is "ab".
       const sectionRe = /<!\[CDATA\[([\s\S]*?)\]\]>/g;
       let joined = '';
       let consumedTo = 0;
@@ -277,12 +293,9 @@ export class AndroidXmlFormatParser implements FormatParser {
   }
 
   private escapeForReconstruct(originalInner: string, translation: string): string {
-    if (/^<!\[CDATA\[/.test(originalInner)) {
-      // A translation containing "]]>" would close the section early and the
-      // remainder would be parsed as XML. Splitting into adjacent CDATA
-      // sections keeps the text literal without escaping it.
-      const safe = translation.replace(/]]>/g, ']]]]><![CDATA[>');
-      return `<![CDATA[${safe}]]>`;
+    if (originalInner.startsWith('<![CDATA[')) {
+      assertNoCdataBreakout(translation);
+      return `<![CDATA[${translation}]]>`;
     }
     return escapeAndroid(translation);
   }
