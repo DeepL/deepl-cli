@@ -79,10 +79,13 @@ describe('HttpClient retry policy', () => {
   // Interceptors left unconsumed are the point of several tests here (a
   // request that must NOT be replayed leaves its spare interceptors
   // pending), so clean up before the global pending-mock assertion runs.
+  // The replyWithError-based blocks sit at the end of the file: nock v14
+  // emits async socket errors from them that leak into later tests.
   afterEach(() => {
     for (const client of clients) {
       client.destroy();
     }
+    nock.abortPendingRequests();
     nock.cleanAll();
   });
 
@@ -143,50 +146,6 @@ describe('HttpClient retry policy', () => {
       );
 
       expect(requests()).toBe(4);
-    });
-  });
-
-  describe('transport failures', () => {
-    it('retries a POST when the connection was refused', async () => {
-      const scope = nock(BASE_URL)
-        .post('/v2/translate')
-        .times(4)
-        .replyWithError(transportError('ECONNREFUSED', 'connect ECONNREFUSED 127.0.0.1:443'));
-      const requests = countRequests(scope);
-
-      await expect(makeClient().post('/v2/translate', { text: 'Hello' })).rejects.toThrow(
-        NetworkError
-      );
-
-      expect(requests()).toBe(4);
-    });
-
-    it('retries a POST when DNS resolution failed', async () => {
-      const scope = nock(BASE_URL)
-        .post('/v2/translate')
-        .times(4)
-        .replyWithError(transportError('ENOTFOUND', 'getaddrinfo ENOTFOUND api-free.deepl.com'));
-      const requests = countRequests(scope);
-
-      await expect(makeClient().post('/v2/translate', { text: 'Hello' })).rejects.toThrow(
-        NetworkError
-      );
-
-      expect(requests()).toBe(4);
-    });
-
-    it('does not retry a POST reset mid-flight — the request may have been accepted', async () => {
-      const scope = nock(BASE_URL)
-        .post('/v2/translate')
-        .times(4)
-        .replyWithError(transportError('ECONNRESET', 'socket hang up'));
-      const requests = countRequests(scope);
-
-      await expect(makeClient().post('/v2/translate', { text: 'Hello' })).rejects.toThrow(
-        NetworkError
-      );
-
-      expect(requests()).toBe(1);
     });
   });
 
@@ -292,6 +251,50 @@ describe('HttpClient retry policy', () => {
       // Default budget is twice the timeout, so far short of six attempts.
       expect(requests()).toBeGreaterThanOrEqual(2);
       expect(requests()).toBeLessThanOrEqual(3);
+    });
+  });
+
+  describe('transport failures', () => {
+    it('retries a POST when the connection was refused', async () => {
+      const scope = nock(BASE_URL)
+        .post('/v2/translate')
+        .times(4)
+        .replyWithError(transportError('ECONNREFUSED', 'connect ECONNREFUSED 127.0.0.1:443'));
+      const requests = countRequests(scope);
+
+      await expect(makeClient().post('/v2/translate', { text: 'Hello' })).rejects.toThrow(
+        NetworkError
+      );
+
+      expect(requests()).toBe(4);
+    });
+
+    it('retries a POST when DNS resolution failed', async () => {
+      const scope = nock(BASE_URL)
+        .post('/v2/translate')
+        .times(4)
+        .replyWithError(transportError('ENOTFOUND', 'getaddrinfo ENOTFOUND api-free.deepl.com'));
+      const requests = countRequests(scope);
+
+      await expect(makeClient().post('/v2/translate', { text: 'Hello' })).rejects.toThrow(
+        NetworkError
+      );
+
+      expect(requests()).toBe(4);
+    });
+
+    it('does not retry a POST reset mid-flight — the request may have been accepted', async () => {
+      const scope = nock(BASE_URL)
+        .post('/v2/translate')
+        .times(4)
+        .replyWithError(transportError('ECONNRESET', 'socket hang up'));
+      const requests = countRequests(scope);
+
+      await expect(makeClient().post('/v2/translate', { text: 'Hello' })).rejects.toThrow(
+        NetworkError
+      );
+
+      expect(requests()).toBe(1);
     });
   });
 
