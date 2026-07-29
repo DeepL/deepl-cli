@@ -82,6 +82,7 @@ export default {
   ],
 
   // Setup files
+  globalSetup: '<rootDir>/tests/global-setup.ts',
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
 
   // Test timeout
