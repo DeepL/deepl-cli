@@ -1047,6 +1047,49 @@ describe('LocaleTranslator', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // 14a. Containment ordering — assertPathWithinRoot runs before any target I/O
+  // ---------------------------------------------------------------------------
+  describe('target-file handling — containment ordering', () => {
+    it('should assert containment before reading the target or writing the backup', async () => {
+      const order: string[] = [];
+      mockAssertPathWithinRoot.mockImplementation(() => { order.push('assert'); });
+      mockReadFile.mockImplementation(() => { order.push('read'); return Promise.resolve('{"prior":"X"}'); });
+      const copyFileSpy = fs.promises.copyFile as jest.MockedFunction<typeof fs.promises.copyFile>;
+      copyFileSpy.mockImplementation(() => { order.push('copy'); return Promise.resolve(); });
+
+      const config = makeConfig();
+      const diffs = [makeDiff('greeting', 'Hello')];
+      const { mock } = captureTranslateBatch(['Hallo']);
+
+      await makeTranslator(mock, config).translate(makeCtx(diffs, new Map()));
+
+      expect(order).toContain('assert');
+      expect(order).toContain('read');
+      expect(order).toContain('copy');
+      expect(order.indexOf('assert')).toBeLessThan(order.indexOf('read'));
+      expect(order.indexOf('assert')).toBeLessThan(order.indexOf('copy'));
+    });
+
+    it('should neither read the target nor write a backup when containment fails', async () => {
+      mockAssertPathWithinRoot.mockImplementation(() => {
+        throw new Error('Target path escapes project root: /evil/de.json');
+      });
+      const copyFileSpy = fs.promises.copyFile as jest.MockedFunction<typeof fs.promises.copyFile>;
+
+      const config = makeConfig();
+      const diffs = [makeDiff('greeting', 'Hello')];
+      const { mock } = captureTranslateBatch(['Hallo']);
+
+      await expect(
+        makeTranslator(mock, config).translate(makeCtx(diffs, new Map())),
+      ).rejects.toThrow(/escapes project root/);
+      expect(mockReadFile).not.toHaveBeenCalled();
+      expect(copyFileSpy).not.toHaveBeenCalled();
+      expect(mockAtomicWriteFile).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // 14b. Backup failure handling — Logger.warn, sync continues
   // ---------------------------------------------------------------------------
   describe('target-file handling — backup failure', () => {

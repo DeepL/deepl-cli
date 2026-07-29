@@ -514,6 +514,7 @@ export class LocaleTranslator {
       ? relPath
       : resolveTargetPath(relPath, config.source_locale, locale, bucketConfig.target_path_pattern);
     const targetAbsPath = path.join(config.projectRoot, targetRelPath);
+    assertPathWithinRoot(targetAbsPath, config.projectRoot);
 
     let templateContent = content;
     let targetExists = false;
@@ -540,7 +541,6 @@ export class LocaleTranslator {
     const reconstructed = isMultiLocale
       ? parser.reconstruct(templateContent, allTranslatedEntries, locale)
       : parser.reconstruct(templateContent, allTranslatedEntries);
-    assertPathWithinRoot(targetAbsPath, config.projectRoot);
     await fs.promises.mkdir(path.dirname(targetAbsPath), { recursive: true });
     await atomicWriteFile(targetAbsPath, reconstructed, 'utf-8');
 
