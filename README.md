@@ -128,7 +128,6 @@ export DEEPL_API_KEY=YOUR_API_KEY
 ```bash
 deepl translate "Hello, world!" --to es
 # Output:
-# Translation (ES):
 # ¡Hola, mundo!
 ```
 
@@ -207,7 +206,10 @@ Mistype a command? The CLI suggests the closest match:
 
 ```bash
 $ deepl transalte "Hello" --to es
-# Error: Unknown command 'transalte'. Did you mean 'translate'?
+# Unknown command: transalte
+# Did you mean: deepl translate?
+#
+# Run deepl --help to see available commands.
 ```
 
 ### Custom Configuration Files
@@ -233,7 +235,7 @@ $ deepl -c /path/to/test-config.json usage
 - **Environment separation**: Separate configs for dev/staging/production
 - **Testing**: Use test configurations without affecting default settings
 
-**Precedence**: `--config` > `DEEPL_CONFIG_DIR` > legacy `~/.deepl-cli/` > XDG directories (see below).
+**Precedence**: `--config` replaces the config _file_ only. The cache location is unaffected — it still follows `DEEPL_CONFIG_DIR` > legacy `~/.deepl-cli/` > XDG directories (see below).
 
 ### Configuration Paths
 
@@ -259,24 +261,17 @@ See [docs/API.md#global-options](./docs/API.md#global-options) for more details.
 ```bash
 # Simple translation
 deepl translate "Hello world" --to ja
-# Translation (JA):
 # こんにちは世界
 
 # Specify source language explicitly
 deepl translate "Bonjour" --from fr --to en
-# Translation (EN):
 # Hello
 
-# Multiple target languages
+# Multiple target languages (each result is prefixed with its language)
 deepl translate "Good morning" --to es,fr,de
-# Translation (ES):
-# Buenos días
-#
-# Translation (FR):
-# Bonjour
-#
-# Translation (DE):
-# Guten Morgen
+# [ES] Buenos días
+# [FR] Bonjour
+# [DE] Guten Morgen
 
 # Read from stdin
 echo "Hello world" | deepl translate --to es
@@ -382,7 +377,7 @@ deepl translate document.pdf --to es --output-format docx --output document.es.d
 - ✅ **Preserves Formatting** - Maintains fonts, styles, colors, and layout
 - ✅ **Format Conversion** - PDF → DOCX conversion only (convert PDFs to editable Word documents)
 - ✅ **Progress Tracking** - Real-time status updates during translation
-- ✅ **Large Files** - Handles documents up to 10MB (PDF) or 30MB (other formats)
+- ✅ **Large Files** - Handles documents up to 30MB
 - ✅ **Cost Tracking** - Shows billed characters after translation
 - ✅ **Async Processing** - Documents are translated on DeepL servers with polling
 
@@ -470,7 +465,7 @@ deepl translate "How are you?" --context "Formal business email" --formality mor
 
 # Choose model type for quality vs. speed trade-offs
 deepl translate "Long document text..." --to ja --model-type quality_optimized
-# Best translation quality (default)
+# Best translation quality
 
 deepl translate "Real-time chat message" --to es --model-type latency_optimized
 # Faster response time, slightly lower quality
@@ -570,6 +565,8 @@ See [examples/09-xml-tag-handling.sh](./examples/09-xml-tag-handling.sh) for com
 - `prefer_quality_optimized` - Prefer quality, fallback to latency if unavailable
 - `latency_optimized` - Faster responses, slightly lower quality (ideal for real-time use)
 
+There is no CLI default: when `--model-type` is omitted, the API server selects the model.
+
 See [examples/08-model-type-selection.sh](./examples/08-model-type-selection.sh) for a complete example with different model types.
 
 ### Writing Enhancement
@@ -660,6 +657,7 @@ deepl write "Fresh improvement please." --lang en-US --no-cache
 
 **Writing Styles:**
 
+- `default` - No style modification (API default)
 - `simple` - Easy-to-read, accessible language
 - `business` - Professional, formal business tone
 - `academic` - Scholarly, research-oriented style
@@ -668,6 +666,7 @@ deepl write "Fresh improvement please." --lang en-US --no-cache
 
 **Tones:**
 
+- `default` - No tone modification (API default)
 - `enthusiastic` - Energetic and positive
 - `friendly` - Warm and approachable
 - `confident` - Assertive and certain
@@ -915,7 +914,7 @@ Detect the language of text using the DeepL API:
 ```bash
 # Detect language of text
 deepl detect "Bonjour le monde"
-# Detected language: fr (French)
+# Detected language: French (fr)
 
 # Pipe text for detection
 echo "こんにちは" | deepl detect
@@ -1382,8 +1381,11 @@ deepl-cli/
 ├── src/
 │   ├── cli/              # CLI interface and commands
 │   ├── services/         # Business logic
+│   ├── sync/             # Continuous localization engine (scan, diff, translate, write, lock)
+│   ├── formats/          # i18n file format parsers (JSON, YAML, PO, XLIFF, Android XML, etc.)
 │   ├── api/              # DeepL API client
 │   ├── storage/          # Data persistence (cache, config)
+│   ├── data/             # Static data (language registry)
 │   ├── utils/            # Utility functions
 │   ├── types/            # Type definitions
 ├── tests/
