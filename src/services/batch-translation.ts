@@ -50,6 +50,16 @@ const DEFAULT_CONCURRENCY = 5;
 const MAX_CONCURRENCY = 100;
 const PLAIN_TEXT_EXTENSIONS = new Set(['.txt', '.md']);
 
+/**
+ * /v2/translate bodies are application/x-www-form-urlencoded, so the API's
+ * per-request size limit applies to the percent-encoded text (up to ~3x the
+ * raw UTF-8 size for non-ASCII). Batch grouping measures that encoded size.
+ * The serialized output is pure ASCII, so string length equals byte length.
+ */
+function formEncodedByteLength(text: string): number {
+  return new URLSearchParams([['t', text]]).toString().length - 't='.length;
+}
+
 export class BatchTranslationService {
   private fileTranslationService: FileTranslationService;
   private translationService: TranslationService | null;
@@ -308,7 +318,7 @@ export class BatchTranslationService {
         continue;
       }
 
-      const entryBytes = Buffer.byteLength(entry.processedText, 'utf8');
+      const entryBytes = formEncodedByteLength(entry.processedText);
       if (currentBatch.length > 0 &&
           (currentBatch.length >= TRANSLATE_BATCH_SIZE || currentBytes + entryBytes > MAX_TEXT_BYTES)) {
         await flushBatch();

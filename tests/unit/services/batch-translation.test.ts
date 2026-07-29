@@ -529,6 +529,30 @@ describe('BatchTranslationService', () => {
       expect(mockTranslationService.translateBatch).toHaveBeenCalledTimes(2);
     });
 
+    it('should split batches by form-encoded size so CJK batches stay within the API body limit', async () => {
+      // 10,000 CJK chars: 30,000 raw UTF-8 bytes but 90,000 bytes once
+      // percent-encoded. Raw sum (60,000) fits MAX_TEXT_BYTES; encoded
+      // sum (180,000) does not, so the files must land in separate batches.
+      const cjkText = '你'.repeat(10_000);
+      const file1 = path.join(testDir, 'cjk1.txt');
+      const file2 = path.join(testDir, 'cjk2.txt');
+      fs.writeFileSync(file1, cjkText);
+      fs.writeFileSync(file2, cjkText);
+
+      mockTranslationService.translateBatch.mockImplementation(async (texts) =>
+        texts.map(() => ({ text: 'translated' }))
+      );
+
+      const result = await batchServiceWithTranslation.translateFiles(
+        [file1, file2],
+        { targetLang: 'es' },
+        { outputDir: testDir }
+      );
+
+      expect(result.successful).toHaveLength(2);
+      expect(mockTranslationService.translateBatch).toHaveBeenCalledTimes(2);
+    });
+
     it('should apply and restore code/variable preservation', async () => {
       const file = path.join(testDir, 'code.txt');
       fs.writeFileSync(file, 'Use `console.log()` with {name}');
