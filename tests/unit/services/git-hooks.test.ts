@@ -84,6 +84,25 @@ describe('GitHooksService', () => {
       expect(content).toContain('pre-commit');
     });
 
+    it('pre-commit hook invokes the CLI to validate translations', () => {
+      gitHooksService.install('pre-commit');
+
+      const content = fs.readFileSync(path.join(testHooksDir, 'pre-commit'), 'utf-8');
+      expect(content).toContain('command -v deepl');
+      expect(content).toContain('deepl sync validate');
+      expect(content).toContain('.deepl-sync.yaml');
+      // The former stub grepped staged .md/.txt files and always exited 0.
+      expect(content).not.toContain('Translation check passed');
+      expect(content).not.toMatch(/grep -E.*md\|txt/);
+    });
+
+    it('pre-commit hook blocks the commit when validation fails', () => {
+      gitHooksService.install('pre-commit');
+
+      const content = fs.readFileSync(path.join(testHooksDir, 'pre-commit'), 'utf-8');
+      expect(content).toContain('exit 1');
+    });
+
     it('should install pre-push hook', () => {
       gitHooksService.install('pre-push');
 
@@ -599,7 +618,7 @@ describe('GitHooksService', () => {
 
       const hookPath = path.join(testHooksDir, 'pre-commit');
       const content = fs.readFileSync(hookPath, 'utf-8');
-      const modified = content.replace('Translation check passed', 'HACKED');
+      const modified = content.replace('Validating translations', 'HACKED');
       fs.writeFileSync(hookPath, modified);
 
       const result = gitHooksService.verifyIntegrity('pre-commit');

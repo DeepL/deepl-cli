@@ -300,31 +300,28 @@ export class GitHooksService {
 
     if (hookType === 'pre-commit') {
       return commonPreamble + `# Pre-commit hook for DeepL CLI
-# Validates that translation files are up-to-date
+# Validates translations before committing
 
-echo "🔍 Checking translations..."
-
-# Get staged files
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
-
-# Check if any translatable files are staged
-TRANSLATABLE_FILES=$(echo "$STAGED_FILES" | grep -E '\\.(md|txt)$' || true)
-
-if [ -z "$TRANSLATABLE_FILES" ]; then
-  echo "✓ No translatable files changed"
+# Check if deepl CLI is available
+if ! command -v deepl >/dev/null 2>&1; then
+  echo "⚠️  DeepL CLI not found in PATH, skipping translation validation"
   exit 0
 fi
 
-# Check if translation files exist for staged files
-# This is a basic check - you can customize it based on your workflow
-echo "📝 Found translatable files:"
-echo "$TRANSLATABLE_FILES"
+# Only projects with a sync config have translations to validate
+if [ ! -f ".deepl-sync.yaml" ]; then
+  echo "✓ No .deepl-sync.yaml found, skipping translation validation"
+  exit 0
+fi
 
-# Optionally check if translations exist
-# You can customize this based on your project structure
-# For example, check if docs/README.md has docs/translations/README.es.md
+echo "🔍 Validating translations..."
 
-echo "✓ Translation check passed"
+if ! deepl sync validate; then
+  echo "✗ Translation validation failed. Fix the issues above, or commit with --no-verify to skip."
+  exit 1
+fi
+
+echo "✓ Translation validation passed"
 exit 0
 `;
     } else if (hookType === 'pre-push') {
