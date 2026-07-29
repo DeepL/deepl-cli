@@ -43,6 +43,7 @@ const BASE_URL = 'https://api-free.deepl.com';
 describe('HttpClient retry policy', () => {
   const apiKey = 'test-api-key';
   let clients: TestHttpClient[];
+  let sleepSpy: jest.SpyInstance;
 
   function makeClient(options: Record<string, unknown> = {}): TestHttpClient {
     const client = new TestHttpClient(apiKey, {
@@ -51,7 +52,7 @@ describe('HttpClient retry policy', () => {
       totalTimeout: 10_000,
       ...options,
     });
-    jest
+    sleepSpy = jest
       .spyOn(client as unknown as { sleep: (ms: number) => Promise<void> }, 'sleep')
       .mockResolvedValue();
     clients.push(client);
@@ -185,6 +186,32 @@ describe('HttpClient retry policy', () => {
       );
 
       expect(requests()).toBe(1);
+    });
+
+    // A 429 proves the server received and rejected the request without
+    // processing it, so replaying it cannot duplicate billable work — the
+    // idempotency restriction does not apply.
+    it('retries a POST on 429 and honours Retry-After', async () => {
+      const scope = nock(BASE_URL)
+        .post('/v2/translate')
+        .reply(429, { message: 'Too many requests' }, { 'Retry-After': '2' });
+      const requests = countRequests(scope);
+      const retryScope = nock(BASE_URL)
+        .post('/v2/translate')
+        .reply(200, { translations: [{ text: 'Hola' }] });
+      const retryRequests = countRequests(retryScope);
+
+      const client = makeClient();
+      const result = await client.post<{ translations: { text: string }[] }>(
+        '/v2/translate',
+        { text: 'Hello' }
+      );
+
+      expect(result.translations[0]!.text).toBe('Hola');
+      expect(requests()).toBe(1);
+      expect(retryRequests()).toBe(1);
+      expect(sleepSpy).toHaveBeenCalledTimes(1);
+      expect(sleepSpy).toHaveBeenCalledWith(2000);
     });
 
     it('still retries a POST on 429 — the server rejected it without processing', async () => {
