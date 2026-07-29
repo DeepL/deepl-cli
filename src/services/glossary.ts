@@ -148,7 +148,13 @@ export class GlossaryService {
    */
   async getGlossaryByName(name: string): Promise<GlossaryInfo | null> {
     const glossaries = await this.getCachedGlossaryList();
-    return glossaries.find(g => g.name === name) ?? null;
+    const match = glossaries.find(g => g.name === name) ?? null;
+    // List normalization suppresses this warning for unrelated glossaries;
+    // surface it here only for the glossary actually being operated on.
+    if (match?.dictionaries.length === 0) {
+      Logger.warn('Glossary has empty dictionaries; defaulting source language to "en"');
+    }
+    return match;
   }
 
   /**

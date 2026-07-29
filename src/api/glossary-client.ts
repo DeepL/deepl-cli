@@ -58,7 +58,9 @@ export class GlossaryClient extends HttpClient {
         '/v3/glossaries'
       );
 
-      return (response.glossaries || []).map(normalizeGlossaryInfo);
+      return (response.glossaries || []).map((g) =>
+        normalizeGlossaryInfo(g, { warnOnEmpty: false }),
+      );
     } catch (error) {
       throw this.handleError(error, 'listGlossaries');
     }

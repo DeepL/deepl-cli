@@ -44,6 +44,20 @@ describe('normalizeGlossaryInfo', () => {
     );
   });
 
+  it('should not warn for empty dictionaries when warnings are suppressed', () => {
+    const response: GlossaryApiResponse = {
+      glossary_id: 'test-123',
+      name: 'Empty Glossary',
+      dictionaries: [],
+      creation_time: '2025-10-13T10:00:00Z',
+    };
+
+    const result = normalizeGlossaryInfo(response, { warnOnEmpty: false });
+
+    expect(result.source_lang).toBe('en');
+    expect(Logger.warn).not.toHaveBeenCalled();
+  });
+
   it('should not warn when dictionaries are present', () => {
     const response: GlossaryApiResponse = {
       glossary_id: 'test-123',

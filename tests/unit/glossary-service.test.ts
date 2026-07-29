@@ -266,6 +266,30 @@ describe('GlossaryService', () => {
 
       expect(glossary).toBeNull();
     });
+
+    it('should warn when the matched glossary itself has empty dictionaries', async () => {
+      const { Logger } = await import('../../src/utils/logger.js');
+      const warnSpy = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+      try {
+        mockDeepLClient.listGlossaries.mockResolvedValue([
+          {
+            glossary_id: 'empty-123',
+            name: 'still-processing',
+            source_lang: 'en',
+            target_langs: [],
+            dictionaries: [],
+            creation_time: '2024-01-01T00:00:00Z',
+          },
+        ]);
+
+        const glossary = await glossaryService.getGlossaryByName('still-processing');
+
+        expect(glossary?.glossary_id).toBe('empty-123');
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('empty dictionaries'));
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 
   describe('resolveGlossaryId()', () => {

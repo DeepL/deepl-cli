@@ -169,6 +169,34 @@ describe('GlossaryClient', () => {
       expect(result[0]!.glossary_id).toBe('g-1');
     });
 
+    it('should not warn about unrelated empty-dictionary glossaries during list scans', async () => {
+      const { Logger } = await import('../../src/utils/logger.js');
+      const warnSpy = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+      try {
+        mockAxiosInstance.request.mockResolvedValue({
+          data: {
+            glossaries: [
+              {
+                glossary_id: 'g-empty',
+                name: 'Still Processing',
+                dictionaries: [],
+                creation_time: '2024-01-01T00:00:00Z',
+              },
+            ],
+          },
+          status: 200,
+          headers: {},
+        });
+
+        const result = await client.listGlossaries();
+
+        expect(result).toHaveLength(1);
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it('should return empty array when no glossaries', async () => {
       mockAxiosInstance.request.mockResolvedValue({
         data: { glossaries: [] },

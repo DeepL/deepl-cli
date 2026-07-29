@@ -39,8 +39,15 @@ export interface LanguagePairInfo {
 /**
  * Transform raw API response to normalized GlossaryInfo
  * Derives source_lang and target_langs from dictionaries
+ *
+ * Pass `warnOnEmpty: false` for bulk scans (e.g. list-based name resolution)
+ * where an unrelated glossary's empty dictionaries are not actionable.
  */
-export function normalizeGlossaryInfo(response: GlossaryApiResponse): GlossaryInfo {
+export function normalizeGlossaryInfo(
+  response: GlossaryApiResponse,
+  options: { warnOnEmpty?: boolean } = {},
+): GlossaryInfo {
+  const { warnOnEmpty = true } = options;
   // Extract unique source and target languages from dictionaries
   const sourceLangs = new Set<Language>();
   const targetLangs = new Set<Language>();
@@ -56,7 +63,9 @@ export function normalizeGlossaryInfo(response: GlossaryApiResponse): GlossaryIn
   if (sourceLangs.size > 0) {
     source_lang = Array.from(sourceLangs)[0]!;
   } else {
-    Logger.warn('Glossary has empty dictionaries; defaulting source language to "en"');
+    if (warnOnEmpty) {
+      Logger.warn('Glossary has empty dictionaries; defaulting source language to "en"');
+    }
     source_lang = 'en';
   }
 
