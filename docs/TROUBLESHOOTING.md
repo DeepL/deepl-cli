@@ -139,7 +139,7 @@ Common issues and solutions when using the DeepL CLI.
 
 2. For batch/directory translation, the CLI uses concurrency control internally. Avoid running multiple CLI instances simultaneously on the same API key.
 
-3. The CLI automatically retries with exponential backoff (1s, 2s, 4s, up to 10s, max 3 retries). If errors persist, wait and try again.
+3. Retries honor the server's `Retry-After` header when present, falling back to full-jitter exponential backoff (max 3 retries by default; see the global `--max-retries` flag). If errors persist, wait and try again.
 
 ---
 
@@ -167,7 +167,7 @@ Common issues and solutions when using the DeepL CLI.
    export HTTP_PROXY=http://proxy.example.com:8080
    ```
 
-4. The CLI retries on transient network errors automatically with exponential backoff.
+4. The CLI retries idempotent requests on transient network errors automatically. Requests that submit work (translations, document uploads, glossary creation) are replayed only when the error proves the request never reached the server, so they are never double-billed — for those, rerun the command (exit code 5 is safe to retry at the script level).
 
 ### "Request failed with status code 503"
 
@@ -183,7 +183,7 @@ Common issues and solutions when using the DeepL CLI.
    deepl translate "Hello" --to es --no-cache
    ```
 
-3. The CLI automatically retries on 503 errors with exponential backoff. If the error persists, the API may be experiencing an extended outage.
+3. Read-only requests are retried automatically on 503. Requests that submit work (translate, document upload) surface the error immediately so they are never double-billed; retry them at the script level (exit code 5). If the error persists, the API may be experiencing an extended outage.
 
 ---
 

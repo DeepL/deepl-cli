@@ -56,6 +56,8 @@ Options that work with all commands:
 --max-retries N     Maximum automatic retries for retryable requests (default: 3)
 ```
 
+Automatic retries apply to idempotent requests, and to rate-limited (429) responses for every method; a request that submits work is otherwise never replayed. Retries share a wall-clock budget of twice `--timeout`, so raising `--max-retries` alone does not extend how long the CLI waits on an unresponsive endpoint.
+
 **Examples:**
 
 ```bash
