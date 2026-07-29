@@ -1,6 +1,6 @@
 /**
  * Cache Service
- * SQLite-based translation cache with LRU eviction
+ * SQLite-based translation cache; evicts oldest-written entries first
  */
 
 import { DatabaseSync } from 'node:sqlite';
@@ -10,12 +10,12 @@ import { resolvePaths } from '../utils/paths.js';
 import { ConfigError } from '../utils/errors.js';
 import { Logger } from '../utils/logger.js';
 import { errorMessage } from '../utils/error-message.js';
-import { isNativeModuleLoadError } from '../utils/native-module-error.js';
 
 export interface CacheServiceOptions {
   dbPath?: string;
   maxSize?: number; // in bytes
   ttl?: number; // in milliseconds, 0 = disabled
+  busyTimeoutMs?: number; // how long SQLite waits on a locked DB before erroring
 }
 
 export interface CacheStats {
@@ -35,6 +35,31 @@ interface CacheRow {
 const DEFAULT_MAX_SIZE = 1024 * 1024 * 1024; // 1GB
 const DEFAULT_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 const CLEANUP_INTERVAL = 60_000; // 60 seconds
+const DEFAULT_BUSY_TIMEOUT_MS = 5_000;
+const EVICTION_BATCH = 32;
+const CORRUPT_BACKUPS_TO_KEEP = 3;
+
+// SQLite primary result codes that mean the file itself is damaged. Everything
+// else (BUSY, PERM, a deliberate ConfigError, a backend that cannot load) must
+// propagate: the DB on disk is healthy and renaming it aside would destroy it.
+const SQLITE_CORRUPT = 11;
+const SQLITE_NOTADB = 26;
+
+// Duck-typed rather than `instanceof Error`: node:sqlite errors are created
+// in the host realm, so instanceof fails against another realm's Error (as
+// in a jest test context).
+function isCorruptionError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { errcode, message } = error as { errcode?: unknown; message?: unknown };
+  if (typeof errcode === 'number') {
+    const primary = errcode & 0xff;
+    return primary === SQLITE_CORRUPT || primary === SQLITE_NOTADB;
+  }
+  return (
+    typeof message === 'string' &&
+    /file is not a database|database disk image is malformed/i.test(message)
+  );
+}
 
 /**
  * Current on-disk schema version for the SQLite cache. Stamped into
@@ -52,10 +77,13 @@ export class CacheService {
   private db!: DatabaseSync;
   private maxSize: number;
   private ttl: number;
+  private busyTimeoutMs: number;
   private enabled: boolean = true;
   private isClosed: boolean = false;
-  private currentSize: number = 0;
-  private lastCleanupTime: number = Date.now();
+  // Seeded to 0 so the first operation of every process sweeps expired rows;
+  // seeding to Date.now() would keep the sweep from ever running in a process
+  // shorter than CLEANUP_INTERVAL — i.e. nearly every CLI invocation.
+  private lastCleanupTime: number = 0;
 
   /**
    * Create a new CacheService instance. Production code should use
@@ -66,35 +94,77 @@ export class CacheService {
     const dbPath = options.dbPath ?? resolvePaths().cacheFile;
     this.maxSize = options.maxSize ?? DEFAULT_MAX_SIZE;
     this.ttl = options.ttl ?? DEFAULT_TTL;
+    this.busyTimeoutMs = options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS;
 
     try {
       this.openDatabase(dbPath);
     } catch (error) {
-      // A backend that cannot load (node:sqlite missing on an older
-      // Node runtime) is not corruption: the database on disk is
-      // healthy, so renaming it aside would throw away a warm cache.
-      if (isNativeModuleLoadError(error)) {
+      // Only genuine file damage may take the rename-aside path. Lock
+      // contention (SQLITE_BUSY), a schema written by a newer CLI
+      // (ConfigError), permission errors, and a backend that cannot load
+      // all leave a healthy database on disk — propagate them so the
+      // cache loader degrades to an uncached run instead.
+      if (!isCorruptionError(error)) {
         throw error;
       }
-      // Corrupted DB: rename-aside rather than unlink, so the user keeps
-      // 30 days of cache history (and a forensic artifact) instead of
-      // losing both silently. Suffix with a timestamp so repeated
-      // corruption doesn't clobber earlier backups.
+      // Rename-aside rather than unlink, so the user keeps 30 days of
+      // cache history (and a forensic artifact) instead of losing both
+      // silently. Suffix with a timestamp so repeated corruption doesn't
+      // clobber earlier backups.
       const suffix = `.corrupt-${Date.now()}`;
       Logger.warn(
         `Cache database corrupted, backing up and recreating: ${(error as Error).message}. ` +
-        `Previous contents preserved at ${path.basename(dbPath)}${suffix} (and -wal${suffix} / -shm${suffix} if present).`,
+        `Previous contents preserved at ${path.basename(dbPath)}${suffix} (and ${path.basename(dbPath)}${suffix}-wal / -shm if present).`,
       );
       try {
-        if (fs.existsSync(dbPath)) fs.renameSync(dbPath, dbPath + suffix);
+        // Sidecars must be preserved BEFORE closing the failed handle —
+        // SQLite unlinks -wal/-shm when the last connection closes — and as
+        // <backup>-wal / <backup>-shm, because SQLite resolves a database's
+        // sidecars as <db-file>-wal / <db-file>-shm.
         for (const sidecar of ['-wal', '-shm']) {
           const f = dbPath + sidecar;
-          if (fs.existsSync(f)) fs.renameSync(f, f + suffix);
+          if (fs.existsSync(f)) fs.copyFileSync(f, dbPath + suffix + sidecar);
         }
+        // Close before renaming the main file: an open fd on the renamed
+        // file blocks the rename on Windows.
+        try {
+          (this.db as DatabaseSync | undefined)?.close();
+        } catch {
+          // Never opened, or already closed.
+        }
+        if (fs.existsSync(dbPath)) fs.renameSync(dbPath, dbPath + suffix);
+        for (const sidecar of ['-wal', '-shm']) {
+          fs.rmSync(dbPath + sidecar, { force: true });
+        }
+        this.pruneCorruptBackups(dbPath);
         this.openDatabase(dbPath);
       } catch {
         throw error;
       }
+    }
+  }
+
+  /**
+   * Keep only the most recent CORRUPT_BACKUPS_TO_KEEP rename-aside backups
+   * (each can be up to maxSize) so repeated corruption cannot fill the disk.
+   */
+  private pruneCorruptBackups(dbPath: string): void {
+    try {
+      const dir = path.dirname(dbPath);
+      const prefix = `${path.basename(dbPath)}.corrupt-`;
+      const stamps = [...new Set(
+        fs.readdirSync(dir)
+          .filter((f) => f.startsWith(prefix))
+          .map((f) => /\.corrupt-(\d+)/.exec(f)?.[1])
+          .filter((s): s is string => s !== undefined),
+      )].sort((a, b) => Number(b) - Number(a));
+      for (const stamp of stamps.slice(CORRUPT_BACKUPS_TO_KEEP)) {
+        for (const suffix of ['', '-wal', '-shm']) {
+          fs.rmSync(`${dbPath}.corrupt-${stamp}${suffix}`, { force: true });
+        }
+      }
+    } catch {
+      // Best-effort: a failed prune must not block cache recreation.
     }
   }
 
@@ -104,6 +174,7 @@ export class CacheService {
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
     this.db = new DatabaseSync(dbPath);
+    this.db.exec(`PRAGMA busy_timeout = ${this.busyTimeoutMs}`);
     fs.chmodSync(dbPath, 0o600);
     this.initialize();
   }
@@ -170,9 +241,19 @@ export class CacheService {
     if (userVersion < CACHE_SCHEMA_VERSION) {
       this.db.exec(`PRAGMA user_version = ${CACHE_SCHEMA_VERSION}`);
     }
+  }
 
-    const row = this.db.prepare('SELECT COALESCE(SUM(size), 0) as total FROM cache').get() as { total: number };
-    this.currentSize = row.total;
+  /**
+   * Total stored bytes, always read from the database. A process-local
+   * counter cannot stay correct here: get()-path deletes, eviction during
+   * overwrites, and concurrent processes sharing the file all move the real
+   * total without this process seeing it.
+   */
+  private totalSize(): number {
+    const row = this.db
+      .prepare('SELECT COALESCE(SUM(size), 0) as total FROM cache')
+      .get() as { total: number };
+    return row.total;
   }
 
   /**
@@ -234,6 +315,15 @@ export class CacheService {
     const size = Buffer.byteLength(json, 'utf8');
     const timestamp = Date.now();
 
+    // An entry that alone exceeds the cap can never be cached without
+    // evicting everything else first — skip it rather than wipe the cache.
+    if (size > this.maxSize) {
+      Logger.verbose(
+        `Skipping cache write: entry of ${size} bytes exceeds the ${this.maxSize}-byte cache size limit.`,
+      );
+      return;
+    }
+
     // Clean up expired entries
     this.cleanupExpired();
 
@@ -250,12 +340,10 @@ export class CacheService {
     `);
 
     stmt.run(key, json, timestamp, size);
-    this.currentSize = this.currentSize - existingSize + size;
   }
 
   clear(): void {
     this.db.exec('DELETE FROM cache');
-    this.currentSize = 0;
   }
 
   /**
@@ -308,8 +396,10 @@ export class CacheService {
       this.db.close();
       this.isClosed = true;
       if (CacheService.instance === this) {
+        // handlersRegistered stays true: the process handlers tolerate a
+        // null instance, and re-registering on every getInstance/close
+        // cycle accumulates listeners until Node warns on stderr.
         CacheService.instance = null;
-        CacheService.handlersRegistered = false;
       }
     }
   }
@@ -330,40 +420,30 @@ export class CacheService {
     }
     this.lastCleanupTime = now;
 
-    const expirationTime = now - this.ttl;
-    const sizeStmt = this.db.prepare('SELECT COALESCE(SUM(size), 0) as total FROM cache WHERE timestamp < ?');
-    const sizeRow = sizeStmt.get(expirationTime) as { total: number };
-    const deletedSize = sizeRow.total;
-
-    this.db.prepare('DELETE FROM cache WHERE timestamp < ?').run(expirationTime);
-    this.currentSize -= deletedSize;
+    this.db.prepare('DELETE FROM cache WHERE timestamp < ?').run(now - this.ttl);
   }
 
   private evictIfNeeded(newEntrySize: number): void {
-    if (this.currentSize + newEntrySize <= this.maxSize) {
-      return;
+    let excess = this.totalSize() + newEntrySize - this.maxSize;
+
+    // Delete oldest rows in batches until enough space is freed. A one-shot
+    // estimate from the average row size under-evicts whenever sizes are
+    // skewed, leaving the cache over its cap.
+    while (excess > 0) {
+      const deleted = this.db.prepare(`
+        DELETE FROM cache
+        WHERE key IN (
+          SELECT key FROM cache
+          ORDER BY timestamp ASC
+          LIMIT ${EVICTION_BATCH}
+        )
+        RETURNING size
+      `).all() as { size: number }[];
+
+      if (deleted.length === 0) {
+        return;
+      }
+      excess -= deleted.reduce((sum, row) => sum + row.size, 0);
     }
-
-    const toFree = this.currentSize + newEntrySize - this.maxSize + 1;
-    const { count: entries } = this.db.prepare(
-      'SELECT COUNT(*) as count FROM cache'
-    ).get() as { count: number };
-
-    const avgSize = entries > 0 ? this.currentSize / entries : 1024;
-    const estimatedEntries = Math.ceil(toFree / avgSize);
-    const entriesToDelete = Math.ceil(estimatedEntries * 1.2);
-
-    const deleted = this.db.prepare(`
-      DELETE FROM cache
-      WHERE key IN (
-        SELECT key FROM cache
-        ORDER BY timestamp ASC
-        LIMIT ?
-      )
-      RETURNING size
-    `).all(entriesToDelete) as { size: number }[];
-
-    const deletedSize = deleted.reduce((sum, row) => sum + row.size, 0);
-    this.currentSize -= deletedSize;
   }
 }

@@ -15,7 +15,7 @@
 - **🎙️ Voice Translation (Pro/Enterprise)** - Real-time speech translation via WebSocket streaming (Voice API)
 - **👀 Watch Mode** - Real-time file watching with auto-translation
 - **✍️ Writing Enhancement** - Grammar, style, and tone suggestions (DeepL Write API)
-- **💾 Smart Caching** - Local SQLite cache with LRU eviction
+- **💾 Smart Caching** - Local SQLite cache that evicts oldest entries first
 - **🎯 Context-Aware** - Preserves code blocks, variables, and formatting
 - **📦 Batch Processing** - Translate multiple files with parallel processing
 - **💰 Cost Transparency** - Track actual billed characters for budget planning
@@ -1430,7 +1430,7 @@ Storage (SQLite Cache, Config) + Static Data (src/data — language registry)
 - **Watch Service** — file watching with debouncing
 - **Glossary Service** — glossary management and application
 - **Translation Memory Service** — reuse approved translations (`--translation-memory`)
-- **Cache** — SQLite cache with LRU eviction (`src/storage/cache.ts`)
+- **Cache** — SQLite cache, oldest-entry-first eviction (`src/storage/cache.ts`)
 - **Preservation utilities** — `src/utils/` helpers for code blocks, variables, and ICU MessageFormat
 
 ## 🧪 Testing
