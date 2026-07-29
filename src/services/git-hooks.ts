@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { execFileSync } from 'child_process';
 import { ValidationError } from '../utils/errors.js';
 
 export type HookType = 'pre-commit' | 'pre-push' | 'commit-msg' | 'post-commit';
@@ -13,6 +14,14 @@ export type HookType = 'pre-commit' | 'pre-push' | 'commit-msg' | 'post-commit';
 export interface HookStatus {
   [key: string]: boolean;
 }
+
+export interface InstallResult {
+  hookPath: string;
+  /** Path the pre-existing non-DeepL hook was copied to, or null if nothing was backed up. */
+  backupPath: string | null;
+}
+
+const MAX_BACKUP_SLOTS = 100;
 
 export interface HookIntegrity {
   installed: boolean;
@@ -34,13 +43,46 @@ export class GitHooksService {
       throw new ValidationError('Git directory not found: ' + gitDir);
     }
 
-    this.hooksDir = path.join(gitDir, 'hooks');
+    this.hooksDir = GitHooksService.resolveHooksDir(gitDir);
+  }
+
+  /**
+   * Resolve the directory git actually reads hooks from.
+   *
+   * `git rev-parse --git-path hooks` honours core.hooksPath (husky and friends)
+   * and resolves the `gitdir:` pointer used by linked worktrees and submodules,
+   * where `<root>/.git` is a file rather than a directory.
+   */
+  private static resolveHooksDir(gitDir: string): string {
+    const workDir = path.dirname(gitDir);
+
+    try {
+      const resolved = execFileSync('git', ['rev-parse', '--git-path', 'hooks'], {
+        cwd: workDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      if (resolved) {
+        return path.resolve(workDir, resolved);
+      }
+    } catch {
+      // git unavailable, or workDir is not a working tree — fall back below.
+    }
+
+    if (!fs.statSync(gitDir).isDirectory()) {
+      throw new ValidationError(
+        `Cannot resolve the hooks directory for "${gitDir}": it is a gitdir pointer file and git is not available to resolve it.`,
+        'Install git, or run this command from the repository that owns the worktree.',
+      );
+    }
+
+    return path.join(gitDir, 'hooks');
   }
 
   /**
    * Install a git hook
    */
-  install(hookType: HookType): void {
+  install(hookType: HookType): InstallResult {
     this.validateHookType(hookType);
 
     const hookPath = this.getHookPath(hookType);
@@ -52,10 +94,11 @@ export class GitHooksService {
     }
 
     // Backup existing hook if it exists and is not a DeepL hook
+    let backupPath: string | null = null;
     if (fs.existsSync(hookPath)) {
       const existingContent = fs.readFileSync(hookPath, 'utf-8');
       if (!this.isDeepLHook(existingContent)) {
-        const backupPath = hookPath + '.backup';
+        backupPath = GitHooksService.nextBackupPath(hookPath);
         fs.copyFileSync(hookPath, backupPath);
       }
     }
@@ -65,6 +108,29 @@ export class GitHooksService {
 
     // Make it executable
     fs.chmodSync(hookPath, 0o755);
+
+    return { hookPath, backupPath };
+  }
+
+  /**
+   * Pick a backup path that does not already exist, so a repeat install after
+   * another tool rewrote the hook cannot destroy the first backup.
+   */
+  private static nextBackupPath(hookPath: string): string {
+    const primary = hookPath + '.backup';
+    if (!fs.existsSync(primary)) {
+      return primary;
+    }
+    for (let slot = 1; slot < MAX_BACKUP_SLOTS; slot++) {
+      const candidate = `${primary}.${slot}`;
+      if (!fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    throw new ValidationError(
+      `Refusing to install: ${MAX_BACKUP_SLOTS} backups of "${path.basename(hookPath)}" already exist.`,
+      `Remove the unneeded ${path.basename(primary)}* files and retry.`,
+    );
   }
 
   /**
@@ -137,7 +203,9 @@ export class GitHooksService {
    * Find git root directory from current path
    */
   static findGitRoot(startPath?: string): string | null {
-    let currentPath = startPath ?? process.cwd();
+    // Resolve first: path.dirname() of a relative path bottoms out at '.',
+    // which never equals path.parse().root and loops forever.
+    let currentPath = path.resolve(startPath ?? process.cwd());
 
     // Traverse up the directory tree
     while (currentPath !== path.parse(currentPath).root) {
