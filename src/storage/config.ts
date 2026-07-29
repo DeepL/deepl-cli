@@ -36,6 +36,10 @@ const BOOLEAN_CONFIG_PATHS = [
   'defaults.preserveFormatting',
 ] as const;
 
+// Path segments that would walk or rewrite the prototype chain instead of
+// plain config data (prototype pollution).
+const FORBIDDEN_KEY_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+
 const DEFAULT_CACHE_SIZE = 1024 * 1024 * 1024; // 1GB
 const DEFAULT_CACHE_TTL = 30 * 24 * 60 * 60; // 30 days in seconds
 const DEFAULT_DEBOUNCE_MS = 500;
@@ -70,14 +74,14 @@ export class ConfigService {
     let current: Record<string, unknown> = this.config as unknown as Record<string, unknown>;
     for (let i = 0; i < keys.length - 1; i++) {
       const k = keys[i];
-      if (!k || !(k in current)) {
+      if (!k || !Object.hasOwn(current, k)) {
         throw new ConfigError(`Invalid path: ${key}`);
       }
       current = current[k] as Record<string, unknown>;
     }
 
     const lastKey = keys[keys.length - 1];
-    if (lastKey && !(lastKey in current)) {
+    if (lastKey && !Object.hasOwn(current, lastKey)) {
       throw new ConfigError(`Invalid path: ${key}`);
     }
 
@@ -295,6 +299,12 @@ export class ConfigService {
 
       if (key === '') {
         throw new ConfigError('Invalid path: empty segment');
+      }
+
+      if (FORBIDDEN_KEY_SEGMENTS.has(key)) {
+        throw new ConfigError(
+          `Invalid path: "${key}" is a reserved segment and cannot be used`
+        );
       }
     }
 
