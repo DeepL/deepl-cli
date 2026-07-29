@@ -6,10 +6,20 @@ interface StringUnit {
   value: string;
 }
 
+/**
+ * Per-locale entry. `variations` carries plural/device-width categories that
+ * this parser does not surface as entries, so it must be preserved verbatim
+ * rather than replaced.
+ */
+interface Localization {
+  stringUnit?: StringUnit;
+  variations?: Record<string, unknown>;
+}
+
 interface StringDefinition {
   comment?: string;
   extractionState?: string;
-  localizations?: Record<string, { stringUnit?: StringUnit }>;
+  localizations?: Record<string, Localization>;
 }
 
 interface XcstringsFile {
@@ -51,9 +61,20 @@ export class XcstringsFormatParser implements FormatParser {
     for (const entry of entries) {
       const def = data.strings[entry.key] ??= {} as StringDefinition;
       def.localizations ??= {};
-      def.localizations[locale] = {
-        stringUnit: { state: 'translated', value: entry.translation },
-      };
+      const existing = def.localizations[locale];
+      // Replacing the whole localization discarded plural `variations`, which
+      // carry per-category translations this parser does not surface as
+      // entries — so they could never be restored.
+      if (existing?.variations) {
+        def.localizations[locale] = {
+          ...existing,
+          stringUnit: { state: 'translated', value: entry.translation },
+        };
+      } else {
+        def.localizations[locale] = {
+          stringUnit: { state: 'translated', value: entry.translation },
+        };
+      }
     }
 
     const indent = detectIndent(content);
