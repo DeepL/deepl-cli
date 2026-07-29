@@ -1,11 +1,13 @@
-import { ConfigError, ValidationError } from '../utils/errors.js';
+import { ConfigError, NetworkError, ValidationError } from '../utils/errors.js';
 import { sanitizeForTerminal } from '../utils/control-chars.js';
+import { sanitizeUrl } from '../utils/sanitize-url.js';
 import { Logger } from '../utils/logger.js';
 import type { ExtractedEntry } from '../formats/format.js';
 import type { SyncTmsConfig } from './types.js';
 
 const MAX_PULL_VALUE_BYTES = 64 * 1024;
 export const MAX_PULL_KEY_COUNT = 50000;
+export const MAX_PULL_BODY_BYTES = 32 * 1024 * 1024;
 // eslint-disable-next-line no-control-regex -- intentional: checking for control chars in untrusted TMS-returned keys
 const KEY_FORBIDDEN_CHARS = /[\x00-\x1f\x7f/\\]/;
 // eslint-disable-next-line no-control-regex -- intentional: strip control chars from untrusted TMS-returned values before they reach the filesystem
@@ -52,6 +54,14 @@ export function sanitizePullKeysResponse(raw: unknown): Record<string, string> {
     result[key] = value.replace(VALUE_CONTROL_CHARS, '');
   }
   return result;
+}
+
+/** A TMS request that hit the client-side timeout; classified as a network error (exit 5). */
+export class TmsTimeoutError extends NetworkError {
+  constructor(message: string) {
+    super(message, 'Raise timeout_ms in the tms: block of .deepl-sync.yaml, or check that the TMS server is reachable.');
+    this.name = 'TmsTimeoutError';
+  }
 }
 
 export interface TmsClientRetryOptions {
@@ -124,6 +134,47 @@ async function readErrorBody(response: Response): Promise<string> {
   }
 }
 
+function oversizedBodyError(): ValidationError {
+  return new ValidationError(
+    `TMS pull response exceeds the ${MAX_PULL_BODY_BYTES / (1024 * 1024)}MiB response size limit`,
+    'Partition the TMS export by locale, or paginate the pull.',
+  );
+}
+
+/**
+ * Read and parse a JSON body without buffering more than the cap. The key and
+ * value limits in sanitizePullKeysResponse only apply after a parse, so an
+ * unbounded body would already have been materialized by then.
+ */
+async function readJsonBounded(response: Response): Promise<unknown> {
+  const declared = Number(response.headers?.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_PULL_BODY_BYTES) {
+    throw oversizedBodyError();
+  }
+
+  const body = response.body;
+  if (!body || typeof body.getReader !== 'function') {
+    return await response.json();
+  }
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_PULL_BODY_BYTES) {
+      await reader.cancel();
+      throw oversizedBodyError();
+    }
+    chunks.push(value);
+  }
+
+  return JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+}
+
 export class TmsClient {
   private readonly timeoutMs: number;
   private readonly retry: Required<TmsClientRetryOptions>;
@@ -157,11 +208,9 @@ export class TmsClient {
       });
     } catch (err) {
       if (isAbortError(err)) {
-        const timeoutErr = new Error(
-          `TMS request timed out after ${this.timeoutMs}ms: ${method} ${url}`,
+        throw new TmsTimeoutError(
+          `TMS request timed out after ${this.timeoutMs}ms: ${method} ${sanitizeUrl(url)}`,
         );
-        timeoutErr.name = 'TmsTimeoutError';
-        throw timeoutErr;
       }
       throw err;
     } finally {
@@ -169,18 +218,36 @@ export class TmsClient {
     }
   }
 
-  private async request(method: string, path: string, body?: unknown): Promise<Response> {
+  /**
+   * Join the configured server URL with an API path through the URL API, so a
+   * trailing slash cannot produce "//" and a base path is preserved.
+   */
+  private buildUrl(path: string): string {
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(this.options.serverUrl);
     } catch {
-      throw new ConfigError(`Invalid TMS server URL: ${this.options.serverUrl}`);
+      throw new ConfigError(`Invalid TMS server URL: ${sanitizeUrl(this.options.serverUrl)}`);
     }
+
     const isLocalhost = parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1';
     if (parsedUrl.protocol !== 'https:' && !isLocalhost) {
       throw new ConfigError('TMS server URL must use HTTPS');
     }
-    const url = `${this.options.serverUrl}/api/projects/${encodeURIComponent(this.options.projectId)}${path}`;
+    if (parsedUrl.search || parsedUrl.hash) {
+      throw new ConfigError(
+        `TMS server URL must not contain a query string or fragment: ${sanitizeUrl(this.options.serverUrl)}`,
+        'Set server: to the bare origin (plus a base path if your TMS is mounted under one).',
+      );
+    }
+
+    const basePath = parsedUrl.pathname.replace(/\/+$/, '');
+    const projectPath = `${basePath}/api/projects/${encodeURIComponent(this.options.projectId)}`;
+    return new URL(`${projectPath}${path}`, parsedUrl).toString();
+  }
+
+  private async request(method: string, path: string, body?: unknown): Promise<Response> {
+    const url = this.buildUrl(path);
 
     let lastError: unknown;
     for (let attempt = 0; attempt < this.retry.maxAttempts; attempt++) {
@@ -189,8 +256,7 @@ export class TmsClient {
         response = await this.fetchOnce(url, method, body);
       } catch (err) {
         lastError = err;
-        const isTimeout = err instanceof Error && err.name === 'TmsTimeoutError';
-        const retriable = isTimeout || isRetriableNetworkError(err);
+        const retriable = err instanceof TmsTimeoutError || isRetriableNetworkError(err);
         if (!retriable || attempt === this.retry.maxAttempts - 1) throw err;
         const delay = computeBackoffDelay(attempt, this.retry.baseDelayMs, this.retry.maxDelayMs, this.retry.jitter);
         await sleep(delay);
@@ -240,7 +306,7 @@ export class TmsClient {
 
   async pullKeys(locale: string): Promise<Record<string, string>> {
     const resp = await this.request('GET', `/keys/export?format=json&locale=${encodeURIComponent(locale)}`);
-    return sanitizePullKeysResponse(await resp.json());
+    return sanitizePullKeysResponse(await readJsonBounded(resp));
   }
 
   async getProjectStatus(): Promise<unknown> {

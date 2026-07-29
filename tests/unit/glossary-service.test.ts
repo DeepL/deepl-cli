@@ -4,7 +4,7 @@
 
 import { GlossaryService } from '../../src/services/glossary';
 import { DeepLClient } from '../../src/api/deepl-client';
-import { ConfigError } from '../../src/utils/errors';
+import { ConfigError, ValidationError } from '../../src/utils/errors';
 import { createMockDeepLClient } from '../helpers/mock-factories';
 
 // Mock DeepLClient
@@ -702,6 +702,37 @@ describe('GlossaryService', () => {
         'hello, world': 'hola mundo',
       });
     });
+
+    describe('dialect selection', () => {
+      it('should not tab-split a quoted CSV field in a CSV file', () => {
+        const csv = 'API,API\n"tab\there,inside",valor';
+
+        const entries = GlossaryService.tsvToEntries(csv);
+
+        // Tab-splitting the second line would have produced the garbage key
+        // '"tab' with value 'here,inside",valor'.
+        expect(Object.keys(entries)).toEqual(['API']);
+      });
+
+      it('should skip an entry whose parsed field contains a tab or newline', () => {
+        const csv = 'API,API\n"bad\tterm",valor\nHello,Hola';
+
+        const entries = GlossaryService.tsvToEntries(csv);
+
+        expect(entries).toEqual({ API: 'API', Hello: 'Hola' });
+      });
+
+      it('should keep parsing a TSV file as TSV when a later value contains commas', () => {
+        const tsv = 'API\tAPI\nHello\tHola, mundo';
+
+        const entries = GlossaryService.tsvToEntries(tsv);
+
+        expect(entries).toEqual({
+          API: 'API',
+          Hello: 'Hola, mundo',
+        });
+      });
+    });
   });
 
   describe('addEntry()', () => {
@@ -742,6 +773,29 @@ describe('GlossaryService', () => {
         glossaryService.addEntry('test-123', 'en', 'es', 'source', '')
       ).rejects.toThrow('Target text cannot be empty');
     });
+
+    it('should reject source text containing a tab', async () => {
+      await expect(
+        glossaryService.addEntry('test-123', 'en', 'es', 'Col\tumn', 'Columna')
+      ).rejects.toThrow(ValidationError);
+      await expect(
+        glossaryService.addEntry('test-123', 'en', 'es', 'Col\tumn', 'Columna')
+      ).rejects.toThrow(/tab/i);
+      expect(mockDeepLClient.updateGlossaryEntries).not.toHaveBeenCalled();
+    });
+
+    it('should reject target text containing a newline', async () => {
+      await expect(
+        glossaryService.addEntry('test-123', 'en', 'es', 'Line', 'Lí\nnea')
+      ).rejects.toThrow(/newline/i);
+      expect(mockDeepLClient.updateGlossaryEntries).not.toHaveBeenCalled();
+    });
+
+    it('should reject source text containing a carriage return', async () => {
+      await expect(
+        glossaryService.addEntry('test-123', 'en', 'es', 'Line\r', 'Línea')
+      ).rejects.toThrow(/carriage return/i);
+    });
   });
 
   describe('updateEntry()', () => {
@@ -778,6 +832,23 @@ describe('GlossaryService', () => {
       await expect(
         glossaryService.updateEntry('test-123', 'en', 'es', 'source', '')
       ).rejects.toThrow('Target text cannot be empty');
+    });
+
+    it('should reject a new target text containing a tab', async () => {
+      mockDeepLClient.getGlossaryEntries.mockResolvedValue('API\tAPI');
+
+      await expect(
+        glossaryService.updateEntry('test-123', 'en', 'es', 'API', 'Inter\tface')
+      ).rejects.toThrow(/tab/i);
+      expect(mockDeepLClient.updateGlossaryEntries).not.toHaveBeenCalled();
+    });
+
+    it('should reject a new target text containing a newline', async () => {
+      mockDeepLClient.getGlossaryEntries.mockResolvedValue('API\tAPI');
+
+      await expect(
+        glossaryService.updateEntry('test-123', 'en', 'es', 'API', 'Inter\nface')
+      ).rejects.toThrow(/newline/i);
     });
   });
 

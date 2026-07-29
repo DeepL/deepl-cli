@@ -20,6 +20,34 @@ function hasSuspiciousChars(name: string): boolean {
 
 const LIST_CACHE_TTL_MS = 60_000;
 
+/**
+ * Characters the glossary TSV wire format reserves as column and row
+ * separators. A term containing one of them cannot survive the round trip:
+ * it either shifts columns or fabricates extra entries.
+ */
+const TERM_SEPARATOR_NAMES: Array<[string, string]> = [
+  ['\t', 'tab'],
+  ['\r', 'carriage return'],
+  ['\n', 'newline'],
+];
+
+function findSeparatorChar(text: string): string | null {
+  for (const [char, name] of TERM_SEPARATOR_NAMES) {
+    if (text.includes(char)) return name;
+  }
+  return null;
+}
+
+function assertNoSeparatorChars(label: string, text: string): void {
+  const found = findSeparatorChar(text);
+  if (found) {
+    throw new ValidationError(
+      `${label} cannot contain a ${found} character`,
+      'Glossary entries are stored as tab-separated rows; split the term into separate entries instead.',
+    );
+  }
+}
+
 export class GlossaryService {
   private client: DeepLClient;
   private resolutionCache = new Map<string, string>();
@@ -197,6 +225,8 @@ export class GlossaryService {
     if (!targetText || targetText.trim() === '') {
       throw new ValidationError('Target text cannot be empty');
     }
+    assertNoSeparatorChars('Source text', sourceText);
+    assertNoSeparatorChars('Target text', targetText);
     await this.mutateEntries(glossaryId, sourceLang, targetLang, (entries) => {
       if (entries[sourceText] !== undefined) {
         throw new ValidationError(`Entry "${sourceText}" already exists in glossary`);
@@ -221,6 +251,8 @@ export class GlossaryService {
     if (!newTargetText || newTargetText.trim() === '') {
       throw new ValidationError('Target text cannot be empty');
     }
+    assertNoSeparatorChars('Source text', sourceText);
+    assertNoSeparatorChars('Target text', newTargetText);
     await this.mutateEntries(glossaryId, sourceLang, targetLang, (entries) => {
       if (entries[sourceText] === undefined) {
         throw new ConfigError(`Entry "${sourceText}" not found in glossary`);
@@ -415,6 +447,10 @@ export class GlossaryService {
     }
 
     const lines = content.split('\n');
+    // Pick the dialect once for the whole file. Sniffing per line tab-splits a
+    // quoted CSV field that happens to contain a tab into garbage columns.
+    const firstDataLine = lines.map(line => line.trim()).find(line => line !== '') ?? '';
+    const isTabSeparated = firstDataLine.includes('\t');
     let lineNumber = 0;
 
     for (const line of lines) {
@@ -426,10 +462,9 @@ export class GlossaryService {
         continue;
       }
 
-      // Try tab-separated first (TSV is preferred), then comma-separated (CSV)
       let parts: string[];
 
-      if (trimmed.includes('\t')) {
+      if (isTabSeparated) {
         parts = trimmed.split('\t');
       } else if (trimmed.includes(',')) {
         // Use proper CSV parsing for comma-separated values (handles quoted fields)
@@ -457,6 +492,14 @@ export class GlossaryService {
       // Validate both source and target are non-empty
       if (!source || !target) {
         Logger.warn(`Line ${lineNumber}: Empty source or target, skipping`);
+        continue;
+      }
+
+      // A quoted CSV field may carry a tab or newline that the TSV wire format
+      // cannot represent; keeping it would corrupt every following entry.
+      const separator = findSeparatorChar(source) ?? findSeparatorChar(target);
+      if (separator) {
+        Logger.warn(`Line ${lineNumber}: Source or target contains a ${separator} character, skipping`);
         continue;
       }
 

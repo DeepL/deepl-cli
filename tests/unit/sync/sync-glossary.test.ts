@@ -1,6 +1,27 @@
 import { SyncGlossaryManager } from '../../../src/sync/sync-glossary';
 import type { SyncGlossaryManagerOptions } from '../../../src/sync/sync-glossary';
+import { GlossaryService } from '../../../src/services/glossary';
+import type { GlossaryInfo } from '../../../src/types/index';
+import { Logger } from '../../../src/utils/logger';
 import { createMockGlossaryService } from '../../helpers/mock-factories';
+
+/** Mirror what a DeepL glossary returns after entries survive a TSV round trip. */
+function roundTrip(entries: Record<string, string>): Record<string, string> {
+  return GlossaryService.tsvToEntries(GlossaryService.entriesToTSV(entries));
+}
+
+function repeated(source: string, target: string, prefix: string): {
+  sourceEntries: Map<string, string>;
+  localeEntries: Map<string, string>;
+} {
+  const sourceEntries = new Map<string, string>();
+  const localeEntries = new Map<string, string>();
+  for (let i = 0; i < 3; i++) {
+    sourceEntries.set(`${prefix}${i}`, source);
+    localeEntries.set(`${prefix}${i}`, target);
+  }
+  return { sourceEntries, localeEntries };
+}
 
 describe('SyncGlossaryManager', () => {
   function createManager(
@@ -118,6 +139,95 @@ describe('SyncGlossaryManager', () => {
 
       expect(result.get('de')).toEqual({ Yes: 'Ja' });
       expect(result.get('fr')).toEqual({ Yes: 'Oui' });
+    });
+  });
+
+  describe('extractTerms term validation', () => {
+    let warnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      warnSpy = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it('should skip a term whose target translation is empty', () => {
+      const { manager } = createManager();
+      const { sourceEntries, localeEntries } = repeated('OK', '', 'k');
+
+      const result = manager.extractTerms(sourceEntries, new Map([['de', localeEntries]]));
+
+      expect(result.has('de')).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('k0'));
+    });
+
+    it('should skip a term whose target translation is whitespace-only', () => {
+      const { manager } = createManager();
+      const { sourceEntries, localeEntries } = repeated('OK', '   ', 'k');
+
+      const result = manager.extractTerms(sourceEntries, new Map([['de', localeEntries]]));
+
+      expect(result.has('de')).toBe(false);
+    });
+
+    it('should skip a term whose source is empty', () => {
+      const { manager } = createManager();
+      const { sourceEntries, localeEntries } = repeated('', 'Leer', 'k');
+
+      const result = manager.extractTerms(sourceEntries, new Map([['de', localeEntries]]));
+
+      expect(result.has('de')).toBe(false);
+    });
+
+    it('should skip a term whose source contains a tab', () => {
+      const { manager } = createManager();
+      const { sourceEntries, localeEntries } = repeated('Col\tumn', 'Spalte', 'k');
+
+      const result = manager.extractTerms(sourceEntries, new Map([['de', localeEntries]]));
+
+      expect(result.has('de')).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('k0'));
+    });
+
+    it('should skip a multi-line source string instead of uploading a wrong mapping', () => {
+      const { manager } = createManager();
+      const { sourceEntries, localeEntries } = repeated(
+        'Are you sure?\nThis cannot be undone.',
+        'Sicher?',
+        'k',
+      );
+
+      const result = manager.extractTerms(sourceEntries, new Map([['de', localeEntries]]));
+
+      expect(result.has('de')).toBe(false);
+    });
+
+    it('should skip a term whose target contains a newline or carriage return', () => {
+      const { manager } = createManager();
+      const withNewline = repeated('Save', 'Spei\nchern', 'a');
+      const withCr = repeated('Open', 'Öff\rnen', 'b');
+
+      const sourceEntries = new Map([...withNewline.sourceEntries, ...withCr.sourceEntries]);
+      const localeEntries = new Map([...withNewline.localeEntries, ...withCr.localeEntries]);
+
+      const result = manager.extractTerms(sourceEntries, new Map([['de', localeEntries]]));
+
+      expect(result.has('de')).toBe(false);
+    });
+
+    it('should keep clean terms alongside skipped ones', () => {
+      const { manager } = createManager();
+      const clean = repeated('Save', 'Speichern', 'a');
+      const dirty = repeated('Bad\tterm', 'Schlecht', 'b');
+
+      const sourceEntries = new Map([...clean.sourceEntries, ...dirty.sourceEntries]);
+      const localeEntries = new Map([...clean.localeEntries, ...dirty.localeEntries]);
+
+      const result = manager.extractTerms(sourceEntries, new Map([['de', localeEntries]]));
+
+      expect(result.get('de')).toEqual({ Save: 'Speichern' });
     });
   });
 
@@ -304,6 +414,99 @@ describe('SyncGlossaryManager', () => {
       expect(glossaryService.createGlossary).not.toHaveBeenCalled();
       expect(glossaryService.getGlossaryByName).not.toHaveBeenCalled();
       expect(result).toEqual({});
+    });
+
+    describe('idempotency', () => {
+      /**
+       * Run syncGlossaries twice against a service that stores what was
+       * uploaded and returns it the way the API does — through a TSV round trip.
+       */
+      async function syncTwice(
+        sourceEntries: Map<string, string>,
+        localeEntries: Map<string, string>,
+      ): Promise<{ glossaryService: ReturnType<typeof createMockGlossaryService> }> {
+        const { manager, glossaryService } = createManager({ targetLocales: ['de'] });
+        const info: GlossaryInfo = {
+          glossary_id: 'gid-1',
+          name: 'deepl-sync-en-de',
+          source_lang: 'en',
+          target_langs: ['de'],
+          dictionaries: [{ source_lang: 'en', target_lang: 'de', entry_count: 1 }],
+          creation_time: '2026-01-01T00:00:00Z',
+        };
+
+        let stored: Record<string, string> | null = null;
+        glossaryService.getGlossaryByName.mockImplementation(async () => (stored ? info : null));
+        glossaryService.createGlossary.mockImplementation(async (_n, _s, _t, entries) => {
+          stored = roundTrip(entries);
+          return info;
+        });
+        glossaryService.getGlossaryEntries.mockImplementation(async () => stored ?? {});
+        glossaryService.updateGlossary.mockResolvedValue(undefined);
+
+        const targetEntries = new Map([['de', localeEntries]]);
+        await manager.syncGlossaries(sourceEntries, targetEntries);
+        await manager.syncGlossaries(sourceEntries, targetEntries);
+
+        return { glossaryService };
+      }
+
+      it('should create once and never update when the source terms are unchanged', async () => {
+        const { sourceEntries, localeEntries } = repeated('Save', 'Speichern', 'k');
+
+        const { glossaryService } = await syncTwice(sourceEntries, localeEntries);
+
+        expect(glossaryService.createGlossary).toHaveBeenCalledTimes(1);
+        expect(glossaryService.updateGlossary).toHaveBeenCalledTimes(0);
+      });
+
+      it('should not re-upload when a term differs only by surrounding whitespace', async () => {
+        const { sourceEntries, localeEntries } = repeated('Save ', 'Speichern', 'k');
+
+        const { glossaryService } = await syncTwice(sourceEntries, localeEntries);
+
+        expect(glossaryService.createGlossary).toHaveBeenCalledTimes(1);
+        expect(glossaryService.updateGlossary).toHaveBeenCalledTimes(0);
+      });
+    });
+
+    describe('per-locale failure isolation', () => {
+      it('should keep syncing other locales and name the failing locale in the warning', async () => {
+        const warnSpy = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+        try {
+          const { manager, glossaryService } = createManager({ targetLocales: ['de', 'fr'] });
+
+          glossaryService.getGlossaryByName.mockResolvedValue(null);
+          glossaryService.createGlossary.mockImplementation(async (name) => {
+            if (name === 'deepl-sync-en-de') {
+              throw new Error('glossary rejected by API');
+            }
+            const info: GlossaryInfo = {
+              glossary_id: 'fr-id',
+              name,
+              source_lang: 'en',
+              target_langs: ['fr'],
+              dictionaries: [{ source_lang: 'en', target_lang: 'fr', entry_count: 1 }],
+              creation_time: '2026-01-01T00:00:00Z',
+            };
+            return info;
+          });
+
+          const { sourceEntries, localeEntries } = repeated('Yes', 'Ja', 'k');
+          const targetEntries = new Map([
+            ['de', localeEntries],
+            ['fr', new Map([...localeEntries].map(([k]) => [k, 'Oui'] as [string, string]))],
+          ]);
+
+          const result = await manager.syncGlossaries(sourceEntries, targetEntries);
+
+          expect(result).toEqual({ 'en-fr': 'fr-id' });
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('de'));
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('glossary rejected by API'));
+        } finally {
+          warnSpy.mockRestore();
+        }
+      });
     });
   });
 

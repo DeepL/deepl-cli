@@ -16,6 +16,7 @@ export interface CacheServiceOptions {
   maxSize?: number; // in bytes
   ttl?: number; // in milliseconds, 0 = disabled
   busyTimeoutMs?: number; // how long SQLite waits on a locked DB before erroring
+  enabled?: boolean; // starting state of the cache; defaults to true
 }
 
 export interface CacheStats {
@@ -78,7 +79,9 @@ export class CacheService {
   private maxSize: number;
   private ttl: number;
   private busyTimeoutMs: number;
-  private enabled: boolean = true;
+  // Seeded from options so the in-memory flag matches the persisted
+  // `cache.enabled` config; a bare `new CacheService()` stays enabled.
+  private enabled: boolean;
   private isClosed: boolean = false;
   // Seeded to 0 so the first operation of every process sweeps expired rows;
   // seeding to Date.now() would keep the sweep from ever running in a process
@@ -95,6 +98,7 @@ export class CacheService {
     this.maxSize = options.maxSize ?? DEFAULT_MAX_SIZE;
     this.ttl = options.ttl ?? DEFAULT_TTL;
     this.busyTimeoutMs = options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS;
+    this.enabled = options.enabled ?? true;
 
     try {
       this.openDatabase(dbPath);

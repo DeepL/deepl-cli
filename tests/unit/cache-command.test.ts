@@ -100,6 +100,14 @@ describe('CacheCommand', () => {
       expect(mockCacheService.enable).toHaveBeenCalledTimes(1);
     });
 
+    it('should persist cache.enabled so the next process sees it', async () => {
+      mockCacheService.enable.mockReturnValue(undefined);
+
+      await cacheCommand.enable();
+
+      expect(mockConfigService.set).toHaveBeenCalledWith('cache.enabled', true);
+    });
+
     it('should not throw error if cache is already enabled', async () => {
       mockCacheService.enable.mockReturnValue(undefined);
 
@@ -124,7 +132,7 @@ describe('CacheCommand', () => {
 
       await cacheCommand.enable();
 
-      expect(mockConfigService.set).not.toHaveBeenCalled();
+      expect(mockConfigService.set).not.toHaveBeenCalledWith('cache.maxSize', expect.anything());
       expect(mockCacheService.setMaxSize).not.toHaveBeenCalled();
       expect(mockCacheService.enable).toHaveBeenCalledTimes(1);
     });
@@ -154,6 +162,14 @@ describe('CacheCommand', () => {
       mockCacheService.disable.mockReturnValue(undefined);
 
       await expect(cacheCommand.disable()).resolves.not.toThrow();
+    });
+
+    it('should persist cache.enabled so the next process sees it', async () => {
+      mockCacheService.disable.mockReturnValue(undefined);
+
+      await cacheCommand.disable();
+
+      expect(mockConfigService.set).toHaveBeenCalledWith('cache.enabled', false);
     });
   });
 

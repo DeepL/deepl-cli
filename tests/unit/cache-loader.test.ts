@@ -14,9 +14,14 @@ jest.mock('../../src/utils/logger', () => ({
   },
 }));
 
-import { createCacheServiceGetter } from '../../src/cli/cache-loader';
+import { createCacheServiceGetter, resolveCacheOptions } from '../../src/cli/cache-loader';
 import { Logger } from '../../src/utils/logger';
 import type { CacheService } from '../../src/storage/cache';
+import type { ConfigService } from '../../src/storage/config';
+
+function fakeConfig(values: Record<string, unknown>): ConfigService {
+  return { getValue: (key: string) => values[key] } as unknown as ConfigService;
+}
 
 function makeError(message: string, code?: string): Error {
   const error = new Error(message);
@@ -25,6 +30,31 @@ function makeError(message: string, code?: string): Error {
   }
   return error;
 }
+
+describe('resolveCacheOptions', () => {
+  it('carries cache.enabled through to the cache service', () => {
+    expect(resolveCacheOptions(fakeConfig({ 'cache.enabled': false }), '/tmp/cache.db').enabled).toBe(false);
+    expect(resolveCacheOptions(fakeConfig({ 'cache.enabled': true }), '/tmp/cache.db').enabled).toBe(true);
+  });
+
+  it('converts the configured TTL from seconds to milliseconds', () => {
+    const options = resolveCacheOptions(fakeConfig({ 'cache.ttl': 90 }), '/tmp/cache.db');
+    expect(options.ttl).toBe(90_000);
+  });
+
+  it('passes the db path and max size through unchanged', () => {
+    const options = resolveCacheOptions(fakeConfig({ 'cache.maxSize': 4096 }), '/tmp/cache.db');
+    expect(options.dbPath).toBe('/tmp/cache.db');
+    expect(options.maxSize).toBe(4096);
+  });
+
+  it('leaves unset keys undefined so the service defaults apply', () => {
+    const options = resolveCacheOptions(fakeConfig({}), '/tmp/cache.db');
+    expect(options.ttl).toBeUndefined();
+    expect(options.maxSize).toBeUndefined();
+    expect(options.enabled).toBeUndefined();
+  });
+});
 
 describe('createCacheServiceGetter', () => {
   beforeEach(() => {

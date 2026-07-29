@@ -39,6 +39,8 @@ export class VoiceStreamSession {
   private streamEnded = false;
   private ws!: WebSocket;
   private chunkStreamingResolve: (() => void) | null = null;
+  private transportError: Error | undefined;
+  private chunks: AsyncGenerator<Buffer> | undefined;
 
   constructor(
     client: VoiceClient,
@@ -71,6 +73,7 @@ export class VoiceStreamSession {
   }
 
   run(chunks: AsyncGenerator<Buffer>): Promise<VoiceSessionResult> {
+    this.chunks = chunks;
     return new Promise<VoiceSessionResult>((resolve, reject) => {
       const internalCallbacks = this.createInternalCallbacks(resolve, reject);
 
@@ -84,9 +87,21 @@ export class VoiceStreamSession {
         this.streamChunks(chunks, reject);
       });
 
-      this.ws.on('close', () => { this.handleClose(internalCallbacks, reject); });
-      this.ws.on('error', (error: Error) => { this.handleError(error, reject); });
+      this.attachSocketHandlers(internalCallbacks, reject);
     });
+  }
+
+  /**
+   * A socket error is recorded rather than acted on: `ws` always follows an
+   * error with a close event, and only `handleClose` knows whether a
+   * reconnect is still available.
+   */
+  private attachSocketHandlers(
+    internalCallbacks: VoiceStreamCallbacks,
+    reject: (reason: unknown) => void,
+  ): void {
+    this.ws.on('close', () => { this.handleClose(internalCallbacks, reject); });
+    this.ws.on('error', (error: Error) => { this.transportError = error; });
   }
 
   private createInternalCallbacks(
@@ -119,6 +134,7 @@ export class VoiceStreamSession {
         this.streamEnded = true;
         this.callbacks?.onEndOfStream?.();
         this.ws.close();
+        this.closeInput();
         this.finalizeTranscripts();
         resolve({
           sessionId: this.session.session_id,
@@ -127,10 +143,11 @@ export class VoiceStreamSession {
         });
       },
       onError: (error) => {
-        this.streamEnded = true;
         this.callbacks?.onError?.(error);
-        this.ws.close();
-        reject(new VoiceError(`Voice streaming error: ${error.error_message} (${error.error_code})`));
+        this.fail(
+          reject,
+          new VoiceError(`Voice streaming error: ${error.error_message} (${error.error_code})`),
+        );
       },
     };
   }
@@ -148,9 +165,15 @@ export class VoiceStreamSession {
       this.callbacks?.onReconnecting?.(this.reconnectAttempts);
 
       void this.reconnect(internalCallbacks, reject);
-    } else if (!this.streamEnded) {
-      reject(new VoiceError('WebSocket closed unexpectedly'));
+      return;
     }
+
+    this.fail(
+      reject,
+      this.transportError
+        ? new VoiceError(`WebSocket connection failed: ${this.transportError.message}`)
+        : new VoiceError('WebSocket closed unexpectedly'),
+    );
   }
 
   private async reconnect(
@@ -160,6 +183,7 @@ export class VoiceStreamSession {
     try {
       const reconnectResponse = await this.client.reconnectSession(this.currentToken);
       this.currentToken = reconnectResponse.token;
+      this.transportError = undefined;
 
       this.ws = this.client.createWebSocket(
         reconnectResponse.streaming_url,
@@ -167,8 +191,7 @@ export class VoiceStreamSession {
         internalCallbacks,
       );
 
-      this.ws.on('close', () => { this.handleClose(internalCallbacks, reject); });
-      this.ws.on('error', (error: Error) => { this.handleError(error, reject); });
+      this.attachSocketHandlers(internalCallbacks, reject);
 
       this.ws.on('open', () => {
         if (this.chunkStreamingResolve) {
@@ -177,12 +200,30 @@ export class VoiceStreamSession {
         }
       });
     } catch (error) {
-      reject(error instanceof Error ? error : new VoiceError(String(error)));
+      this.fail(reject, error instanceof Error ? error : new VoiceError(String(error)));
     }
   }
 
-  private handleError(error: Error, reject: (reason: unknown) => void): void {
-    reject(new VoiceError(`WebSocket connection failed: ${error.message}`));
+  /**
+   * Settle the session as failed. Waking the chunk pump and closing the
+   * input generator are both required: without them a library consumer's
+   * audio source stays suspended at a `yield` forever, holding its fd.
+   */
+  private fail(reject: (reason: unknown) => void, error: Error): void {
+    this.streamEnded = true;
+    this.ws.close();
+    if (this.chunkStreamingResolve) {
+      this.chunkStreamingResolve();
+      this.chunkStreamingResolve = null;
+    }
+    this.closeInput();
+    reject(error);
+  }
+
+  private closeInput(): void {
+    const chunks = this.chunks;
+    this.chunks = undefined;
+    void chunks?.return(undefined).catch(() => undefined);
   }
 
   private streamChunks(
@@ -202,8 +243,7 @@ export class VoiceStreamSession {
         }
         this.client.sendEndOfSource(this.ws);
       } catch (error) {
-        this.ws.close();
-        reject(error instanceof Error ? error : new VoiceError(String(error)));
+        this.fail(reject, error instanceof Error ? error : new VoiceError(String(error)));
       }
     })();
   }

@@ -2,7 +2,7 @@ import { Command, Option } from 'commander';
 import { Logger } from '../../../utils/logger.js';
 import { SyncConflictError } from '../../../utils/errors.js';
 import type { ServiceDeps } from '../service-factory.js';
-import { emitJsonErrorAndExit, resolveFormat } from './sync-options.js';
+import { emitJsonErrorAndExit, resolveFormat, resolveSyncConfig } from './sync-options.js';
 
 interface ResolveOptions {
   syncConfig?: string;
@@ -43,7 +43,9 @@ async function handleSyncResolve(
     const { resolveLockFile } = await import('../../../sync/sync-resolve.js');
     const pathMod = await import('path');
 
-    const config = await loadSyncConfig(process.cwd(), { configPath: options.syncConfig });
+    const config = await loadSyncConfig(process.cwd(), {
+      configPath: resolveSyncConfig(options, command),
+    });
     const lockPath = pathMod.join(config.projectRoot, LOCK_FILE_NAME);
     const result = await resolveLockFile(lockPath, { dryRun });
 

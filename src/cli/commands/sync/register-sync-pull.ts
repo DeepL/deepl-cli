@@ -2,7 +2,13 @@ import { Command, Option } from 'commander';
 import { Logger } from '../../../utils/logger.js';
 import { ConfigError } from '../../../utils/errors.js';
 import type { ServiceDeps } from '../service-factory.js';
-import { emitJsonErrorAndExit, resolveFormat, resolveLocale } from './sync-options.js';
+import {
+  emitJsonErrorAndExit,
+  parseLocaleFilter,
+  resolveFormat,
+  resolveLocale,
+  resolveSyncConfig,
+} from './sync-options.js';
 
 interface PullOptions {
   locale?: string;
@@ -40,6 +46,7 @@ full field list and REST contract.
     .action((options: PullOptions, command: Command) => {
       options.format = resolveFormat(options, command);
       options.locale = resolveLocale(options, command);
+      options.syncConfig = resolveSyncConfig(options, command);
       return handleSyncPull(options, deps.handleError);
     });
 }
@@ -55,7 +62,11 @@ export async function handleSyncPull(
     const { pullTranslations, formatSkippedSummary } = await import('../../../sync/sync-tms.js');
     const { acquireSyncProcessLock } = await import('../../../sync/sync-process-lock.js');
 
-    const config = await loadSyncConfig(process.cwd(), { configPath: options.syncConfig });
+    const localeFilter = parseLocaleFilter(options.locale);
+    const config = await loadSyncConfig(process.cwd(), {
+      configPath: options.syncConfig,
+      localeFilter,
+    });
     if (!config.tms?.enabled) {
       throw new ConfigError(
         'TMS integration not configured',
@@ -67,7 +78,6 @@ export async function handleSyncPull(
     try {
       const client = createTmsClient(config.tms);
       const registry = await createDefaultRegistry();
-      const localeFilter = options.locale?.split(',').map((l: string) => l.trim());
       const result = await pullTranslations(config, client, registry, { localeFilter });
       if (options.format === 'json') {
         process.stdout.write(JSON.stringify({ ok: true, pulled: result.pulled, skipped: result.skipped }) + '\n');

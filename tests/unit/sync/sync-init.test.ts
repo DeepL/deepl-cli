@@ -17,6 +17,7 @@ import {
   generateSyncConfig,
   writeSyncConfig,
   configExists,
+  resolveInitConfigPath,
 } from '../../../src/sync/sync-init';
 
 const mockFg = fg as jest.MockedFunction<typeof fg>;
@@ -653,21 +654,68 @@ describe('sync-init', () => {
     it('should return true when config file exists', () => {
       fs.writeFileSync(path.join(testDir, '.deepl-sync.yaml'), 'version: 1\n');
 
-      expect(configExists(testDir)).toBe(true);
+      expect(configExists(path.join(testDir, '.deepl-sync.yaml'))).toBe(true);
     });
 
     it('should return false when config file does not exist', () => {
-      expect(configExists(testDir)).toBe(false);
+      expect(configExists(path.join(testDir, '.deepl-sync.yaml'))).toBe(false);
+    });
+  });
+
+  describe('resolveInitConfigPath', () => {
+    it('should default to .deepl-sync.yaml in the cwd', () => {
+      expect(resolveInitConfigPath(testDir)).toBe(path.join(testDir, '.deepl-sync.yaml'));
+    });
+
+    it('should honor an explicit path with a custom basename', () => {
+      expect(resolveInitConfigPath(testDir, 'nested/custom.yaml')).toBe(
+        path.join(testDir, 'nested', 'custom.yaml'),
+      );
+    });
+
+    it('should leave an absolute explicit path untouched', () => {
+      const abs = path.join(testDir, 'abs', 'custom.yaml');
+      expect(resolveInitConfigPath(testDir, abs)).toBe(abs);
     });
   });
 
   describe('writeSyncConfig', () => {
     it('should write config file and return path', async () => {
       const content = 'version: 1\nsource_locale: en\n';
-      const configPath = await writeSyncConfig(testDir, content);
+      const configPath = await writeSyncConfig(
+        path.join(testDir, '.deepl-sync.yaml'),
+        content,
+      );
 
       expect(configPath).toBe(path.join(testDir, '.deepl-sync.yaml'));
       expect(fs.readFileSync(configPath, 'utf-8')).toBe(content);
+    });
+
+    it('should leave no temp sibling behind and keep the previous config on write failure', async () => {
+      const configPath = path.join(testDir, '.deepl-sync.yaml');
+      fs.writeFileSync(configPath, 'version: 1\nsource_locale: en\n', 'utf-8');
+
+      const renameSpy = jest
+        .spyOn(fs.promises, 'rename')
+        .mockRejectedValue(new Error('rename failed'));
+      try {
+        await expect(
+          writeSyncConfig(configPath, 'version: 1\nsource_locale: de\n'),
+        ).rejects.toThrow('rename failed');
+      } finally {
+        renameSpy.mockRestore();
+      }
+
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe('version: 1\nsource_locale: en\n');
+      expect(fs.readdirSync(testDir).filter(name => name.includes('.tmp.'))).toEqual([]);
+    });
+
+    it('should create missing parent directories', async () => {
+      const target = path.join(testDir, 'deep', 'nested', 'custom.yaml');
+      const configPath = await writeSyncConfig(target, 'version: 1\n');
+
+      expect(configPath).toBe(target);
+      expect(fs.existsSync(target)).toBe(true);
     });
   });
 

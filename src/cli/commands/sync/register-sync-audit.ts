@@ -4,7 +4,7 @@ import { ValidationError } from '../../../utils/errors.js';
 import type { ServiceDeps } from '../service-factory.js';
 import type { TargetTranslationIndex } from '../../../sync/sync-glossary-report.js';
 import { extractTranslatable } from '../../../sync/sync-bucket-walker.js';
-import { emitJsonErrorAndExit, resolveFormat } from './sync-options.js';
+import { emitJsonErrorAndExit, resolveFormat, resolveSyncConfig } from './sync-options.js';
 
 interface AuditOptions {
   format?: string;
@@ -65,7 +65,9 @@ async function handleSyncAudit(
     const pathMod = await import('path');
     const fsMod = await import('fs');
 
-    const config = await loadSyncConfig(process.cwd(), { configPath: options.syncConfig });
+    const config = await loadSyncConfig(process.cwd(), {
+      configPath: resolveSyncConfig(options, command),
+    });
     const lockPath = pathMod.join(config.projectRoot, LOCK_FILE_NAME);
     const lockManager = new SyncLockManager(lockPath);
     const lockFile = await lockManager.read();
@@ -93,7 +95,7 @@ async function handleSyncAudit(
             for (const entry of entries) keyMap.set(entry.key, entry.value);
             fileLocaleMap.set(locale, keyMap);
           } catch {
-            // Unreadable / unparseable target file — fall through to hash identity.
+            // Unreadable / unparseable target file — reported as a missing target.
           }
         }
         if (fileLocaleMap.size > 0) targetTranslations.set(relPath, fileLocaleMap);
@@ -115,6 +117,15 @@ async function handleSyncAudit(
             `  "${inc.sourceText}" [${inc.locale}]: ${inc.translations.length} different translations`,
           );
           Logger.info(`    Files: ${inc.files.join(', ')}`);
+        }
+      }
+
+      if (report.missingTargets.length > 0) {
+        Logger.info(
+          `\n${report.missingTargets.length} target(s) could not be read and were excluded from the comparison:`,
+        );
+        for (const target of report.missingTargets) {
+          Logger.info(`  ${target.filePath} [${target.locale}]`);
         }
       }
     }

@@ -16,9 +16,17 @@ interface DeepLDocumentStatusResponse {
   error_message?: string;
 }
 
+/** Uploads and downloads move whole files, so they need far more headroom
+ *  than the interactive request timeout. */
+const TRANSFER_TIMEOUT_MS = 300_000;
+
 export class DocumentClient extends HttpClient {
   constructor(apiKey: string, options: DeepLClientOptions = {}) {
     super(apiKey, options);
+  }
+
+  private get transferTimeout(): number {
+    return Math.max(this.requestTimeout, TRANSFER_TIMEOUT_MS);
   }
 
   async uploadDocument(
@@ -69,7 +77,8 @@ export class DocumentClient extends HttpClient {
               ...formData.getHeaders(),
             },
           };
-        }
+        },
+        { timeout: this.transferTimeout }
       );
 
       return {
@@ -101,6 +110,11 @@ export class DocumentClient extends HttpClient {
     }
   }
 
+  /**
+   * The result endpoint is effectively single-use: a replayed download can
+   * consume the result of an already-billed translation and lose it
+   * permanently, so this request is never retried.
+   */
   async downloadDocument(handle: DocumentHandle): Promise<Buffer> {
     try {
       const response = await this.makeRawRequest<Buffer>(
@@ -116,7 +130,8 @@ export class DocumentClient extends HttpClient {
             },
             responseType: 'arraybuffer',
           };
-        }
+        },
+        { maxRetries: 0, timeout: this.transferTimeout }
       );
 
       return Buffer.from(response);

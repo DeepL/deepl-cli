@@ -476,7 +476,7 @@ deepl sync init [OPTIONS]
 | `--path <glob>` | Source file path or glob pattern |
 | `--sync-config <path>` | Path to `.deepl-sync.yaml` (default: auto-detect) |
 
-`--source-lang` and `--target-langs` remain accepted as deprecated aliases for one minor release and emit a stderr deprecation warning; they will be removed in the next major release. The `--locale` filter on `sync push` / `pull` / `status` / `export` is unchanged. `deepl translate --target-lang` is unchanged — it operates on strings and stays aligned with the DeepL API's wire name.
+`--source-lang` and `--target-langs` were accepted as deprecated aliases during `1.x` and were removed in `2.0.0`; use `--source-locale` and `--target-locales`. The `--locale` filter on `sync push` / `pull` / `status` / `export` is unchanged. `deepl translate --target-lang` is unchanged — it operates on strings and stays aligned with the DeepL API's wire name.
 
 **Examples:**
 
@@ -793,7 +793,7 @@ Each target locale's approved dictionary is fetched exactly once per `sync pull`
 
 ### Worked example
 
-`deepl sync init` currently accepts `--source-lang` and `--target-langs` as deprecated aliases for `--source-locale` and `--target-locales` (shipped via commit `d65cbb3`). Both aliases emit a stderr deprecation warning pointing at the replacement flag. Under the policy above, these aliases will be removed at the `2.0` cut — this is confirmed, and the removal will not slip into any `1.x` release. See the [`deepl sync init`](#deepl-sync-init) section for the current accepted synopsis.
+`deepl sync init` accepted `--source-lang` and `--target-langs` as deprecated aliases for `--source-locale` and `--target-locales` throughout `1.x`; both emitted a stderr deprecation warning pointing at the replacement flag. Per the policy above, the aliases were removed at the `2.0` cut — since `2.0.0` they fail as unknown options. See the [`deepl sync init`](#deepl-sync-init) section for the current accepted synopsis.
 
 ## CI/CD Integration
 
@@ -861,7 +861,7 @@ The `.deepl-sync.lock` file is only staged when this sync run actually wrote an 
 ```yaml
 i18n-check:
   stage: test
-  image: node:20
+  image: node:24
   script:
     - npm install -g @deepl/cli
     - deepl sync --frozen

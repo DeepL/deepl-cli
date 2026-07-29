@@ -455,18 +455,22 @@ describe('VoiceClient', () => {
       );
     });
 
-    it('should handle WebSocket errors via callback', () => {
+    // Transport errors belong to whoever owns the socket lifecycle: routing
+    // them into onError made them indistinguishable from server error
+    // messages, and left every socket carrying two 'error' listeners.
+    it('should leave transport errors to the socket owner', () => {
       const onError = jest.fn();
       const ws = client.createWebSocket('wss://voice.deepl.com/ws', 'token', {
         onError,
       });
+      const transportErrors: Error[] = [];
+      ws.on('error', (error: Error) => transportErrors.push(error));
 
       ws.emit('error', new Error('Connection failed'));
-      expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error_message: 'Connection failed',
-        })
-      );
+
+      expect(ws.listenerCount('error')).toBe(1);
+      expect(transportErrors).toHaveLength(1);
+      expect(onError).not.toHaveBeenCalled();
     });
 
     it('should ignore unparseable messages', () => {

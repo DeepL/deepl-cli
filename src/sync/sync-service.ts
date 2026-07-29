@@ -24,6 +24,7 @@ import { SyncGlossaryManager } from './sync-glossary.js';
 import { resolveTranslationMemoryId } from '../services/translation-memory.js';
 import { TmCache } from './tm-cache.js';
 import { Logger } from '../utils/logger.js';
+import { errorMessage } from '../utils/error-message.js';
 
 export type SyncProgressEvent =
   | { type: 'locale-complete'; locale: string; file: string; translated: number; failed: number; totalKeys: number; charactersBilled: number }
@@ -321,7 +322,9 @@ export class SyncService {
         lockFile.glossary_ids = { ...lockFile.glossary_ids, ...glossaryIds };
         lockDirty = true;
       } catch (error) {
-        Logger.warn('Auto-glossary sync failed:', error);
+        Logger.warn(
+          `Auto-glossary sync failed for locales ${effectiveLocales.join(', ')}: ${errorMessage(error)}. Translations were written; the project glossaries were not updated.`,
+        );
       }
     }
 

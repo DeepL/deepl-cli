@@ -2,7 +2,13 @@ import { Command, Option } from 'commander';
 import { Logger } from '../../../utils/logger.js';
 import { ConfigError } from '../../../utils/errors.js';
 import type { ServiceDeps } from '../service-factory.js';
-import { emitJsonErrorAndExit, resolveFormat, resolveLocale } from './sync-options.js';
+import {
+  emitJsonErrorAndExit,
+  parseLocaleFilter,
+  resolveFormat,
+  resolveLocale,
+  resolveSyncConfig,
+} from './sync-options.js';
 
 interface PushOptions {
   locale?: string;
@@ -52,7 +58,11 @@ async function handleSyncPush(
     const { createDefaultRegistry } = await import('../../../formats/index.js');
     const { pushTranslations, formatSkippedSummary } = await import('../../../sync/sync-tms.js');
 
-    const config = await loadSyncConfig(process.cwd(), { configPath: options.syncConfig });
+    const localeFilter = parseLocaleFilter(resolveLocale(options, command));
+    const config = await loadSyncConfig(process.cwd(), {
+      configPath: resolveSyncConfig(options, command),
+      localeFilter,
+    });
     if (!config.tms?.enabled) {
       throw new ConfigError(
         'TMS integration not configured',
@@ -63,8 +73,6 @@ async function handleSyncPush(
     const client = createTmsClient(config.tms);
 
     const registry = await createDefaultRegistry();
-    const locale = resolveLocale(options, command);
-    const localeFilter = locale?.split(',').map((l: string) => l.trim());
     const result = await pushTranslations(config, client, registry, { localeFilter });
     if (options.format === 'json') {
       process.stdout.write(JSON.stringify({ ok: true, pushed: result.pushed, skipped: result.skipped }) + '\n');

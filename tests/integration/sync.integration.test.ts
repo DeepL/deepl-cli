@@ -1347,7 +1347,7 @@ buckets:
       retryClient.destroy();
     });
 
-    it('should retry on 503 and complete successfully', async () => {
+    it('should not replay a translate POST on 503', async () => {
       const retryClient = new DeepLClient(TEST_API_KEY, { maxRetries: 1 });
       const mockConfig = createMockConfigService({
         get: jest.fn(() => ({
@@ -1373,28 +1373,19 @@ buckets:
       const scope503 = nock(DEEPL_FREE_API_URL)
         .post('/v2/translate')
         .reply(503, { message: 'Service unavailable' }, { 'Retry-After': '0' });
-      const scope200 = nock(DEEPL_FREE_API_URL)
-        .post('/v2/translate')
-        .reply(200, {
-          translations: [
-            { text: 'Hallo', detected_source_language: 'EN', billed_characters: 5 },
-          ],
-        });
 
-      const start = Date.now();
       const config = await loadSyncConfig(tmpDir);
       const result = await retrySyncService.sync(config);
-      const elapsed = Date.now() - start;
 
-      expect(result.success).toBe(true);
-      expect(result.totalKeys).toBe(1);
       expect(scope503.isDone()).toBe(true);
-      expect(scope200.isDone()).toBe(true);
-      // Guard against runaway backoff — with Retry-After: 0 the whole retry should finish fast.
-      expect(elapsed).toBeLessThan(3000);
+      expect(nock.pendingMocks()).toHaveLength(0);
+
+      const deResult = result.fileResults.find((r) => r.locale === 'de');
+      expect(deResult?.written).toBe(false);
+      expect(deResult?.failed).toBeGreaterThan(0);
 
       const targetFile = path.join(tmpDir, 'locales', 'de.json');
-      expect(fs.existsSync(targetFile)).toBe(true);
+      expect(fs.existsSync(targetFile)).toBe(false);
 
       retryClient.destroy();
     });
