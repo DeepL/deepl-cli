@@ -26,11 +26,12 @@ export class InitCommand {
   }
 
   async run(): Promise<void> {
-    const { input, select } = await import('@inquirer/prompts');
+    const { password, select } = await import('@inquirer/prompts');
     Logger.output("Welcome to DeepL CLI! Let's get you set up.\n");
 
-    const apiKey = await input({
+    const apiKey = await password({
       message: 'Enter your DeepL API key:',
+      mask: true,
       validate: (value: string) => {
         if (!value.trim())
           return 'API key is required. Get one at https://www.deepl.com/pro-api';
