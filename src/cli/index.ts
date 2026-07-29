@@ -59,6 +59,10 @@ const paths = resolvePaths();
 // Create config service - can be overridden by --config flag
 let configService = new ConfigService(paths.configFile);
 
+// HTTP transport overrides from --timeout / --max-retries, applied to every
+// client the commands construct.
+let httpOptions: { timeout?: number; maxRetries?: number } = {};
+
 const getCacheService = createCacheServiceGetter(() => {
   const configTtl = configService.getValue<number>('cache.ttl');
   const configMaxSize = configService.getValue<number>('cache.maxSize');
@@ -87,6 +91,21 @@ function handleError(error: unknown): never {
   }
 
   process.exit(exitCode);
+}
+
+/**
+ * Parse an integer CLI option, exiting with InvalidInput when it is not a
+ * whole number at or above `min`.
+ */
+function parseIntOption(raw: string, flag: string, min: number): number {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min) {
+    Logger.error(
+      chalk.red(`Error: ${flag} must be an integer >= ${min} (got "${raw}")`)
+    );
+    process.exit(ExitCode.InvalidInput);
+  }
+  return value;
 }
 
 /**
@@ -125,7 +144,7 @@ async function createDeepLClient(
   }
 
   const { DeepLClient: Client } = await import('../api/deepl-client.js');
-  return new Client(key, { baseUrl, usePro });
+  return new Client(key, { baseUrl, usePro, ...httpOptions });
 }
 
 // Create program
@@ -150,6 +169,14 @@ program
   .option(
     '--no-input',
     'Disable all interactive prompts (abort instead of prompting)'
+  )
+  .option(
+    '--timeout <ms>',
+    'HTTP request timeout in milliseconds (default: 30000)'
+  )
+  .option(
+    '--max-retries <n>',
+    'Maximum automatic retries for retryable requests (default: 3)'
   )
   .hook('preAction', (thisCommand) => {
     const options = thisCommand.opts();
@@ -210,6 +237,19 @@ program
     if (options['input'] === false) {
       setNoInput(true);
     }
+
+    httpOptions = {
+      ...(options['timeout'] !== undefined && {
+        timeout: parseIntOption(options['timeout'] as string, '--timeout', 1),
+      }),
+      ...(options['maxRetries'] !== undefined && {
+        maxRetries: parseIntOption(
+          options['maxRetries'] as string,
+          '--max-retries',
+          0
+        ),
+      }),
+    };
   });
 
 /**
@@ -241,7 +281,7 @@ function getApiKeyAndOptions(): {
     validateApiUrl(baseUrl);
   }
 
-  return { apiKey: key, options: { baseUrl } };
+  return { apiKey: key, options: { baseUrl, ...httpOptions } };
 }
 
 // Shared dependencies passed to register functions

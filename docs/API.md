@@ -52,6 +52,8 @@ Options that work with all commands:
 --verbose, -v       Show extra information (source language, timing, cache status)
 --config, -c FILE   Use alternate configuration file
 --no-input          Disable all interactive prompts (abort instead of prompting)
+--timeout MS        HTTP request timeout in milliseconds (default: 30000)
+--max-retries N     Maximum automatic retries for retryable requests (default: 3)
 ```
 
 **Examples:**
@@ -77,6 +79,9 @@ deepl --quiet translate docs/ --to es --output docs-es/
 
 # Use custom config file
 deepl --config ~/.deepl-work.json translate "Hello" --to es
+
+# Give a large document more time, and disable automatic retries
+deepl --timeout 120000 --max-retries 0 translate report.pdf --to de
 
 # Use custom config directory (via environment variable)
 export DEEPL_CONFIG_DIR=/path/to/config
