@@ -5,6 +5,7 @@
 
 import nock from 'nock';
 import { AdminClient } from '../../src/api/admin-client';
+import { AuthError } from '../../src/utils/errors';
 
 describe('AdminClient', () => {
   let client: AdminClient;
@@ -131,6 +132,38 @@ describe('AdminClient', () => {
 
       const result = await client.listApiKeys();
       expect(result[0]!.usageLimits?.speechToTextMilliseconds).toBe(7200000);
+    });
+  });
+
+  describe('authentication errors', () => {
+    it('should suggest an administrator key on 403 instead of re-setting the key', async () => {
+      nock(baseUrl).get('/v2/admin/developer-keys').reply(403, {});
+
+      let caught: unknown;
+      try {
+        await client.listApiKeys();
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(AuthError);
+      const authError = caught as AuthError;
+      expect(authError.suggestion).toMatch(/administrator/i);
+      expect(authError.suggestion).not.toMatch(/set-key|deepl init/i);
+    });
+
+    it('should suggest an administrator key on 401', async () => {
+      nock(baseUrl).get('/v2/admin/developer-keys').reply(401, {});
+
+      let caught: unknown;
+      try {
+        await client.listApiKeys();
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(AuthError);
+      expect((caught as AuthError).suggestion).toMatch(/administrator/i);
     });
   });
 });

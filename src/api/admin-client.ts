@@ -1,9 +1,30 @@
 import { HttpClient, DeepLClientOptions } from './http-client.js';
 import { AdminApiKey, AdminUsageOptions, AdminUsageReport, UsageBreakdown } from '../types/index.js';
+import { AuthError } from '../utils/errors.js';
 
 export class AdminClient extends HttpClient {
   constructor(apiKey: string, options: DeepLClientOptions = {}) {
     super(apiKey, options);
+  }
+
+  /**
+   * Admin endpoints reject valid non-admin keys with 401/403, so the default
+   * "re-set your key" suggestion is misleading here. Keep the classification
+   * (and exit code) but point at the actual requirement.
+   */
+  protected override handleError(
+    error: unknown,
+    context?: string,
+    traceId?: string,
+  ): Error {
+    const result = super.handleError(error, context, traceId);
+    if (result instanceof AuthError) {
+      return new AuthError(
+        result.message,
+        'The admin API requires an administrator API key; a valid regular API key is not sufficient. Use a key created by your DeepL account administrator.',
+      );
+    }
+    return result;
   }
 
   async listApiKeys(): Promise<AdminApiKey[]> {
