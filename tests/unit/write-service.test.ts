@@ -1,6 +1,5 @@
 /**
  * Tests for WriteService
- * Following TDD approach
  */
 
 import { WriteService } from '../../src/services/write.js';

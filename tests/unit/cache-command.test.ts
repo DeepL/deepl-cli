@@ -1,6 +1,5 @@
 /**
  * Tests for Cache Command
- * Following TDD approach - RED phase
  */
 
 import { CacheCommand } from '../../src/cli/commands/cache';

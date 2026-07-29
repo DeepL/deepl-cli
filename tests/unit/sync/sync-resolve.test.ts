@@ -440,7 +440,7 @@ describe('prototype pollution hardening', () => {
     expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
     expect(((Object.prototype as unknown) as Record<string, unknown>)['polluted']).toBeUndefined();
     /* eslint-enable jest/no-standalone-expect */
-    // Defensive cleanup in case a regression did leak, so later tests in the run are not poisoned.
+    // Remove the key so a leak in one test cannot poison later ones.
     delete ((Object.prototype as unknown) as Record<string, unknown>)['polluted'];
   });
 

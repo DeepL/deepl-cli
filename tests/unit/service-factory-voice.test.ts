@@ -1,5 +1,5 @@
 /**
- * Tests for createVoiceCommand URL validation (Issue deepl-cli-brh)
+ * Tests for createVoiceCommand URL validation.
  * Ensures VoiceClient path validates API URL the same way createDeepLClient does.
  */
 

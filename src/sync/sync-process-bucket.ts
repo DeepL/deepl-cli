@@ -73,7 +73,10 @@ export async function processBucket(
   const out: BucketContribution = { ...EMPTY, fileResults: [] };
 
   const fileLockEntries = lockFile.entries[relPath] ?? {};
-  let diffs = computeDiff(fileLockEntries, entries);
+  // Pass the configured locales so staleness is judged per locale: a key whose
+  // source is unchanged still needs work if any target locale's stored hash
+  // lags behind, or if that locale previously failed.
+  let diffs = computeDiff(fileLockEntries, entries, config.target_locales);
 
   if (options?.force) {
     diffs = diffs.map(d => ({ ...d, status: 'new' as const }));

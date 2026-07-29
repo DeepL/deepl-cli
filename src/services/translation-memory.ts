@@ -25,9 +25,9 @@ function hasSuspiciousChars(name: string): boolean {
   return /[\x00-\x1f\x7f\u200B-\u200D\uFEFF]/.test(name);
 }
 
-// Signature option A (expected: {from, targets}) chosen over option B
-// (returns TranslationMemory): centralizes pair validation so text + file
-// handlers cannot drift. UUID path trusts the caller and skips the check.
+// Takes the expected pair ({from, targets}) and returns only the ID, so
+// language-pair validation is centralized here and text + file handlers
+// cannot drift. The UUID path trusts the caller and skips the check.
 export async function resolveTranslationMemoryId(
   client: TranslationMemoryLister,
   nameOrId: string,

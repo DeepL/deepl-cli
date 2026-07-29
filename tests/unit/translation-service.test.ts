@@ -1,6 +1,5 @@
 /**
  * Tests for TranslationService
- * Following TDD approach - these tests should fail initially
  */
 
  

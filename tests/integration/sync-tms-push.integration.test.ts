@@ -102,9 +102,9 @@ describe('sync push/pull walker skip-partition integration', () => {
 
   it('pull: pipe-plural keys in the target file are not overwritten with TMS payload', async () => {
     // TMS returns translations for every source key including the pipe-plural
-    // ones — a realistic "admin approved these in the TMS UI" scenario that
-    // previously caused the target pipe-plural value to be replaced by the
-    // single-string TMS payload, corrupting the Laravel pluralization syntax.
+    // ones — a realistic "admin approved these in the TMS UI" scenario. If the
+    // pull applied them, the single-string TMS payload would overwrite the
+    // target's Laravel pluralization syntax and corrupt it.
     const scope = expectTmsPull('de', {
       greeting: 'Hallo',
       farewell: 'Tschüss',

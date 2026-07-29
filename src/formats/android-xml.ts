@@ -21,8 +21,35 @@ const STRING_ARRAY_RE =
 
 const ARRAY_ITEM_RE = /<item>([\s\S]*?)<\/item>/g;
 
+const XML_ENTITY_RE = /&(?:#x([0-9a-fA-F]+)|#(\d+)|(amp|lt|gt|quot|apos));/g;
+
+/**
+ * Decodes XML entities in a single pass, so a literal `&amp;lt;` decodes to
+ * `&lt;` rather than collapsing all the way to `<`.
+ */
+function decodeXmlEntities(value: string): string {
+  return value.replace(XML_ENTITY_RE, (match, hex: string | undefined, dec: string | undefined, named: string | undefined) => {
+    if (hex !== undefined) {
+      const code = Number.parseInt(hex, 16);
+      return code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    if (dec !== undefined) {
+      const code = Number.parseInt(dec, 10);
+      return code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    switch (named) {
+      case 'amp': return '&';
+      case 'lt': return '<';
+      case 'gt': return '>';
+      case 'quot': return '"';
+      case 'apos': return "'";
+      default: return match;
+    }
+  });
+}
+
 function unescapeAndroid(value: string): string {
-  return value.replace(/\\(\\|'|"|n|t|r)/g, (_match, ch: string) => {
+  const withoutBackslashEscapes = value.replace(/\\(\\|'|"|n|t|r)/g, (_match, ch: string) => {
     switch (ch) {
       case '\\': return '\\';
       case "'": return "'";
@@ -33,6 +60,7 @@ function unescapeAndroid(value: string): string {
       default: return ch;
     }
   });
+  return decodeXmlEntities(withoutBackslashEscapes);
 }
 
 function escapeAndroid(value: string): string {
@@ -41,9 +69,11 @@ function escapeAndroid(value: string): string {
     .replace(/\n/g, '\\n')
     .replace(/'/g, "\\'")
     .replace(/"/g, '\\"')
+    // & must precede < and >, or the entities produced below get re-escaped
+    // into &amp;lt; — which compounds on every subsequent sync run.
+    .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/&/g, '&amp;');
+    .replace(/>/g, '&gt;');
 }
 
 export class AndroidXmlFormatParser implements FormatParser {
@@ -229,16 +259,30 @@ export class AndroidXmlFormatParser implements FormatParser {
   }
 
   private decodeValue(raw: string): string {
-    const cdataMatch = /^<!\[CDATA\[([\s\S]*)\]\]>$/.exec(raw);
-    if (cdataMatch) {
-      return cdataMatch[1]!;
+    if (raw.startsWith('<![CDATA[')) {
+      // Concatenate adjacent sections: escapeForReconstruct splits on "]]>"
+      // into `]]]]><![CDATA[>`, so a literal "]]>" spans two sections.
+      const sectionRe = /<!\[CDATA\[([\s\S]*?)\]\]>/g;
+      let joined = '';
+      let consumedTo = 0;
+      let match: RegExpExecArray | null;
+      while ((match = sectionRe.exec(raw)) !== null) {
+        if (match.index !== consumedTo) break;
+        joined += match[1]!;
+        consumedTo = match.index + match[0].length;
+      }
+      if (consumedTo === raw.length) return joined;
     }
     return unescapeAndroid(raw);
   }
 
   private escapeForReconstruct(originalInner: string, translation: string): string {
     if (/^<!\[CDATA\[/.test(originalInner)) {
-      return `<![CDATA[${translation}]]>`;
+      // A translation containing "]]>" would close the section early and the
+      // remainder would be parsed as XML. Splitting into adjacent CDATA
+      // sections keeps the text literal without escaping it.
+      const safe = translation.replace(/]]>/g, ']]]]><![CDATA[>');
+      return `<![CDATA[${safe}]]>`;
     }
     return escapeAndroid(translation);
   }

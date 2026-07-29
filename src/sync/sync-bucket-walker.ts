@@ -63,12 +63,11 @@ export function partitionEntries(all: ExtractedEntry[]): {
 
 /**
  * Extract translatable entries from `content` using `parser`, with skip-metadata
- * partition applied. Convenience wrapper for the common pattern — raw
- * `parser.extract(...)` on a target-file read outside `walkBuckets` must drop
- * skipped entries before feeding them into diff / translation / glossary-audit
- * paths; forgetting the partition is a well-known regression class. Use this
- * instead of calling `parser.extract(...)` directly at any walkBuckets-consumer
- * site that operates on target-file content.
+ * partition applied. A raw `parser.extract(...)` on a target-file read outside
+ * `walkBuckets` must drop skipped entries before feeding them into diff /
+ * translation / glossary-audit paths. Use this instead of calling
+ * `parser.extract(...)` directly at any walkBuckets-consumer site that
+ * operates on target-file content.
  */
 export function extractTranslatable(
   parser: FormatParser,

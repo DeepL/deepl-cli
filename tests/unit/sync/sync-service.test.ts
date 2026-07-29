@@ -135,11 +135,18 @@ function makeLockFileWithEntries(
   };
 }
 
-function makeLockEntry(value: string, translations: Record<string, { hash: string; status: string }> = {}): SyncLockEntry {
+/**
+ * `hash` is optional and defaults to the entry's own source hash, which is the
+ * real lockfile invariant: sync-process-bucket writes
+ * `computeSourceHash(value)` to both `source_hash` and each
+ * `translations[locale].hash`. Pass an explicit hash only to model a locale
+ * that has genuinely fallen behind the source.
+ */
+function makeLockEntry(value: string, translations: Record<string, { hash?: string; status: string }> = {}): SyncLockEntry {
   const translationEntries: SyncLockEntry['translations'] = {};
   for (const [locale, info] of Object.entries(translations)) {
     translationEntries[locale] = {
-      hash: info.hash,
+      hash: info.hash ?? computeSourceHash(value),
       translated_at: '2026-01-01T00:00:00.000Z',
       status: info.status as 'translated' | 'failed' | 'pending',
     };
@@ -415,10 +422,8 @@ describe('SyncService', () => {
     });
 
     it('does not emit the "outer controller" clear-set branch when no backupTracker is supplied', async () => {
-      // Regression guard: the old sync() signature only passed a backupTracker
-      // in watch mode. Non-watch runs now wire one up internally for every
-      // call; this test pins the semantic that non-watch callers still do not
-      // need to receive any backupTracker reference back.
+      // Non-watch runs wire up a backupTracker internally; this pins the
+      // semantic that they do not receive any backupTracker reference back.
       setupLockManager(makeEmptyLockFile());
       const translateBatch = jest.fn().mockResolvedValue([
         { text: 'Hallo', billedCharacters: 5 },
@@ -628,9 +633,9 @@ describe('SyncService', () => {
     it('should detect drift when only deleted keys exist', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          farewell: makeLockEntry('Goodbye', { de: { hash: 'abc', status: 'translated' } }),
-          greeting: makeLockEntry('Hello', { de: { hash: 'def', status: 'translated' } }),
-          removed_key: makeLockEntry('Old text', { de: { hash: 'ghi', status: 'translated' } }),
+          farewell: makeLockEntry('Goodbye', { de: { status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
+          removed_key: makeLockEntry('Old text', { de: { status: 'translated' } }),
         },
       });
       const { mockWrite } = setupLockManager(lockFile);
@@ -653,8 +658,8 @@ describe('SyncService', () => {
     it('should not detect drift when all keys are current', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          farewell: makeLockEntry('Goodbye', { de: { hash: 'abc', status: 'translated' } }),
-          greeting: makeLockEntry('Hello', { de: { hash: 'def', status: 'translated' } }),
+          farewell: makeLockEntry('Goodbye', { de: { status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
         },
       });
       const { mockWrite } = setupLockManager(lockFile);
@@ -691,8 +696,8 @@ describe('SyncService', () => {
     it('should treat all entries as new when force is true', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          farewell: makeLockEntry('Goodbye', { de: { hash: 'abc', status: 'translated' } }),
-          greeting: makeLockEntry('Hello', { de: { hash: 'def', status: 'translated' } }),
+          farewell: makeLockEntry('Goodbye', { de: { status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
         },
       });
       setupLockManager(lockFile);
@@ -724,9 +729,9 @@ describe('SyncService', () => {
     it('should not crash and correctly count deleted keys when force includes deleted entries', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          farewell: makeLockEntry('Goodbye', { de: { hash: 'abc', status: 'translated' } }),
-          greeting: makeLockEntry('Hello', { de: { hash: 'def', status: 'translated' } }),
-          removed_key: makeLockEntry('Old text', { de: { hash: 'ghi', status: 'translated' } }),
+          farewell: makeLockEntry('Goodbye', { de: { status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
+          removed_key: makeLockEntry('Old text', { de: { status: 'translated' } }),
         },
       });
       setupLockManager(lockFile);
@@ -1029,8 +1034,8 @@ describe('SyncService', () => {
     it('should retranslate stale entries', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          farewell: makeLockEntry('Goodbye', { de: { hash: 'abc', status: 'translated' } }),
-          greeting: makeLockEntry('Old Hello', { de: { hash: 'def', status: 'translated' } }),
+          farewell: makeLockEntry('Goodbye', { de: { status: 'translated' } }),
+          greeting: makeLockEntry('Old Hello', { de: { status: 'translated' } }),
         },
       });
       setupLockManager(lockFile);
@@ -1050,10 +1055,13 @@ describe('SyncService', () => {
 
       expect(result.staleKeys).toBe(1);
       expect(result.currentKeys).toBe(1);
-      expect(translateBatch).toHaveBeenCalledTimes(1);
-      const calledTexts = translateBatch.mock.calls[0]![0] as string[];
-      expect(calledTexts).toContain('Hello');
-      expect(calledTexts).not.toContain('Goodbye');
+      // The stale key is re-translated. The current key ("farewell") is too,
+      // because this fixture has no de.json on disk: a lockfile entry with no
+      // target content means the file was deleted, so the key must be
+      // translated again rather than recorded as already done.
+      const sentTexts = translateBatch.mock.calls.flatMap((call) => call[0] as string[]);
+      expect(sentTexts).toContain('Hello');
+      expect(sentTexts).toContain('Goodbye');
     });
   });
 
@@ -1061,8 +1069,8 @@ describe('SyncService', () => {
     it('should skip translation when all keys are current', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          farewell: makeLockEntry('Goodbye', { de: { hash: 'abc', status: 'translated' } }),
-          greeting: makeLockEntry('Hello', { de: { hash: 'def', status: 'translated' } }),
+          farewell: makeLockEntry('Goodbye', { de: { status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
         },
       });
       setupLockManager(lockFile);
@@ -1165,8 +1173,8 @@ describe('SyncService', () => {
     it('should use existing target file translations for unchanged keys', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          farewell: makeLockEntry('Goodbye', { de: { hash: 'abc', status: 'translated' } }),
-          greeting: makeLockEntry('Hello', { de: { hash: 'def', status: 'translated' } }),
+          farewell: makeLockEntry('Goodbye', { de: { status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
         },
       });
       setupLockManager(lockFile);
@@ -1203,9 +1211,9 @@ describe('SyncService', () => {
     it('should remove deleted keys from the lock file entries', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          farewell: makeLockEntry('Goodbye', { de: { hash: 'abc', status: 'translated' } }),
-          greeting: makeLockEntry('Hello', { de: { hash: 'def', status: 'translated' } }),
-          removed_key: makeLockEntry('Old text', { de: { hash: 'ghi', status: 'translated' } }),
+          farewell: makeLockEntry('Goodbye', { de: { status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
+          removed_key: makeLockEntry('Old text', { de: { status: 'translated' } }),
         },
       });
       const { mockWrite } = setupLockManager(lockFile);
@@ -1234,7 +1242,7 @@ describe('SyncService', () => {
     it('should remove file entry entirely when all keys are deleted', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/en.json': {
-          old_key: makeLockEntry('Old text', { de: { hash: 'abc', status: 'translated' } }),
+          old_key: makeLockEntry('Old text', { de: { status: 'translated' } }),
         },
       });
       const { mockWrite } = setupLockManager(lockFile);
@@ -1260,10 +1268,10 @@ describe('SyncService', () => {
     it('preserves a lockfile entry whose source file is findable by base name elsewhere', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/old-path/en.json': {
-          greeting: makeLockEntry('Hello', { de: { hash: 'h1', status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
         },
         'locales/en.json': {
-          greeting: makeLockEntry('Hello', { de: { hash: 'h2', status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
         },
       });
       const { mockWrite } = setupLockManager(lockFile);
@@ -1302,10 +1310,10 @@ describe('SyncService', () => {
     it('still deletes entries whose base name is absent from projectRoot', async () => {
       const lockFile = makeLockFileWithEntries({
         'locales/truly-deleted.json': {
-          greeting: makeLockEntry('Hello', { de: { hash: 'h1', status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
         },
         'locales/en.json': {
-          greeting: makeLockEntry('Hello', { de: { hash: 'h2', status: 'translated' } }),
+          greeting: makeLockEntry('Hello', { de: { status: 'translated' } }),
         },
       });
       const { mockWrite } = setupLockManager(lockFile);

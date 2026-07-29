@@ -9,9 +9,7 @@
  *
  * Swapping expandPlurals and detectIcu causes non-primary plural quantity
  * values to bypass ICU placeholder substitution and fall through to the main
- * batch — the plural-is-ICU characterization fixture
- * (tests/integration/sync.integration.test.ts, "plural-is-ICU preservation")
- * bites this regression.
+ * batch.
  */
 
 import { parseIcu } from '../utils/icu-preservation.js';
@@ -107,8 +105,18 @@ export async function reassembleIcu(
       { ...baseOpts },
     );
 
+    // Every segment must come back. Substituting the source segment for a failed
+    // one would emit a part-source message reported as successfully translated,
+    // so leave the result unset — the message is marked failed and retried.
+    const anySegmentFailed =
+      segResults.length !== segTexts.length || segResults.some((sr) => !sr?.text);
+    if (anySegmentFailed) {
+      results[icu.textIndex] = null;
+      continue;
+    }
+
     const translatedSegments = segResults.map((sr, si) => {
-      let translated = sr?.text ?? segTexts[si]!.text;
+      let translated = sr.text;
       const pMap = segTexts[si]!.pMap;
       if (pMap.size > 0) translated = restorePlaceholders(translated, pMap);
       return translated;

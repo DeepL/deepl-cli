@@ -1,6 +1,5 @@
 /**
  * Tests for Detect Command
- * Following TDD approach
  */
 
  

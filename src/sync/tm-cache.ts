@@ -1,9 +1,9 @@
 /**
- * Narrow cache surface consumed by `resolveTranslationMemoryId`. Replaces the
- * previous `Map<string, string>` signature so long-lived callers (e.g. watch
- * mode) can drop in a TTL-aware implementation that invalidates stale TM IDs
- * across iterations. Plain `Map<string, string>` still satisfies this shape
- * for one-shot callers (translate text/file handlers).
+ * Narrow cache surface consumed by `resolveTranslationMemoryId`. Kept
+ * structural so long-lived callers (e.g. watch mode) can supply a TTL-aware
+ * implementation that invalidates stale TM IDs across iterations, while a
+ * plain `Map<string, string>` satisfies it for one-shot callers (translate
+ * text/file handlers).
  */
 export interface TmCacheLike {
   has(key: string): boolean;

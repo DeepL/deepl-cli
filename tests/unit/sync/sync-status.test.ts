@@ -92,8 +92,8 @@ describe('computeSyncStatus', () => {
       read: jest.fn().mockResolvedValue({
         entries: {
           'locales/en.json': {
-            greeting: { source_hash: 'a', source_text: 'Hello', translations: { de: { hash: 'b', translated_at: '', status: 'translated' } } },
-            farewell: { source_hash: 'c', source_text: 'Goodbye', translations: { de: { hash: 'd', translated_at: '', status: 'translated' } } },
+            greeting: { source_hash: 'a', source_text: 'Hello', translations: { de: { hash: 'a', translated_at: '', status: 'translated' } } },
+            farewell: { source_hash: 'c', source_text: 'Goodbye', translations: { de: { hash: 'c', translated_at: '', status: 'translated' } } },
           },
         },
         source_locale: 'en', version: 1, _comment: '', generated_at: '', stats: { total_keys: 2, total_translations: 2, last_sync: '' },
@@ -130,8 +130,8 @@ describe('computeSyncStatus', () => {
       read: jest.fn().mockResolvedValue({
         entries: {
           'locales/en.json': {
-            greeting: { source_hash: 'a', source_text: 'Hello', translations: { de: { hash: 'b', translated_at: '', status: 'translated' } } },
-            removed_key: { source_hash: 'abc123', source_text: 'Old text', translations: { de: { hash: 'c', translated_at: '', status: 'translated' } } },
+            greeting: { source_hash: 'a', source_text: 'Hello', translations: { de: { hash: 'a', translated_at: '', status: 'translated' } } },
+            removed_key: { source_hash: 'abc123', source_text: 'Old text', translations: { de: { hash: 'abc123', translated_at: '', status: 'translated' } } },
           },
         },
         source_locale: 'en', version: 1, _comment: '', generated_at: '', stats: { total_keys: 2, total_translations: 2, last_sync: '' },

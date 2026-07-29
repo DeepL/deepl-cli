@@ -1,6 +1,5 @@
 /**
  * Tests for Config Command
- * Following TDD approach
  */
 
  

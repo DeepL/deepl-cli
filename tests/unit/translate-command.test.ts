@@ -1,6 +1,5 @@
 /**
  * Tests for Translate Command
- * Following TDD approach
  */
 
  
@@ -906,7 +905,7 @@ describe('TranslateCommand', () => {
 
   describe('translate() - file/directory detection', () => {
     it('should detect and route to translateDirectory() for directory paths', async () => {
-      // Mock fs to indicate directory (Issue #6: must check lstatSync for symlinks)
+      // Mock fs to indicate a directory; routing must consult lstatSync so symlinks are not followed.
       const fs = jest.requireActual('fs');
       jest.spyOn(fs, 'lstatSync').mockReturnValue({ isSymbolicLink: () => false, isDirectory: () => true } as any);
       jest.spyOn(fs, 'existsSync').mockReturnValue(true);
@@ -928,7 +927,7 @@ describe('TranslateCommand', () => {
     });
 
     it('should detect and route to translateFile() for file paths', async () => {
-      // Mock fs to indicate file (not directory) (Issue #6: must check lstatSync for symlinks)
+      // Mock fs to indicate a file; routing must consult lstatSync so symlinks are not followed.
       const fs = jest.requireActual('fs');
       const mockStats = { isDirectory: () => false, isFile: () => true };
       jest.spyOn(fs, 'lstatSync').mockReturnValue({ isSymbolicLink: () => false, isFile: () => true } as any);

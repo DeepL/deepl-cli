@@ -1,13 +1,18 @@
 import type { ExtractedEntry, FormatParser, TranslatedEntry } from './format.js';
 import { detectIndent } from './util/detect-indent.js';
 
+/** JSON.parse rejects a leading BOM, which editors on Windows add routinely. */
+function stripBom(content: string): string {
+  return content.replace(/^\uFEFF/, '');
+}
+
 export class ArbFormatParser implements FormatParser {
   readonly name = 'ARB (Flutter)';
   readonly configKey = 'arb';
   readonly extensions = ['.arb'];
 
   extract(content: string): ExtractedEntry[] {
-    const data = JSON.parse(content) as Record<string, unknown>;
+    const data = JSON.parse(stripBom(content)) as Record<string, unknown>;
     const entries: ExtractedEntry[] = [];
 
     for (const key of Object.keys(data)) {
@@ -41,7 +46,7 @@ export class ArbFormatParser implements FormatParser {
   }
 
   reconstruct(content: string, entries: TranslatedEntry[]): string {
-    const data = JSON.parse(content) as Record<string, unknown>;
+    const data = JSON.parse(stripBom(content)) as Record<string, unknown>;
     const indent = detectIndent(content);
     const trailingNewline = content.endsWith('\n');
 
@@ -83,7 +88,7 @@ export class ArbFormatParser implements FormatParser {
   }
 
   extractContext(content: string, key: string): string | undefined {
-    const data = JSON.parse(content) as Record<string, unknown>;
+    const data = JSON.parse(stripBom(content)) as Record<string, unknown>;
     const metaKey = `@${key}`;
     const meta = data[metaKey];
     if (typeof meta === 'object' && meta !== null) {

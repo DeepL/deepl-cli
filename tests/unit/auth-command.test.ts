@@ -1,6 +1,5 @@
 /**
  * Tests for Auth Command
- * Following TDD approach
  */
 
  

@@ -53,13 +53,14 @@ export class TomlFormatParser implements FormatParser {
     }
 
     const trailingNewline = content.endsWith('\n');
-    const lines = content.split('\n');
+    const lines = content.split(/\r?\n/);
     const out: string[] = [];
     const usedKeys = new Set<string>();
     let currentSection = '';
     const pending = new PendingCommentBuffer();
 
-    for (const line of lines) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex]!;
       const trimmed = line.trim();
 
       const sectionMatch = trimmed.match(SECTION_RE);
@@ -91,10 +92,27 @@ export class TomlFormatParser implements FormatParser {
         const equals = entryMatch[3]!;
         const valuePart = entryMatch[4]!;
 
-        // Multi-line strings (non-goal): don't attempt rewrite. Emit verbatim.
+        // Multi-line strings (non-goal): don't attempt rewrite. Emit the whole
+        // block verbatim and skip past it, so body lines that happen to look
+        // like `key = "..."` are not mistaken for entries and deleted.
         if (TRIPLE_QUOTE_PREFIX_RE.test(valuePart)) {
           pending.flushToOutput(out);
+          const delimiter = valuePart.startsWith('"""') ? '"""' : "'''";
           out.push(line);
+          // A single-line `k = """text"""` closes on the opening line itself.
+          const closesOnOpeningLine =
+            valuePart.length > delimiter.length * 2 - 1 &&
+            valuePart.slice(delimiter.length).includes(delimiter);
+          if (!closesOnOpeningLine) {
+            while (lineIndex + 1 < lines.length) {
+              lineIndex++;
+              const bodyLine = lines[lineIndex]!;
+              out.push(bodyLine);
+              if (bodyLine.includes(delimiter)) break;
+            }
+          }
+          const multilineKey = currentSection ? `${currentSection}.${keyPart}` : keyPart;
+          usedKeys.add(multilineKey);
           continue;
         }
 
@@ -139,22 +157,68 @@ export class TomlFormatParser implements FormatParser {
     // Emit any trailing pending block (typically blank lines at EOF).
     pending.flushToOutput(out);
 
-    // Append new keys that weren't matched in source. Insert a blank separator
-    // if the last line is not already blank.
+    // Insert new keys into their own section. Appending `section.key` at end
+    // of file would nest it under whichever [section] header is still in
+    // scope there, producing `section.section.key` and leaving the intended
+    // key still missing.
     const newEntries = entries.filter((e) => !usedKeys.has(e.key));
     if (newEntries.length > 0) {
-      const hadTrailingSentinel = out.length > 0 && out[out.length - 1] === '';
-      if (hadTrailingSentinel) out.pop();
-      if (out.length > 0 && out[out.length - 1] !== '') out.push('');
-      for (const entry of newEntries) {
-        out.push(`${entry.key} = ${encodeTomlString(entry.translation, true)}`);
-      }
-      if (hadTrailingSentinel) out.push('');
+      this.insertNewEntries(out, newEntries);
     }
 
     let result = out.join('\n');
     if (trailingNewline && !result.endsWith('\n')) result += '\n';
     return result;
+  }
+
+  /**
+   * Places each new entry inside the section its key belongs to, appending a
+   * new `[section]` header only when that section is absent. Mutates `out`.
+   */
+  private insertNewEntries(out: string[], newEntries: TranslatedEntry[]): void {
+    // Map section name -> index just past the end of its block in `out`.
+    const sectionEnd = new Map<string, number>();
+    let seen = '';
+    sectionEnd.set('', 0);
+    for (let i = 0; i < out.length; i++) {
+      const sectionMatch = out[i]!.trim().match(SECTION_RE);
+      if (sectionMatch) {
+        seen = sectionMatch[1]!.trim();
+      }
+      sectionEnd.set(seen, i + 1);
+    }
+
+    // Group by section so each section is touched once.
+    const bySection = new Map<string, { leaf: string; entry: TranslatedEntry }[]>();
+    for (const entry of newEntries) {
+      const lastDot = entry.key.lastIndexOf('.');
+      const section = lastDot === -1 ? '' : entry.key.slice(0, lastDot);
+      const leaf = lastDot === -1 ? entry.key : entry.key.slice(lastDot + 1);
+      const group = bySection.get(section);
+      if (group) group.push({ leaf, entry });
+      else bySection.set(section, [{ leaf, entry }]);
+    }
+
+    // Insert from the highest index downward so earlier indices stay valid.
+    const existing = [...bySection.entries()]
+      .filter(([section]) => sectionEnd.has(section))
+      .sort((a, b) => sectionEnd.get(b[0])! - sectionEnd.get(a[0])!);
+
+    for (const [section, group] of existing) {
+      const at = sectionEnd.get(section)!;
+      out.splice(at, 0, ...group.map(({ leaf, entry }) =>
+        `${leaf} = ${encodeTomlString(entry.translation, true)}`));
+    }
+
+    // Sections not present in the file get appended with a header.
+    for (const [section, group] of bySection) {
+      if (sectionEnd.has(section)) continue;
+      if (out.length > 0 && out[out.length - 1] !== '') out.push('');
+      out.push(`[${section}]`);
+      for (const { leaf, entry } of group) {
+        out.push(`${leaf} = ${encodeTomlString(entry.translation, true)}`);
+      }
+    }
   }
 
   private walk(obj: Record<string, unknown>, prefix: string, entries: ExtractedEntry[]): void {

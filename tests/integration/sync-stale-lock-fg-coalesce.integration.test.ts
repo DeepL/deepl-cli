@@ -1,9 +1,7 @@
 /**
- * Regression test: stale-lock cleanup must invoke fg exactly once regardless
- * of how many stale entries need scanning.
- *
- * Before: one fg per stale entry (N sequential full-tree scans for N entries).
- * After: a single fg call with N patterns covers all stale basenames at once.
+ * Stale-lock cleanup must invoke fg exactly once regardless of how many stale
+ * entries need scanning: a single fg call with N patterns covers all stale
+ * basenames, rather than N sequential full-tree scans.
  */
 
 import * as fs from 'fs';

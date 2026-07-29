@@ -371,7 +371,7 @@ export class HttpClient {
       // Sanitize the server-returned message before any interpolation into
       // user-facing error strings. Defense-in-depth against a malicious or
       // buggy server scribbling ANSI escape codes / control chars on the
-      // user's terminal. Mirrors the TMS-client hardening (sync-pagq.7).
+      // user's terminal, matching the sanitization in tms-client.ts.
       // Coalesce to '' before sanitizing — some axios error shapes have no
       // `.message` field, and sanitizeForTerminal expects a string.
       const message = sanitizeForTerminal(responseData?.message ?? error.message ?? '');
@@ -439,6 +439,12 @@ export class HttpClient {
     headerValue: string | undefined
   ): number | undefined {
     if (headerValue === undefined || headerValue === null) {
+      return undefined;
+    }
+    // Number('') and Number('   ') are 0, which passes the finite check below
+    // and returns a 0 ms delay — collapsing 429 backoff into a tight retry
+    // loop against an endpoint that is already rate-limiting us.
+    if (headerValue.trim() === '') {
       return undefined;
     }
 

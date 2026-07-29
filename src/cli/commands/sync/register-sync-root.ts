@@ -3,6 +3,7 @@ import { ExitCode } from '../../../utils/exit-codes.js';
 import { ValidationError } from '../../../utils/errors.js';
 import { createSyncCommand, type ServiceDeps } from '../service-factory.js';
 import { emitJsonErrorAndExit } from './sync-options.js';
+import { parsePositiveIntOption } from '../parse-int-option.js';
 
 export function registerSyncRoot(program: Command, deps: ServiceDeps): Command {
   return program
@@ -46,7 +47,8 @@ export function registerSyncRoot(program: Command, deps: ServiceDeps): Command {
     .addOption(new Option('--context').hideHelp())
     .addOption(new Option('--no-context').hideHelp())
     .optionsGroup('Performance:')
-    .option('--concurrency <number>', 'Max parallel locale translations (default: 5)', parseInt)
+    .option('--concurrency <number>', 'Max parallel locale translations (default: 5)', (v) =>
+      parsePositiveIntOption(v, 'concurrency', 100))
     .option('--batch', 'Force batch mode (fastest, no context or instructions)')
     .option(
       '--no-batch',
@@ -61,7 +63,8 @@ export function registerSyncRoot(program: Command, deps: ServiceDeps): Command {
     )
     .optionsGroup('Watch:')
     .option('--watch', 'Watch source files and auto-sync on changes')
-    .option('--debounce <ms>', 'Debounce delay for watch mode (default: 500ms)', parseInt)
+    .option('--debounce <ms>', 'Debounce delay for watch mode (default: 500ms)', (v) =>
+      parsePositiveIntOption(v, 'debounce', 600_000))
     .optionsGroup('Safety:')
     .option('-y, --yes', 'Skip --force confirmation prompt (required when CI=true)')
     .optionsGroup('Output:')

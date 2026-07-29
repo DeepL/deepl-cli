@@ -45,14 +45,14 @@ export function createEmptyLockFile(sourceLocale: string): SyncLockFile {
 }
 
 /**
- * JSON.stringify replacer that emits plain objects with sorted keys. Replaces
- * the previous deep-clone-then-stringify approach so the lockfile isn't
- * materialized twice in memory: the replacer is invoked lazily as stringify
- * recurses, so only a single sorted-key shell lives at each level of the tree.
+ * JSON.stringify replacer that emits plain objects with sorted keys, so the
+ * lockfile is never materialized twice in memory: the replacer is invoked
+ * lazily as stringify recurses, so only a single sorted-key shell lives at
+ * each level of the tree.
  * Objects whose own-enumeration order is already sorted are returned as-is so
  * leaf shells (translations, stats) don't allocate.
  */
-function sortedKeysReplacer(_key: string, value: unknown): unknown {
+export function sortedKeysReplacer(_key: string, value: unknown): unknown {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return value;
   }
@@ -69,7 +69,10 @@ function sortedKeysReplacer(_key: string, value: unknown): unknown {
     return value;
   }
   const sortedKeys = keys.slice().sort();
-  const out: Record<string, unknown> = {};
+  // Null-prototype: `out['__proto__'] = v` on a plain object invokes the
+  // prototype setter, so an i18n key of that name would vanish from the
+  // serialized lockfile on every write.
+  const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const k of sortedKeys) {
     out[k] = src[k];
   }

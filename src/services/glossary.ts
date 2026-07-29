@@ -402,7 +402,11 @@ export class GlossaryService {
    * Handles UTF-8 BOM, warns about extra columns, validates format
    */
   static tsvToEntries(tsv: string): Record<string, string> {
-    const entries: Record<string, string> = {};
+    // Null-prototype: a source term may legitimately be "toString" or
+    // "__proto__", which on a plain object would read as an existing entry
+    // (false duplicate warning) or, for __proto__, be swallowed by the
+    // prototype setter instead of stored.
+    const entries: Record<string, string> = Object.create(null) as Record<string, string>;
 
     // Remove UTF-8 BOM if present (0xFEFF)
     let content = tsv;
@@ -457,7 +461,7 @@ export class GlossaryService {
       }
 
       // Add to entries (duplicates will overwrite earlier entries)
-      if (entries[source] !== undefined) {
+      if (Object.hasOwn(entries, source)) {
         Logger.warn(`Line ${lineNumber}: Duplicate source "${source}", overwriting previous entry`);
       }
 

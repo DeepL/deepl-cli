@@ -1,10 +1,9 @@
 /**
  * E2E tests for `deepl sync push` / `deepl sync pull` dispatch.
  *
- * Closes the gap where the register-sync-push / register-sync-pull dispatch
- * path lacked end-to-end coverage exercising the actual CLI binary, a real
- * HTTP TMS server, and the --format json contract. Unit tests cover
- * TmsClient in isolation but not the CLI command wiring.
+ * Exercises the register-sync-push / register-sync-pull dispatch path against
+ * the actual CLI binary, a real HTTP TMS server, and the --format json
+ * contract. Unit tests cover TmsClient in isolation but not the CLI wiring.
  *
  * Uses a dedicated mock TMS server (tests/e2e/mock-tms-push-pull.cjs) run
  * as a child process so the CLI subprocess can reach it over TCP. The mock

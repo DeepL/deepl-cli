@@ -1,6 +1,5 @@
 /**
  * Tests for Glossary Command
- * Following TDD approach
  */
 
  

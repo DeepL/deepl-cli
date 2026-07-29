@@ -432,22 +432,27 @@ export class LocaleTranslator {
       const existingTranslation = existingTranslations.get(cd.key);
       const lockEntry = fileLockEntries[cd.key];
       const hasLocaleTranslation = lockEntry?.translations[locale] !== undefined;
-      if (existingTranslation) {
+      if (existingTranslation !== undefined) {
+        // Present in the target file — including a deliberately empty string,
+        // which must be preserved rather than treated as missing.
         allTranslatedEntries.push({
           key: cd.key,
           value: cd.value,
           translation: existingTranslation,
           metadata: cd.metadata,
         });
-      } else if (!hasLocaleTranslation && cd.value !== undefined) {
-        untranslatedCurrentKeys.push(cd.key);
       } else {
-        allTranslatedEntries.push({
-          key: cd.key,
-          value: cd.value,
-          translation: cd.value,
-          metadata: cd.metadata,
-        });
+        // No translation in the target file. Translate it, even when the
+        // lockfile claims this locale already has one: that combination means
+        // the target file was deleted or emptied. Writing the source value here
+        // would record untranslated text as `translated`, which no later run
+        // would correct.
+        untranslatedCurrentKeys.push(cd.key);
+        if (hasLocaleTranslation) {
+          Logger.verbose(
+            `[verbose] ${locale}: lockfile records a translation for "${cd.key}" but the target file has none — re-translating`,
+          );
+        }
       }
     }
 

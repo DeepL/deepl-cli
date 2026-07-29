@@ -60,7 +60,7 @@ describe('TmCache', () => {
 
   it('satisfies the Map<string, string>-shaped signature used by resolveTranslationMemoryId', () => {
     const cache = new TmCache();
-    // has/get/set — the three methods touched in translation-memory.ts.
+    // has/get/set — the three methods resolveTranslationMemoryId uses.
     expect(typeof cache.has).toBe('function');
     expect(typeof cache.get).toBe('function');
     expect(typeof cache.set).toBe('function');

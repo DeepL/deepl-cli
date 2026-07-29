@@ -1,8 +1,7 @@
 /**
  * Commander-tree snapshot test for `deepl sync` and its subcommands.
  *
- * This test guards against observable CLI shape changes during the refactor
- * that splits register-sync.ts into per-subcommand builder modules. It walks
+ * This test guards against observable CLI shape changes. It walks
  * the commander tree produced by registerSync() and captures, for each
  * command: name, description, options (flags, description, default, choices,
  * negate), and nested subcommands. Any drift to the tree — a renamed flag,

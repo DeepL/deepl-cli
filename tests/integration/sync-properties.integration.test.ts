@@ -6,10 +6,9 @@
  * target de.properties on disk matches
  * tests/fixtures/sync/formats/properties/expected-after-sync/de.properties.
  *
- * Closes a fixture-coverage gap: .properties was not previously exercised
- * from disk fixtures, so PropertiesFormatParser.reconstruct regressions
- * (escape handling, comment preservation) would slip past unit tests that
- * only exercise in-memory strings.
+ * Disk fixtures are required here: PropertiesFormatParser.reconstruct
+ * regressions in escape handling or comment preservation slip past unit tests
+ * that only exercise in-memory strings.
  */
 
 import * as fs from 'fs';

@@ -179,6 +179,14 @@ export class WatchService {
     }
 
     const timer = setTimeout(() => {
+      // Drop the bookkeeping as soon as the timer fires, not after the
+      // translation finishes, and only if this timer is still the current one.
+      // Deleting unconditionally later would drop a NEWER pending timer for the
+      // same file, making it uncancellable and letting two translations race to
+      // write the same output path.
+      if (this.debounceTimers.get(filePath) === timer) {
+        this.debounceTimers.delete(filePath);
+      }
       // Wrap async code to handle Promise properly (void operator tells TypeScript we intentionally ignore the Promise)
       void (async () => {
         try {
@@ -197,8 +205,6 @@ export class WatchService {
             this.watchOptions.onError(filePath, error as Error);
           }
           Logger.error(`Translation failed for ${filePath}:`, errorMessage(error));
-        } finally {
-          this.debounceTimers.delete(filePath);
         }
       })();
     }, this.options.debounceMs);

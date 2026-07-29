@@ -608,13 +608,16 @@ describe('LocaleTranslator', () => {
       expect(result.targetEntries.get('new_key')).toBe('Neuer Wert');
     });
 
-    it('should fall back to source text when current key has lockfile but no existing target content', async () => {
+    // A lockfile entry with no corresponding target content means the file was
+    // deleted or emptied, so the key must be translated again rather than
+    // falling back to the SOURCE text.
+    it('should re-translate a current key whose lockfile entry has no target content', async () => {
       const config = makeConfig();
       const diffs: SyncDiff[] = [
         { key: 'a', value: 'Alpha', status: 'new' },
         { key: 'b', value: 'Beta', status: 'current' },
       ];
-      const { mock } = captureTranslateBatch(['A']);
+      const { mock } = captureTranslateBatch(['A', 'B-übersetzt']);
 
       const ctx: LocaleTranslatorContext = {
         ...makeCtx(diffs, new Map()),
@@ -630,7 +633,8 @@ describe('LocaleTranslator', () => {
 
       const result = await makeTranslator(mock, config).translate(ctx);
 
-      expect(result.targetEntries.get('b')).toBe('Beta');
+      expect(result.targetEntries.get('b')).not.toBe('Beta');
+      expect(result.targetEntries.get('b')).toBe('B-übersetzt');
     });
   });
 

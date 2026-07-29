@@ -1,9 +1,8 @@
 /**
  * Unit tests for the `deepl sync` parent command handler.
  *
- * Covers the --context/--scan-context rename: bare --context and --no-context
- * on `sync` now hard-error (exit 6, ValidationError) with a did-you-mean hint
- * pointing at --scan-context.
+ * Bare --context and --no-context on `sync` hard-error (exit 6,
+ * ValidationError) with a did-you-mean hint pointing at --scan-context.
  */
 
 import { Command } from 'commander';

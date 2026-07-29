@@ -10,9 +10,12 @@ const UNIT_RE =
   /<(?:\w+:)?unit\s+id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/(?:\w+:)?unit>/gi;
 
 const SOURCE_RE = /<(?:\w+:)?source>([\s\S]*?)<\/(?:\w+:)?source>/i;
-const TARGET_RE = /<(\w+:)?target>([\s\S]*?)<\/(?:\w+:)?target>/i;
-const NOTE_RE = /<(?:\w+:)?note>([\s\S]*?)<\/(?:\w+:)?note>/i;
-const SEGMENT_RE = /<(?:\w+:)?segment>([\s\S]*?)<\/(?:\w+:)?segment>/i;
+// Attributes are optional but must be preserved: `state` is a standard XLIFF
+// attribute that every CAT tool writes, so requiring a bare tag would make
+// those elements invisible to this regex.
+const TARGET_RE = /<(\w+:)?target((?:\s[^>]*)?)>([\s\S]*?)<\/(?:\w+:)?target>/i;
+const NOTE_RE = /<(?:\w+:)?note(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?note>/i;
+const SEGMENT_RE = /<(?:\w+:)?segment(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?segment>/i;
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
@@ -28,10 +31,9 @@ const XML_ENTITY_RE = /&(?:(amp|lt|gt|quot|apos)|#(x[0-9a-fA-F]+|[0-9]+));/g;
  * Decode XML entities in a single pass. Handles the five named entities
  * plus decimal (`&#NN;`) and hex (`&#xNN;`) numeric character references.
  *
- * Single-pass is load-bearing: the previous chained `.replace()` impl
- * double-decoded `&amp;lt;` (first pass `&amp;` → `&`, second pass
- * `&lt;` → `<`), silently corrupting any payload that round-tripped
- * literal entities through translation.
+ * The single pass is required for correctness: chained `.replace()` calls
+ * double-decode `&amp;lt;` (`&amp;` → `&`, then `&lt;` → `<`), corrupting
+ * payloads that carry literal entities.
  */
 function unescapeXml(value: string): string {
   return value.replace(XML_ENTITY_RE, (match, named: string | undefined, numeric: string | undefined) => {
@@ -187,7 +189,8 @@ export class XliffFormatParser implements FormatParser {
       let newBlock: string;
       if (targetMatch) {
         const ns = targetMatch[1] ?? '';
-        newBlock = block.replace(TARGET_RE, () => `<${ns}target>${escaped}</${ns}target>`);
+        const attrs = targetMatch[2] ?? '';
+        newBlock = block.replace(TARGET_RE, () => `<${ns}target${attrs}>${escaped}</${ns}target>`);
       } else {
         const sourceNsMatch = /<(\w+:)?source>/i.exec(block);
         const ns = sourceNsMatch?.[1] ?? '';
@@ -222,7 +225,8 @@ export class XliffFormatParser implements FormatParser {
       let newSegment: string;
       if (targetMatch) {
         const ns = targetMatch[1] ?? '';
-        newSegment = segment.replace(TARGET_RE, () => `<${ns}target>${escaped}</${ns}target>`);
+        const attrs = targetMatch[2] ?? '';
+        newSegment = segment.replace(TARGET_RE, () => `<${ns}target${attrs}>${escaped}</${ns}target>`);
       } else {
         const sourceNsMatch = /<(\w+:)?source>/i.exec(segment);
         const ns = sourceNsMatch?.[1] ?? '';

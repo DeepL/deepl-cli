@@ -331,6 +331,22 @@ export function validateSyncConfig(raw: unknown): SyncConfig {
           `Ensure every entry in buckets.${safeName}.include is a quoted glob string.`,
         );
       }
+      // Containment must be enforced here, not only in the `sync init` wizard
+      // (sync-init-validate.ts) which already rejects the same input: these
+      // globs feed both the file walk and the stale-.bak sweep, and the sweep
+      // deletes and re-creates files under whatever root it is handed.
+      if (inc.split(/[/\\]/).some((segment) => segment === '..')) {
+        throw new ConfigError(
+          `Sync config bucket "${safeName}" include entry "${inc}" contains a ".." traversal segment`,
+          `Use globs relative to the project root without traversal segments in buckets.${safeName}.include.`,
+        );
+      }
+      if (path.isAbsolute(inc)) {
+        throw new ConfigError(
+          `Sync config bucket "${safeName}" include entry "${inc}" must be relative to the project root`,
+          `Replace the absolute path in buckets.${safeName}.include with a path relative to the project root.`,
+        );
+      }
     }
     if (b['target_path_pattern'] !== undefined) {
       if (typeof b['target_path_pattern'] !== 'string') {
@@ -388,6 +404,15 @@ export function validateSyncConfig(raw: unknown): SyncConfig {
   if (obj['sync'] !== undefined) {
     assertOnlyKnownKeys(obj['sync'] as Record<string, unknown>, KNOWN_SYNC_BEHAVIOR_KEYS, 'sync');
     const syncBlock = obj['sync'] as Record<string, unknown>;
+    if (syncBlock['concurrency'] !== undefined) {
+      const c = syncBlock['concurrency'];
+      if (!Number.isInteger(c) || (c as number) <= 0) {
+        throw new ConfigError(
+          `sync.concurrency must be a positive integer, got: ${String(c)}`,
+          'Set sync.concurrency to a positive integer in .deepl-sync.yaml (default 5).',
+        );
+      }
+    }
     if (syncBlock['max_scan_files'] !== undefined) {
       const m = syncBlock['max_scan_files'];
       if (!Number.isInteger(m) || (m as number) <= 0) {
@@ -593,10 +618,9 @@ export async function loadSyncConfig(
 
 // Emit a security warning whenever a user has put TMS credentials directly
 // in .deepl-sync.yaml instead of the recommended env vars. Writes directly
-// to stderr (no TTY gate) so the warning survives on CI and piped contexts;
-// previously the credential-resolution path in tms-client.ts only fired for
-// `deepl sync push` / `pull`, leaving `deepl sync status` etc. silent even
-// when the config held a secret.
+// to stderr (no TTY gate) so the warning survives on CI and piped contexts.
+// Runs at config load so every sync subcommand warns, not just the ones
+// that resolve TMS credentials in tms-client.ts.
 function warnOnInlineTmsCredentials(tms: SyncTmsConfig | undefined): void {
   if (!tms) return;
   if (tms.api_key && !process.env['TMS_API_KEY']) {

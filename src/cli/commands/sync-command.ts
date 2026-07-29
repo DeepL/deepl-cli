@@ -6,6 +6,7 @@ import { ValidationError } from '../../utils/errors.js';
 import { ExitCode } from '../../utils/exit-codes.js';
 import { LOCK_FILE_NAME } from '../../sync/types.js';
 import { sweepStaleBackups as sweepStaleBackupsImpl, DEFAULT_BAK_SWEEP_MAX_AGE_SECONDS } from '../../sync/sync-bak-cleanup.js';
+import { claimGracefulShutdown } from '../../utils/signal-exit.js';
 
 export const STALE_BACKUP_AGE_MS = DEFAULT_BAK_SWEEP_MAX_AGE_SECONDS * 1000;
 
@@ -269,7 +270,7 @@ export class SyncCommand {
       process.exitCode = ExitCode.PartialFailure;
     }
 
-    if (options.autoCommit && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
+    if (options.autoCommit && result.success && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
       await this.autoCommitTranslations(result, config);
     }
 
@@ -383,7 +384,7 @@ export class SyncCommand {
           backupTracker,
         });
         this.displayResult(result, 'text');
-        if (options.autoCommit && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
+        if (options.autoCommit && result.success && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
           await this.autoCommitTranslations(result, activeConfig);
         }
       },
@@ -399,6 +400,10 @@ export class SyncCommand {
       },
       debounceMs,
     });
+
+    // Watch mode treats SIGINT/SIGTERM as its normal stop signal and shuts
+    // down successfully, so the CLI's signal-exit must not force a failure code.
+    claimGracefulShutdown();
 
     await new Promise<void>((resolve) => {
       const onStop = (): void => {

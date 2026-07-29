@@ -15,9 +15,8 @@ import { resolveTargetPath } from '../../../src/sync/sync-utils';
  *   1. At least one glob in the entry matches the source file path.
  *   2. The entry's patternTemplate (resolved against {dir}/{locale}) produces
  *      a bucket pattern that itself matches the source file path — so sync
- *      at runtime won't point at a nonexistent file (the failure mode the
- *      old JSON detector hit when the flat-layout fallback fabricated
- *      `locales/en/en.json`).
+ *      at runtime won't point at a nonexistent file (e.g. a flat-layout
+ *      fallback fabricating `locales/en/en.json`).
  *   3. `resolveTargetPath` produces a working target path for 2+ target
  *      locales. For `targetPathPattern` entries the template is consumed
  *      directly; for locale-in-path entries the regex substitution handles it.
@@ -305,9 +304,8 @@ describe('DETECTION_PATTERNS table-driven harness', () => {
       }
     });
 
-    // Negative: bare-root `*.xlf` / `*.xliff` were dropped across every XLIFF
-    // entry — CAT-tool dumps (Trados/memoQ/Xcode `.xcloc` extracts) are
-    // false-positive magnets.
+    // Negative: bare-root `*.xlf` / `*.xliff` match no XLIFF entry — CAT-tool
+    // dumps (Trados/memoQ/Xcode `.xcloc` extracts) are false-positive magnets.
     it('does NOT match bare-root *.xlf or *.xliff (any XLIFF entry)', () => {
       const xliffEntries = DETECTION_PATTERNS.filter((p) => p.format === 'xliff');
       for (const entry of xliffEntries) {

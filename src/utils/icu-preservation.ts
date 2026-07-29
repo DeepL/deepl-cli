@@ -10,7 +10,11 @@
 
 const ICU_KEYWORDS = new Set(['plural', 'select', 'selectordinal']);
 
-const ICU_DETECT_RE = /^\s*\{\s*[\w]+\s*,\s*(plural|select|selectordinal)\s*,/;
+// Deliberately NOT anchored: "You have {count, plural, ...} in your cart."
+// is the most common real-world shape. Requiring the block at position 0
+// would send the raw ICU syntax to the MT engine, which translates the
+// keyword and the selectors.
+const ICU_DETECT_RE = /\{\s*[\w]+\s*,\s*(?:plural|select|selectordinal)\s*,/;
 
 export interface IcuSegment {
   text: string;
@@ -31,21 +35,51 @@ export interface IcuParseResult {
  * If parsing fails, returns the same (safe fallback — string passes through unchanged).
  */
 export function parseIcu(text: string): IcuParseResult {
-  if (!ICU_DETECT_RE.test(text)) {
+  const match = ICU_DETECT_RE.exec(text);
+  if (!match) {
     return { isIcu: false, segments: [], reassemble: () => text };
   }
 
   try {
-    const result = parseIcuBlock(text, 0);
+    const blockStart = match.index;
+    const result = parseIcuBlock(text, blockStart);
     if (!result) {
       return { isIcu: false, segments: [], reassemble: () => text };
     }
+
+    // Text on either side of the block is ordinary prose and must be
+    // translated too — dropping it from the template silently deleted it.
+    const prefix = text.slice(0, blockStart);
+    // endIndex points AT the block's closing brace, which result.template
+    // already includes, so the suffix starts one past it.
+    const suffix = text.slice(result.endIndex + 1);
+    const segments: IcuSegment[] = [];
+    let template = '';
+
+    if (prefix !== '') {
+      template += `__ICU_LEAF_P__`;
+      segments.push({ text: prefix, isPluralBranch: false });
+    }
+    template += result.template;
+    segments.push(...result.segments);
+    if (suffix !== '') {
+      template += `__ICU_LEAF_S__`;
+      segments.push({ text: suffix, isPluralBranch: false });
+    }
+
     return {
       isIcu: true,
-      segments: result.segments,
+      segments,
       reassemble: (translations: string[]) => {
+        if (translations.length !== segments.length) {
+          // Filling missing values with '' produced empty plural branches,
+          // which render nothing for that category.
+          throw new Error(
+            `ICU reassemble expected ${segments.length} translations, received ${translations.length}`,
+          );
+        }
         let idx = 0;
-        return result.template.replace(/__ICU_LEAF_(\d+)__/g, () => translations[idx++] ?? '');
+        return template.replace(/__ICU_LEAF_(?:\d+|P|S)__/g, () => translations[idx++] ?? '');
       },
     };
   } catch {

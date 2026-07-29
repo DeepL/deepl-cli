@@ -180,9 +180,8 @@ describe('sync-init', () => {
       });
 
       it('preserves the `.yml` extension in the generated bucket pattern', async () => {
-        // Pre-fix bug: the YAML detector hardcoded `.yaml` in its template,
-        // so a `locales/en.yml` match generated a `locales/en.yaml` pattern
-        // that fg would then fail to match at sync time. Pinned here.
+        // A `locales/en.yml` match must generate a `.yml` bucket pattern; a
+        // `.yaml` pattern would not match the file at sync time.
         fs.mkdirSync(path.join(testDir, 'locales'), { recursive: true });
         fs.writeFileSync(path.join(testDir, 'locales', 'en.yml'), 'greeting: Hello\n');
 
@@ -450,9 +449,8 @@ describe('sync-init', () => {
       });
     });
 
-    // keyCount used to be 0 for every non-JSON/YAML format because
-    // detectI18nFiles only had inline parsers for those two. Now it routes
-    // through the FormatRegistry so the "init" wizard shows an accurate key
+    // detectI18nFiles counts keys through the FormatRegistry rather than
+    // inline JSON/YAML parsers, so the "init" wizard shows an accurate key
     // tally for all supported formats.
     describe('keyCount for all supported formats', () => {
       it('counts keys in Android XML strings.xml', async () => {
@@ -559,8 +557,7 @@ describe('sync-init', () => {
         const result = await detectI18nFiles(testDir);
         const po = result.find((p) => p.format === 'po');
         // PO parser counts header metadata as its own entry, so 2 msgid keys
-        // surface as 3 extracted entries. The CFWE fix is that this is non-zero
-        // — the pre-fix code always returned 0 for PO.
+        // surface as 3 extracted entries.
         expect(po?.keyCount).toBeGreaterThan(0);
         expect(po?.keyCount).toBe(3);
       });

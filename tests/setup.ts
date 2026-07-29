@@ -1,6 +1,9 @@
 import nock from 'nock';
+import requireBuild from './require-build';
 
 beforeAll(() => {
+  requireBuild();
+
   if (!nock.isActive()) {
     nock.activate();
   }

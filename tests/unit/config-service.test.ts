@@ -1,6 +1,5 @@
 /**
  * Tests for ConfigService
- * Following TDD approach - these tests should fail initially
  */
 
 import * as fs from 'fs';

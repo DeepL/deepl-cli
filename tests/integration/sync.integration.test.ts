@@ -386,9 +386,9 @@ buckets:
     });
 
     it('should detect drift when a source key is deleted after the last sync', async () => {
-      // Blocker case 17: exercises the deletedDiffs > 0 frozen branch.
-      // A CI pipeline that silently passes when a key is deleted would
-      // mean translated files and lockfile drift from the source of truth.
+      // Exercises the deletedDiffs > 0 frozen branch. A CI pipeline that
+      // silently passes when a key is deleted would let translated files and
+      // the lockfile drift from the source of truth.
       writeYamlConfig(tmpDir, BASIC_CONFIG_YAML);
       writeSourceFile(tmpDir, 'locales/en.json', SOURCE_JSON);
 
@@ -418,11 +418,9 @@ buckets:
     });
 
     it('should report newKeys for a newly-added target locale needing backfill', async () => {
-      // Regression: previously the frozen branch detected drift via hasNewLocale
-      // but returned without promoting current-status keys into newKeysDelta,
-      // so displayResult printed "0 new, 0 stale" even though N keys needed
-      // translation for the new locale. Mirrors the dry-run promotion at
-      // sync-process-bucket.ts lines 124-127.
+      // A newly-added target locale has no lockfile entries, so its keys carry
+      // current status. --frozen must still promote them into newKeysDelta so
+      // displayResult reports the real backfill count instead of "0 new, 0 stale".
       writeYamlConfig(tmpDir, BASIC_CONFIG_YAML);
       writeSourceFile(tmpDir, 'locales/en.json', SOURCE_JSON);
 
@@ -1494,9 +1492,9 @@ buckets:
   });
 
   describe('xcstrings multi-locale round-trip', () => {
-    // Blocker case 18: xcstrings is the only multi-locale format and the
-    // only one whose reconstruct() mutates a file shared across locales.
-    // A parser regression here would silently corrupt user translation files.
+    // xcstrings is the only multi-locale format and the only one whose
+    // reconstruct() mutates a file shared across locales. A parser regression
+    // here would silently corrupt user translation files.
     it('translates en source into a de localization within the same .xcstrings file', async () => {
       const { XcstringsFormatParser } = jest.requireActual<typeof import('../../src/formats/xcstrings')>('../../src/formats/xcstrings');
       const xcRegistry = new FormatRegistry();
@@ -2138,13 +2136,10 @@ describe('Sync Integration — translation memory', () => {
 
   // ---- 1. Top-level-only TM ----
   //
-  // Brief asked for two target locales (de, fr) with a single top-level TM and
-  // "one list call, both translate bodies carry the same TM id". Task 3 wires
-  // the top-level pair-check against every effective target locale at once
-  // (sync-service.ts:163), which makes a single en→de TM incompatible with a
-  // [de, fr] target set — it throws before any translate call fires. The
-  // narrower assertion remains: top-level name resolves once and flows into
-  // the translate body with threshold defaulting to 75.
+  // The top-level pair-check validates the TM against every effective target
+  // locale at once, so an en→de TM throws before any translate call fires for a
+  // [de, fr] target set. Single-locale case only: the top-level name resolves
+  // once and flows into the translate body with threshold defaulting to 75.
   describe('top-level TM only', () => {
     it('resolves via a single list call and threads id + default threshold into the translate body', async () => {
       writeYamlConfig(
@@ -2454,13 +2449,12 @@ translation:
     });
   });
 
-  // ---- 7. Cache-collision regression guard (Integration's Layer-3 guardrail) ----
+  // ---- 7. Cache-collision guard ----
   //
   // Shared TM name at top-level and per-locale override, with a per-locale
-  // target that the TM does not support. A silent cache hit on the second
-  // resolve would skip the pair check; the top-level pair-check catches the
-  // collision first in the current wiring, but the outcome the test locks
-  // in is the same: ConfigError, not silent acceptance.
+  // target the TM does not support. A silent cache hit on the second resolve
+  // would skip the pair check; either way the required outcome is ConfigError,
+  // not silent acceptance.
   describe('cache-collision regression guard', () => {
     it('throws ConfigError when a shared TM name cannot cover every target locale', async () => {
       writeYamlConfig(

@@ -1,6 +1,5 @@
 /**
  * Tests for WriteCommand
- * Following TDD approach
  */
 
 import { WriteCommand } from '../../src/cli/commands/write.js';

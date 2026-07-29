@@ -51,9 +51,12 @@ export function preserveVariables(text: string, preservationMap: Map<string, str
 export function restorePlaceholders(text: string, preservationMap: Map<string, string>): string {
   let restored = text;
   for (const [placeholder, original] of preservationMap.entries()) {
-    while (restored.includes(placeholder)) {
-      restored = restored.replace(placeholder, () => original);
-    }
+    // Single pass per placeholder: `original` may itself contain the
+    // placeholder token (a locale value shaped like `{__VAR_0__}`), so any
+    // loop that re-scans the output would never terminate.
+    // The function form of the replacement keeps `$&`/`$1` in `original`
+    // literal instead of being read as substitution patterns.
+    restored = restored.replaceAll(placeholder, () => original);
   }
   return restored;
 }

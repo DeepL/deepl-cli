@@ -422,10 +422,9 @@ describe('SyncCommand', () => {
   });
 
   describe('per-locale progress display', () => {
-    // Per-locale ticks are emitted only by the live renderProgress listener
-    // on `locale-complete` events — the post-sync aggregated summary was
-    // removed to eliminate duplicate output. These tests exercise onProgress
-    // directly to verify the live tick format.
+    // Per-locale ticks are emitted only by the live renderProgress listener on
+    // `locale-complete` events; there is no aggregated post-sync summary.
+    // These tests exercise onProgress directly to verify the live tick format.
     function mockServiceWithProgress(
       events: Array<{ locale: string; file: string; translated: number; failed: number }>,
       result: SyncResult,
@@ -521,10 +520,8 @@ describe('SyncCommand', () => {
       expect(infoOutput).not.toMatch(/\d+\/\d+/);
     });
 
-    // The per-locale tick should fire exactly once per file+locale event, not
-    // both live via renderProgress AND again in the aggregated post-sync
-    // summary. Default runs were emitting both, which duplicated every
-    // completed locale in the console output.
+    // The per-locale tick must fire exactly once per file+locale event — live
+    // via renderProgress only, never also from an aggregated post-sync summary.
     it('emits each per-file-locale tick exactly once (no duplicate summary)', async () => {
       const fileResult: SyncFileResult = {
         file: 'locales/de.json',
@@ -812,17 +809,10 @@ describe('SyncCommand', () => {
   describe('watchAndSync', () => {
     // These are the heaviest tests in the file: each drives a full watch
     // lifecycle (chokidar setup, debounced change handling, SIGINT shutdown)
-    // through fake timers. Locally the whole suite runs in ~1.8s, but on
-    // GitHub's shared runners it has been observed at 10.8-10.9s with 232
-    // suites competing for ~4 cores — right at the 10s jest default, which
-    // tipped a different test over on each occurrence (bead sync-94ua).
-    //
-    // The failures were always timeouts, never assertions, and the suite was
-    // measured to be insensitive to the flush round count (250/25/5 rounds all
-    // ran in ~1.4-2.0s locally), so the cost is CI CPU starvation rather than
-    // anything this block does wrong. Raising the ceiling for these tests only
-    // buys headroom; it does not mask a hang, because a genuinely stuck setup
-    // now fails fast with a diagnostic from flushWatchSetup below.
+    // through fake timers, and the flush loops are CPU-bound. The raised
+    // ceiling gives them headroom on shared CI cores without masking a hang —
+    // a genuinely stuck setup fails fast with a diagnostic from
+    // flushWatchSetup below.
     jest.setTimeout(30_000);
 
     const mockWatcher = { on: mockWatcherOn, close: mockWatcherClose };
@@ -856,30 +846,17 @@ describe('SyncCommand', () => {
     // means the SIGINT handler is registered too. That makes mockWatcherOn an
     // observable readiness signal for the entire chain.
     //
-    // Phase 1 waits for that signal rather than guessing a round count, because
-    // a fixed count cannot be correct here. chokidar is jest-mocked, so the
-    // dynamic imports resolve immediately; the genuinely slow step is
-    // sweepStaleBackups, which performs real fs.promises.readdir/stat I/O. A
-    // fixed budget therefore races microsecond-scale iterations against
-    // millisecond-scale syscalls, and loses under CI worker contention.
+    // Phase 1 waits for that signal rather than a fixed round count. chokidar
+    // is jest-mocked so the dynamic imports resolve immediately; the genuinely
+    // slow step is sweepStaleBackups, which performs real
+    // fs.promises.readdir/stat I/O. A fixed budget would race
+    // microsecond-scale loop iterations against millisecond-scale syscalls.
     //
-    // When the budget ran out early the failure was not a clean assertion: the
-    // SIGINT handler was never registered, so each test's shutdown
-    // (`for (const l of sigintListeners) l()`) had nothing to call, `await
-    // runPromise` never resolved, and the test died on the 10s testTimeout.
-    // That flake was escalated 20 -> 50 -> 250 rounds and still recurred on
-    // Node 24 CI, hitting a different test in this block each time. See bead
-    // sync-94ua.
-    //
-    // Phase 2 keeps the previous fixed drain. Most callers invoke this helper
-    // again after emitting change events, to settle a debounced sync cycle —
-    // those calls need the drain, not an early return. Readiness is already
-    // true by then, so phase 1 is a no-op for them.
-    // 25 settle rounds, not the historical 250. Every test in this block passes
-    // with as few as 5 (measured), so 25 keeps a 5x margin while dropping the
-    // rest as waste. The escalation to 250 was an attempt to fix the timeout by
-    // widening this budget, which the measurements above show could not have
-    // worked — suite duration is flat across 250/25/5 rounds.
+    // Phase 2 then drains a fixed number of rounds. Most callers invoke this
+    // helper again after emitting change events, to settle a debounced sync
+    // cycle — those calls need the drain, not an early return, and readiness
+    // is already true by then so phase 1 is a no-op for them. Every test in
+    // this block settles within 5 rounds (measured); 25 keeps a 5x margin.
     const SETUP_READY_MAX_ROUNDS = 20_000;
     const SETTLE_ROUNDS = 25;
 
@@ -1052,10 +1029,10 @@ describe('SyncCommand', () => {
       // signal to the real process emitter (listeners only react synchronously).
       const firstRun = command.run({ watch: true, debounce: 50 });
       await flushWatchSetup();
-      // Under heavy CI worker contention the fixed-round flush occasionally
-      // returns before watchAndSync has reached its process.on('SIGINT', ...)
-      // call. Loop with a hard ceiling so we fail loudly rather than with a
-      // misleading "Expected: 1, Received: 0".
+      // flushWatchSetup returns as soon as the watcher listeners attach, which
+      // can precede the process.on('SIGINT', ...) call. Retry with a hard
+      // ceiling so a missing listener fails loudly rather than as
+      // "Expected: 1, Received: 0".
       for (let i = 0; i < 10 && process.listenerCount('SIGINT') === sigintBaseline; i++) {
         await flushWatchSetup();
       }
@@ -1114,10 +1091,10 @@ describe('SyncCommand', () => {
       expect(infoOutput).toContain('pattern(s)');
     });
 
-    // Watch mode previously reloaded+revalidated the sync config on every
-    // debounced change event. Config rarely changes during a watch session,
-    // so the reload is wasted work per tick. The cache invalidates on SIGHUP
-    // or when .deepl-sync.yaml itself is one of the changed files.
+    // Watch mode caches the sync config across debounced change events —
+    // config rarely changes during a session, so reloading per tick is wasted
+    // work. The cache invalidates on SIGHUP or when .deepl-sync.yaml itself is
+    // among the changed files.
     describe('config cache across watch ticks', () => {
       function captureChangeHandlers(): Array<(p?: string) => void> {
         const handlers: Array<(p?: string) => void> = [];
@@ -1185,10 +1162,9 @@ describe('SyncCommand', () => {
 
         const runPromise = command.run({ watch: true, debounce: 50 });
         await flushWatchSetup();
-        // Under CI worker contention the fixed-round flush occasionally
-        // returns before watcher.on('change', ...) has registered. Loop
-        // flushWatchSetup with a hard ceiling so we fail loudly rather than
-        // with the misleading "handlers[0] is not a function".
+        // flushWatchSetup can return before watcher.on('change', ...) has
+        // registered. Retry with a hard ceiling so a missing handler fails
+        // loudly rather than as "handlers[0] is not a function".
         for (let i = 0; i < 10 && handlers.length === 0; i++) {
           await flushWatchSetup();
         }

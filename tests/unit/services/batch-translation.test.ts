@@ -1,6 +1,5 @@
 /**
  * Tests for Batch Translation Service
- * Following TDD approach - RED phase
  */
 
 import * as fs from 'fs';

@@ -4,12 +4,11 @@
  *
  * The translation-bucket walker partitions extract output into `entries`
  * (translatable) and `skippedEntries` (metadata.skipped — currently Laravel
- * pipe-pluralization). The earlier push/pull implementation called
- * `parser.extract(...)` inline at three sites without re-applying the
- * partition, so pipe-plural values leaked into `TmsClient.pushKey(...)` calls
- * and into the pull-merge translation set. These tests lock in the invariant
- * at every remaining inline extract point plus the belt-and-suspenders runtime
- * guard on `TmsClient.pushEntry(...)`.
+ * pipe-pluralization). Every inline `parser.extract(...)` site in push/pull
+ * must re-apply that partition, or skipped pipe-plural values reach
+ * `TmsClient.pushKey(...)` and the pull-merge translation set. These tests
+ * lock the invariant in at each inline extract point plus the runtime guard on
+ * `TmsClient.pushEntry(...)`.
  */
 import * as path from 'path';
 

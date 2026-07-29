@@ -200,7 +200,7 @@ describe('sync-instructions', () => {
   });
 
   // -------------------------------------------------------------------
-  // Phase 4: length-aware instructions
+  // length-aware instructions
   // -------------------------------------------------------------------
   describe('DEFAULT_EXPANSION_FACTORS', () => {
     it('should contain expected locales', () => {

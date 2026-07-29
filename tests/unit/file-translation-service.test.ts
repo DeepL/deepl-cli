@@ -1,6 +1,5 @@
 /**
  * Tests for File Translation Service
- * Following TDD approach - RED phase
  */
 
 import * as fs from 'fs';

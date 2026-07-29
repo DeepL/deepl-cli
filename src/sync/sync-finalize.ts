@@ -31,11 +31,14 @@ export function finalizeSyncResult(i: FinalizeInputs): SyncResult {
   }
   const hasStrategy = contextCount > 0 || instructionCount > 0;
 
-  const allFailed = i.fileResults.length > 0 &&
-    i.fileResults.every(fr => fr.translated === 0 && fr.failed > 0);
+  // docs/API.md defines exit 12 as "completed with at least one failed
+  // locale", so this is `some`, not `every`: one locale failing completely
+  // must fail the run even when the others succeeded.
+  // A locale that translated nothing and has no failures is simply up to date.
+  const anyLocaleFailed = i.fileResults.some(fr => fr.translated === 0 && fr.failed > 0);
 
   return {
-    success: !i.driftDetected && !allFailed,
+    success: !i.driftDetected && !anyLocaleFailed,
     totalKeys: i.totalKeys,
     newKeys: i.newKeys,
     staleKeys: i.staleKeys,

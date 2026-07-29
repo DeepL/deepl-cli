@@ -15,10 +15,19 @@ const CLI_PATH = path.join(process.cwd(), 'dist/cli/index.js');
 
 describe('deepl sync --watch (subprocess)', () => {
   let tmpDir: string;
+  let configDir: string;
   let child: ChildProcess | null = null;
   let combined = '';
 
   beforeEach(() => {
+    // Own config dir per CLAUDE.md's isolation rule. Without it this
+    // subprocess inherits the shared config, and the auth-mutating e2e suites
+    // running alongside (cli-auth, cli-batch, cli-workflow, cli-voice,
+    // cli-describe all clear or set the key) could remove the stored key
+    // mid-test. A stored key takes precedence over DEEPL_API_KEY, so the
+    // watch process would then die on an auth error and never reach the
+    // graceful SIGTERM path this test asserts.
+    configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepl-sync-watch-cfg-'));
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepl-sync-watch-'));
     const localesDir = path.join(tmpDir, 'locales');
     fs.mkdirSync(localesDir, { recursive: true });
@@ -56,6 +65,7 @@ describe('deepl sync --watch (subprocess)', () => {
     }
     child = null;
     if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
+    if (fs.existsSync(configDir)) fs.rmSync(configDir, { recursive: true, force: true });
   });
 
   function waitForMarker(marker: RegExp, timeoutMs: number): Promise<boolean> {
@@ -76,7 +86,12 @@ describe('deepl sync --watch (subprocess)', () => {
       [CLI_PATH, 'sync', '--watch', '--dry-run', '--debounce', '150'],
       {
         cwd: tmpDir,
-        env: { ...process.env, DEEPL_API_KEY: 'test-key-for-watch:fx', NO_COLOR: '1' },
+        env: {
+          ...process.env,
+          DEEPL_CONFIG_DIR: configDir,
+          DEEPL_API_KEY: 'test-key-for-watch:fx',
+          NO_COLOR: '1',
+        },
         stdio: ['ignore', 'pipe', 'pipe'],
       },
     );

@@ -10,12 +10,9 @@ import { buildTranslationOptions as buildBaseLegacy, resolveGlossaryId } from '.
  * flags — the shape all translate handlers (text, file, directory, document)
  * agreed on. Produces the same field set regardless of handler.
  *
- * Previously each handler called `buildTranslationOptions` (in translate-utils)
- * directly and then layered its own downstream shaping. That layering has been
- * extracted into `applySharedTmAndGlossary` so the shared surface area is
- * centralized; handlers only retain handler-specific shaping (custom
- * instructions, style id, XML tag handling, multi-target stripping of
- * `targetLang`, etc.).
+ * Shared downstream shaping lives in `applySharedTmAndGlossary`; handlers
+ * keep only handler-specific shaping (custom instructions, style id, XML tag
+ * handling, multi-target stripping of `targetLang`, etc.).
  *
  * Intentional drift NOT folded in:
  *  - `SyncCommand` builds `TranslateOptions` from resolved config, not CLI
@@ -48,7 +45,7 @@ export interface SharedTmAndGlossaryDeps {
  * default onto a base `TranslationParams`-compatible object. Mutates `base`
  * in place so handlers can compose additional downstream shaping.
  *
- * Consolidates 5 copies of the same block across text + file handlers. All
+ * Shared by the text + file handlers. All
  * validation (required `--from`, TM-requires-quality_optimized, extended-lang
  * constraints) remains in the caller so per-handler error messages are
  * preserved; this helper is called only after validation passes.

@@ -12,7 +12,7 @@ export class IosStringsFormatParser implements FormatParser {
 
   extract(content: string): ExtractedEntry[] {
     const entries: ExtractedEntry[] = [];
-    const lines = content.split('\n');
+    const lines = content.split(/\r?\n/);
     let pendingComment: string | undefined;
 
     for (let i = 0; i < lines.length; i++) {
@@ -67,18 +67,13 @@ export class IosStringsFormatParser implements FormatParser {
     return entries;
   }
 
-  // Intentionally NOT migrated to PendingCommentBuffer: deferred alongside po
-  // because the forward-only helper interface was frozen at the toml +
-  // properties shape and not re-opened. ios-strings is a plausible future
-  // migration once the helper grows a shape that also accommodates po's
-  // backtrack idiom.
   reconstruct(content: string, entries: TranslatedEntry[]): string {
     const translations = new Map<string, string>();
     for (const entry of entries) {
       translations.set(entry.key, entry.translation);
     }
 
-    const lines = content.split('\n');
+    const lines = content.split(/\r?\n/);
     const result: string[] = [];
     let pendingComments: string[] = [];
     let inBlockComment = false;
