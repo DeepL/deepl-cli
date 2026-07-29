@@ -62,6 +62,74 @@ describe('TOML section handling for new keys', () => {
     expect(parser.extract(out).map((e) => e.key).sort()).toEqual(['farewell', 'greeting']);
   });
 
+  describe('multi-line string blocks', () => {
+    // A body line that looks like `key = "..."` was previously parsed as an
+    // entry and deleted, and the multi-line key was then re-appended at end of
+    // file — producing a document that no longer parses.
+    const multiline = [
+      'intro = """',
+      'Welcome to the app.',
+      'setting = "this looks like a key"',
+      'Goodbye.',
+      '"""',
+      'greeting = "Hello"',
+      '',
+    ].join('\n');
+
+    it('should preserve the whole block verbatim', () => {
+      const parser = new TomlFormatParser();
+      const entries = parser.extract(multiline);
+
+      const out = parser.reconstruct(
+        multiline,
+        entries.map((e) => ({ ...e, translation: e.key === 'greeting' ? 'Hallo' : e.value })),
+      );
+
+      expect(out).toContain('setting = "this looks like a key"');
+      expect(out).toContain('Goodbye.');
+    });
+
+    it('should not append a duplicate of the multi-line key', () => {
+      const parser = new TomlFormatParser();
+      const entries = parser.extract(multiline);
+
+      const out = parser.reconstruct(
+        multiline,
+        entries.map((e) => ({ ...e, translation: e.key === 'greeting' ? 'Hallo' : e.value })),
+      );
+
+      expect(() => parser.extract(out)).not.toThrow();
+      expect(parser.extract(out).map((e) => e.key).sort()).toEqual(['greeting', 'intro']);
+    });
+
+    it('should still translate ordinary keys alongside a multi-line block', () => {
+      const parser = new TomlFormatParser();
+      const entries = parser.extract(multiline);
+
+      const out = parser.reconstruct(
+        multiline,
+        entries.map((e) => ({ ...e, translation: e.key === 'greeting' ? 'Hallo' : e.value })),
+      );
+
+      const byKey = new Map(parser.extract(out).map((e) => [e.key, e.value]));
+      expect(byKey.get('greeting')).toBe('Hallo');
+    });
+
+    it('should handle a single-line triple-quoted value', () => {
+      const parser = new TomlFormatParser();
+      const source = 'note = """all on one line"""\ngreeting = "Hello"\n';
+      const entries = parser.extract(source);
+
+      const out = parser.reconstruct(
+        source,
+        entries.map((e) => ({ ...e, translation: e.key === 'greeting' ? 'Hallo' : e.value })),
+      );
+
+      expect(() => parser.extract(out)).not.toThrow();
+      expect(new Map(parser.extract(out).map((e) => [e.key, e.value])).get('greeting')).toBe('Hallo');
+    });
+  });
+
   it('should handle a new key for a section that does not exist yet', () => {
     const parser = new TomlFormatParser();
 

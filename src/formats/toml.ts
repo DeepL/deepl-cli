@@ -59,7 +59,8 @@ export class TomlFormatParser implements FormatParser {
     let currentSection = '';
     const pending = new PendingCommentBuffer();
 
-    for (const line of lines) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex]!;
       const trimmed = line.trim();
 
       const sectionMatch = trimmed.match(SECTION_RE);
@@ -91,10 +92,29 @@ export class TomlFormatParser implements FormatParser {
         const equals = entryMatch[3]!;
         const valuePart = entryMatch[4]!;
 
-        // Multi-line strings (non-goal): don't attempt rewrite. Emit verbatim.
+        // Multi-line strings (non-goal): don't attempt rewrite. Emit the whole
+        // block verbatim and skip past it — otherwise body lines that happen to
+        // look like `key = "..."` were treated as entries and deleted, and the
+        // key was re-appended at end of file, leaving a document that no longer
+        // parses.
         if (TRIPLE_QUOTE_PREFIX_RE.test(valuePart)) {
           pending.flushToOutput(out);
+          const delimiter = valuePart.startsWith('"""') ? '"""' : "'''";
           out.push(line);
+          // A single-line `k = """text"""` closes on the opening line itself.
+          const closesOnOpeningLine =
+            valuePart.length > delimiter.length * 2 - 1 &&
+            valuePart.slice(delimiter.length).includes(delimiter);
+          if (!closesOnOpeningLine) {
+            while (lineIndex + 1 < lines.length) {
+              lineIndex++;
+              const bodyLine = lines[lineIndex]!;
+              out.push(bodyLine);
+              if (bodyLine.includes(delimiter)) break;
+            }
+          }
+          const multilineKey = currentSection ? `${currentSection}.${keyPart}` : keyPart;
+          usedKeys.add(multilineKey);
           continue;
         }
 
