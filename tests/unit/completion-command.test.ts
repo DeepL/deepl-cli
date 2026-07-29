@@ -16,6 +16,7 @@ describe('CompletionCommand', () => {
 
     program
       .command('translate')
+      .alias('t')
       .description('Translate text or files')
       .option('-t, --to <lang>', 'Target language')
       .option('-f, --from <lang>', 'Source language');
@@ -273,6 +274,23 @@ describe('CompletionCommand', () => {
       const cmd = new CompletionCommand(p);
       const zsh = cmd.generate('zsh');
       expect(zsh).toContain('_deepl_style_rules()');
+    });
+  });
+
+  describe('command aliases', () => {
+    it('bash: offers aliases as top-level completions', () => {
+      const script = completionCommand.generate('bash');
+      expect(script).toContain('compgen -W "translate t auth');
+    });
+
+    it('zsh: offers aliases with the aliased command description', () => {
+      const script = completionCommand.generate('zsh');
+      expect(script).toContain("'t:Translate text or files'");
+    });
+
+    it('fish: offers aliases with the aliased command description', () => {
+      const script = completionCommand.generate('fish');
+      expect(script).toContain("-a 't' -d 'Translate text or files'");
     });
   });
 });

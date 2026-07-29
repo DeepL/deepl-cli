@@ -202,6 +202,7 @@ Translate text, files, or directories.
 
 ```bash
 deepl translate [OPTIONS] [TEXT|FILE|DIRECTORY]
+deepl t [OPTIONS] [TEXT|FILE|DIRECTORY]        # alias
 ```
 
 #### Description
@@ -670,6 +671,7 @@ Improve text with DeepL Write API (grammar, style, tone enhancement).
 
 ```bash
 deepl write [OPTIONS] TEXT
+deepl w [OPTIONS] TEXT        # alias
 ```
 
 #### Description

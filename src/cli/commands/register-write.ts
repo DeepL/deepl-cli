@@ -21,6 +21,7 @@ export function registerWrite(
 
   program
     .command('write')
+    .alias('w')
     .description('Improve text using DeepL Write API (grammar, style, tone)')
     .argument('[text]', 'Text to improve, file path, or read from stdin')
     .optionsGroup('Core Options:')
