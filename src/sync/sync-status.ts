@@ -55,14 +55,20 @@ export async function computeSyncStatus(
       for (const diff of diffs) {
         if (diff.status === 'deleted') continue;
         const lockEntry = fileLockEntries[diff.key];
-        const hasTranslation = lockEntry?.translations[locale] !== undefined;
+        const translation = lockEntry?.translations[locale];
+        const hasTranslation = translation !== undefined;
+        // Judge staleness for THIS locale rather than inheriting the shared
+        // source-level status: a locale whose stored hash lags behind, or whose
+        // last attempt failed, is outdated even when the source is unchanged.
+        const localeOutdated =
+          lockEntry !== undefined &&
+          translation !== undefined &&
+          (translation.status === 'failed' || translation.hash !== lockEntry.source_hash);
 
-        if (diff.status === 'current' && hasTranslation) {
-          stats.complete++;
-        } else if (diff.status === 'stale') {
-          stats.outdated++;
-        } else if (diff.status === 'new' || !hasTranslation) {
+        if (diff.status === 'new' || !hasTranslation) {
           stats.missing++;
+        } else if (diff.status === 'stale' || localeOutdated) {
+          stats.outdated++;
         } else {
           stats.complete++;
         }
