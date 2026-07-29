@@ -268,7 +268,7 @@ In JSON output (`--format json`), the `strategy` field provides the breakdown:
 | `batch_size` | `number` | No | `50` | Maximum number of strings per translation API call |
 | `batch` | `boolean` | No | -- | When `true`, force all keys into plain batch (fastest, no context). When `false`, force per-key context (slowest, max quality). When unset, use section-batched context (default, good balance). |
 | `max_characters` | `number` | No | -- | Cost cap: abort sync if estimated characters exceed this limit (override with `--force`) |
-| `backup` | `boolean` | No | `true` | Create `.bak` copies of target files before overwriting; cleaned up after successful sync |
+| `backup` | `boolean` | No | `true` | Create `.deepl.bak` copies of target files before overwriting; cleaned up after successful sync |
 | `max_scan_files` | `number` | No | `50000` | Hard ceiling on the number of files matched by `context.scan_paths`. Prevents a misconfigured pattern from wedging the CLI on shared CI with huge source trees and slow disks. Exceeding the cap throws `ValidationError` with a suggestion to narrow the pattern. Positive integer. |
 | `limits.max_entries_per_file` | `number` | No | `25000` | Per-file parser cap on extracted entry count. Files exceeding this are skipped with a warning. Hard ceiling: `100000`. Values above the ceiling fail at config load with `ConfigError` (exit 7). |
 | `limits.max_file_bytes` | `number` | No | `4194304` (4 MiB) | Per-file parser cap on on-disk size, checked via `fs.stat` before read. Files exceeding this are skipped with a warning. Hard ceiling: `10485760` (10 MiB). Values above the ceiling fail at config load with `ConfigError` (exit 7). |
@@ -698,11 +698,11 @@ deepl sync --watch --debounce 1000
 deepl sync --watch --dry-run
 ```
 
-**Lifecycle.** The command runs until it receives `SIGINT` (Ctrl+C) or `SIGTERM`. On either signal the in-flight sync terminates gracefully after its current locale iteration completes, any `.bak` files created by that cycle are cleaned up, the file watcher is closed, and the process exits with code 0. Ctrl+C never leaves `.bak` siblings orphaned in the workspace.
+**Lifecycle.** The command runs until it receives `SIGINT` (Ctrl+C) or `SIGTERM`. On either signal the in-flight sync terminates gracefully after its current locale iteration completes, any `.deepl.bak` files created by that cycle are cleaned up, the file watcher is closed, and the process exits with code 0. Ctrl+C never leaves `.deepl.bak` siblings orphaned in the workspace.
 
 **Event coalescing.** Only one sync runs at a time. If more file-change events arrive while a sync is in flight, they are coalesced into a **single** follow-up run that starts after the current sync completes — no matter how many bursts of edits fired in between. Earlier releases silently dropped these in-flight events, which could leave the final edit of a burst unsynced until the user triggered another change manually.
 
-**Stale `.bak` sweep.** On startup, the watcher sweeps for `.bak` siblings older than 5 minutes. A stale `.bak` whose corresponding target file is missing or empty is auto-restored (and the `.bak` removed); otherwise the stale `.bak` is removed outright. This recovers cleanly from a previous watcher that was killed mid-translation without leaving residue for the user to manually clean up.
+**Stale `.deepl.bak` sweep.** On startup, the watcher sweeps for `.deepl.bak` siblings older than 5 minutes (files with any other suffix, including plain `.bak`, are never touched). A stale backup whose target file exists but is empty is auto-restored from the backup before the backup is removed; in every other case — including a missing target, which is never recreated — the stale backup is removed outright. This recovers cleanly from a previous watcher that was killed mid-translation without leaving residue for the user to manually clean up.
 
 **Scope.** Watched paths are the `buckets.*.include` globs from `.deepl-sync.yaml`, plus `.deepl-sync.yaml` itself. When `.deepl-sync.yaml` changes, the config is reloaded from disk before the next sync cycle runs — YAML values like bucket definitions, `formality`, `glossary`, and `model_type` are picked up without restarting the watcher. Sending `SIGHUP` (`kill -HUP <pid>`) also force-reloads the config immediately, without waiting for a file-change event. Watch mode does not cross-talk with the separate `deepl watch` command (which is for translating individual plain-text files).
 
