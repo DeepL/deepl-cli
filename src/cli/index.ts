@@ -5,7 +5,7 @@
  * Main command-line interface
  */
 
-import { Command } from 'commander';
+import { Command, CommanderError } from 'commander';
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -321,6 +321,19 @@ registerAdmin(program, deps);
 
 registerDescribe(program, deps);
 
+// Commander exits 1 on parse errors (unknown command/option, invalid choice,
+// missing argument) by default; route them through the catch around
+// parseAsync instead so every command level exits with InvalidInput.
+// Subcommands registered via addCommand() do not inherit exitOverride, so
+// apply it to the whole tree.
+function applyExitOverride(command: Command): void {
+  command.exitOverride();
+  for (const sub of command.commands) {
+    applyExitOverride(sub);
+  }
+}
+applyExitOverride(program);
+
 // Show Getting Started hint when no API key is configured
 const savedApiKey = configService.getValue<string>('auth.apiKey');
 const envApiKey = process.env['DEEPL_API_KEY'];
@@ -406,6 +419,11 @@ try {
 } catch (error) {
   if (error instanceof DeepLCLIError) {
     handleError(error);
+  } else if (error instanceof CommanderError) {
+    // Commander has already printed the message (or help/version output).
+    // exitCode 0 covers --help and --version; everything else is a parse
+    // error and maps to the documented InvalidInput code.
+    process.exit(error.exitCode === 0 ? 0 : ExitCode.InvalidInput);
   } else {
     throw error;
   }
