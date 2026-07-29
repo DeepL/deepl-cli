@@ -437,8 +437,8 @@ describe('GlossaryCommand', () => {
 
       expect(result).toContain('Name: Tech Terms');
       expect(result).toContain('ID: 123-456-789');
-      expect(result).toContain('Source language: en');
-      expect(result).toContain('Target languages: es');
+      expect(result).toContain('Source language: EN');
+      expect(result).toContain('Target languages: ES');
       expect(result).toContain('Total entries: 10');
       expect(result).toContain('Type: Single target');
     });
@@ -459,18 +459,27 @@ describe('GlossaryCommand', () => {
       const result = glossaryCommand.formatGlossaryInfo(multilingualGlossary);
 
       expect(result).toContain('Name: Multi Terms');
-      expect(result).toContain('Target languages: es, fr');
+      expect(result).toContain('Target languages: ES, FR');
       expect(result).toContain('Type: Multilingual');
       expect(result).toContain('Total entries: 8');
       expect(result).toContain('Language pairs:');
-      expect(result).toContain('en → es: 5 entries');
-      expect(result).toContain('en → fr: 3 entries');
+      expect(result).toContain('EN → ES: 5 entries');
+      expect(result).toContain('EN → FR: 3 entries');
     });
 
-    it('should include creation time', () => {
+    it('should include creation time as a locale-independent ISO timestamp', () => {
       const result = glossaryCommand.formatGlossaryInfo(mockGlossary);
 
-      expect(result).toContain('Created:');
+      expect(result).toContain('Created: 2024-01-15T10:30:00.000Z');
+    });
+
+    it('should fall back to the raw creation time when it is unparseable', () => {
+      const result = glossaryCommand.formatGlossaryInfo({
+        ...mockGlossary,
+        creation_time: 'not-a-date',
+      });
+
+      expect(result).toContain('Created: not-a-date');
     });
 
     it('should sanitize control characters in the glossary name', () => {

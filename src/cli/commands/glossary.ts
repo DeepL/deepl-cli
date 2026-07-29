@@ -233,20 +233,25 @@ export class GlossaryCommand {
     const totalEntries = getTotalEntryCount(glossary);
     const multilingual = isMultilingual(glossary);
 
+    const created = new Date(glossary.creation_time);
+    const createdStr = Number.isNaN(created.getTime())
+      ? glossary.creation_time
+      : created.toISOString();
+
     const lines = [
       `Name: ${sanitizeForTerminal(glossary.name)}`,
       `ID: ${glossary.glossary_id}`,
-      `Source language: ${glossary.source_lang}`,
-      `Target languages: ${glossary.target_langs.join(', ')}`,
+      `Source language: ${glossary.source_lang.toUpperCase()}`,
+      `Target languages: ${glossary.target_langs.map(l => l.toUpperCase()).join(', ')}`,
       `Type: ${multilingual ? 'Multilingual' : 'Single target'}`,
       `Total entries: ${totalEntries}`,
-      `Created: ${new Date(glossary.creation_time).toLocaleString()}`,
+      `Created: ${createdStr}`,
     ];
 
     if (multilingual) {
       lines.push('\nLanguage pairs:');
       glossary.dictionaries.forEach(dict => {
-        lines.push(`  ${dict.source_lang} → ${dict.target_lang}: ${dict.entry_count} entries`);
+        lines.push(`  ${dict.source_lang.toUpperCase()} → ${dict.target_lang.toUpperCase()}: ${dict.entry_count} entries`);
       });
     }
 

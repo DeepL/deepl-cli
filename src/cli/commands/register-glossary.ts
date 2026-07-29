@@ -45,7 +45,7 @@ Examples:
             const targetLangs = targetLang.split(',').map(l => l.trim()) as Language[];
 
             const glossary = await glossaryCommand.create(name, sourceLang as Language, targetLangs, file);
-            Logger.success(chalk.green('\u2713 Glossary created successfully'));
+            Logger.output(chalk.green('\u2713 Glossary created successfully'));
             Logger.output(glossaryCommand.formatGlossaryInfo(glossary));
           } catch (error) {
             handleError(error);

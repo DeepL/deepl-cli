@@ -84,7 +84,7 @@ describe('registerGlossary', () => {
       await program.parseAsync(['node', 'test', 'glossary', 'create', 'my-terms', 'en', 'de', 'terms.tsv']);
 
       expect(mock.create).toHaveBeenCalledWith('my-terms', 'en', ['de'], 'terms.tsv');
-      expect(Logger.success).toHaveBeenCalled();
+      expect(Logger.output).toHaveBeenCalledWith(expect.stringContaining('Glossary created successfully'));
       expect(mock.formatGlossaryInfo).toHaveBeenCalledWith({ id: '1', name: 'test' });
       expect(Logger.output).toHaveBeenCalledWith('glossary-info');
     });
