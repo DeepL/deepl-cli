@@ -480,7 +480,10 @@ describe('VoiceService', () => {
       });
       mockClient.createWebSocket.mockImplementation((_url: string, _token: string, _callbacks: any) => {
         process.nextTick(() => {
+          // ws always emits close after an error; the session reports the
+          // transport failure from there.
           mockWs.emit('error', new Error('Connection refused'));
+          mockWs.emit('close');
         });
         return mockWs as any;
       });
@@ -489,12 +492,14 @@ describe('VoiceService', () => {
         service.translateFile(testFile, {
           targetLangs: ['de'],
           chunkInterval: 0,
+          reconnect: false,
         }),
       ).rejects.toThrow(VoiceError);
       await expect(
         service.translateFile(testFile, {
           targetLangs: ['de'],
           chunkInterval: 0,
+          reconnect: false,
         }),
       ).rejects.toThrow(/WebSocket connection failed: Connection refused/);
     });
