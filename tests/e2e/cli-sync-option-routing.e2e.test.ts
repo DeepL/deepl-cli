@@ -240,4 +240,70 @@ describe('CLI sync option routing E2E', () => {
       expect(run.output).toMatch(/\bfr\b/);
     });
   });
+
+  describe('sync init --sync-config', () => {
+    it('writes the config at the requested path', () => {
+      const altRoot = path.join(testFiles.path, 'alt');
+      fs.mkdirSync(altRoot, { recursive: true });
+      writeSourceFile(altRoot);
+
+      const target = path.join(altRoot, 'custom-sync.yaml');
+      const run = runCli([
+        'sync', 'init',
+        '--sync-config', target,
+        '--source-locale', 'en',
+        '--target-locales', 'de',
+        '--file-format', 'json',
+        '--path', 'locales/en.json',
+      ]);
+
+      expect(run.status).toBe(0);
+      expect(fs.existsSync(target)).toBe(true);
+      expect(fs.existsSync(path.join(testFiles.path, '.deepl-sync.yaml'))).toBe(false);
+      expect(fs.readFileSync(target, 'utf-8')).toContain('source_locale: en');
+    });
+
+    it('does not treat an unrelated cwd config as the already-exists case', () => {
+      writeSyncConfig(testFiles.path, ['de', 'fr']);
+      writeSourceFile(testFiles.path);
+
+      const altRoot = path.join(testFiles.path, 'alt');
+      fs.mkdirSync(altRoot, { recursive: true });
+      writeSourceFile(altRoot);
+
+      const target = path.join(altRoot, '.deepl-sync.yaml');
+      const run = runCli([
+        'sync', 'init',
+        '--sync-config', target,
+        '--source-locale', 'en',
+        '--target-locales', 'it',
+        '--file-format', 'json',
+        '--path', 'locales/en.json',
+      ]);
+
+      expect(run.status).toBe(0);
+      expect(run.output).not.toContain('already exists');
+      expect(fs.existsSync(target)).toBe(true);
+      expect(fs.readFileSync(target, 'utf-8')).toContain('it');
+    });
+
+    it('reports the already-exists case against the --sync-config path', () => {
+      const altRoot = path.join(testFiles.path, 'alt');
+      fs.mkdirSync(altRoot, { recursive: true });
+      writeSourceFile(altRoot);
+      const target = writeSyncConfig(altRoot, ['de']);
+
+      const run = runCli([
+        'sync', 'init',
+        '--sync-config', target,
+        '--source-locale', 'en',
+        '--target-locales', 'it',
+        '--file-format', 'json',
+        '--path', 'locales/en.json',
+      ]);
+
+      expect(run.output).toContain('already exists');
+      expect(fs.readFileSync(target, 'utf-8')).not.toContain('it');
+    });
+  });
 });

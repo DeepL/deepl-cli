@@ -8,6 +8,7 @@ import {
   emitJsonErrorAndExit,
   emitJsonInitSuccessAndExit,
   resolveFormat,
+  resolveSyncConfig,
 } from './sync-options.js';
 import { ExitCode } from '../../../utils/exit-codes.js';
 
@@ -88,12 +89,18 @@ async function handleSyncInit(
   try {
     applyDeprecationAliases(options);
 
-    const { configExists, detectI18nFiles, generateSyncConfig, writeSyncConfig } =
+    const { configExists, detectI18nFiles, generateSyncConfig, resolveInitConfigPath, writeSyncConfig } =
       await import('../../../sync/sync-init.js');
+    const pathMod = await import('path');
 
-    const cwd = process.cwd();
+    const targetConfigPath = resolveInitConfigPath(
+      process.cwd(),
+      resolveSyncConfig(options, command),
+    );
+    const cwd = pathMod.dirname(targetConfigPath);
+    const displayPath = pathMod.relative(process.cwd(), targetConfigPath) || targetConfigPath;
 
-    if (configExists(cwd)) {
+    if (configExists(targetConfigPath)) {
       if (options.format === 'json') {
         // Already-present config is not an error per se, but scripted
         // bootstrap flows need a non-ok envelope to branch on.
@@ -101,16 +108,16 @@ async function handleSyncInit(
           ok: false,
           error: {
             code: 'ConfigError',
-            message: 'Config file .deepl-sync.yaml already exists.',
+            message: `Config file ${displayPath} already exists.`,
             suggestion:
-              'Remove or rename the existing .deepl-sync.yaml, or edit it directly.',
+              'Remove or rename the existing config file, or edit it directly.',
           },
           exitCode: ExitCode.ConfigError,
         };
         process.stderr.write(JSON.stringify(envelope) + '\n');
         process.exit(ExitCode.ConfigError);
       }
-      Logger.warn(chalk.yellow('Config file .deepl-sync.yaml already exists.'));
+      Logger.warn(chalk.yellow(`Config file ${displayPath} already exists.`));
       return;
     }
 
@@ -133,7 +140,7 @@ async function handleSyncInit(
         format: options.fileFormat,
         pattern: options.path,
       });
-      const configPath = await writeSyncConfig(cwd, content);
+      const configPath = await writeSyncConfig(targetConfigPath, content);
       emitInitSuccess(options.format, {
         configPath,
         sourceLocale: validated.sourceLocale,
@@ -203,7 +210,7 @@ async function handleSyncInit(
       pattern: options.path ?? project.pattern,
       targetPathPattern: options.path ? undefined : project.targetPathPattern,
     });
-    const configPath = await writeSyncConfig(cwd, content);
+    const configPath = await writeSyncConfig(targetConfigPath, content);
     emitInitSuccess(options.format, {
       configPath,
       sourceLocale,
