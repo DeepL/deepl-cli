@@ -163,7 +163,7 @@ deepl --config /path/to/test-config.json usage
 - **Environment separation**: Separate configs for dev/staging/production
 - **Testing**: Use test configurations without affecting default settings
 
-**Precedence:** `--config` overrides `DEEPL_CONFIG_DIR`. If neither is specified, uses default location.
+**Precedence:** `--config` replaces the config _file_ only, overriding `DEEPL_CONFIG_DIR` for configuration. The cache location is unaffected — it still follows `DEEPL_CONFIG_DIR` > legacy `~/.deepl-cli/` > XDG resolution.
 
 **Command Suggestions:**
 
@@ -171,7 +171,10 @@ Mistype a command? The CLI suggests the closest match:
 
 ```bash
 $ deepl transalte "Hello" --to es
-Error: Unknown command 'transalte'. Did you mean 'translate'?
+Unknown command: transalte
+Did you mean: deepl translate?
+
+Run deepl --help to see available commands.
 ```
 
 ---
@@ -409,7 +412,7 @@ deepl translate report.docx --to fr --output report.fr.docx --enable-minificatio
 
 **Supported Document Formats:**
 
-- `.pdf` - PDF documents (up to 10MB) - **Document API only**
+- `.pdf` - PDF documents (up to 30MB) - **Document API only**
 - `.docx`, `.doc` - Microsoft Word - **Document API only**
 - `.pptx` - Microsoft PowerPoint - **Document API only**
 - `.xlsx` - Microsoft Excel - **Document API only**
@@ -433,7 +436,7 @@ deepl translate report.docx --to fr --output report.fr.docx --enable-minificatio
 - Billed characters are displayed after completion
 - Formatting, structure, and layout are automatically preserved
 - Large documents may take several seconds to translate
-- Maximum file sizes: 10MB (PDF), 30MB (other formats), 100 KiB (cached text API)
+- Maximum file sizes: 30MB (document API, all formats), 100 KiB (cached text API)
 - **Document minification** (`--enable-minification`): Reduces file size for PPTX and DOCX files only. Useful for large presentations and documents.
 
 **Directory translation:**
@@ -1089,6 +1092,8 @@ Scan, translate, and sync i18n resource files. The sync engine reads `.deepl-syn
   - In an interactive terminal, `--force` prompts for confirmation before bypassing the cost cap. Pass `--yes` (`-y`) to skip the prompt in scripts.
   - In CI environments (`CI=true`), `--force` requires an explicit `--yes`; otherwise the process exits 6 with an actionable hint naming the missing flag.
 
+- `--yes, -y` - Skip the `--force` confirmation prompt (required when `CI=true`)
+
 **Filtering:**
 
 - `--locale LANGS` - Sync only specific target locales (comma-separated). **Note the split:** `sync --locale` is a *filter* over locales already declared in `.deepl-sync.yaml#target_locales` — it narrows which configured targets a run acts on. `deepl translate --to` is an *invocation-time specifier* — it names the target languages for a one-shot text translation. The sync engine owns the locale mapping via `.deepl-sync.yaml`; `translate` does not. A locale not in `target_locales` passed to `sync --locale` exits with a `ConfigError`; an unrecognized code passed to `translate --to` exits with `InvalidInput`.
@@ -1167,7 +1172,7 @@ Show translation coverage for all target locales.
 - `--format FORMAT` - Output format: `text` (default), `json`
 - `--sync-config PATH` - Path to `.deepl-sync.yaml`
 
-**JSON output contract (stable across 1.x):**
+**JSON output contract (stable within a major version):**
 
 ```json
 {
@@ -1337,7 +1342,7 @@ Resolve git merge conflicts in `.deepl-sync.lock`.
 - `--dry-run` - Preview conflict decisions without writing the lockfile
 - `--sync-config PATH` - Path to `.deepl-sync.yaml`
 
-**JSON success envelope (stable across 1.x):** `{ "ok": true, "resolved": <n>, "decisions": [...] }`
+**JSON success envelope (stable within a major version):** `{ "ok": true, "resolved": <n>, "decisions": [...] }`
 
 ##### `push`
 
@@ -1351,7 +1356,7 @@ Push local translations to a TMS for human review.
 
 **Requires TMS integration.** Add a `tms:` block to `.deepl-sync.yaml` (at minimum `enabled: true`, `server`, `project_id`) and supply credentials via the `TMS_API_KEY` or `TMS_TOKEN` environment variable. Running `push` without a configured `tms:` block exits 7 (ConfigError). See [docs/SYNC.md#tms-rest-contract](./SYNC.md#tms-rest-contract) for the full field reference and REST contract.
 
-**JSON success envelope (stable across 1.x):** `{ "ok": true, "pushed": <n>, "skipped": [...] }`
+**JSON success envelope (stable within a major version):** `{ "ok": true, "pushed": <n>, "skipped": [...] }`
 
 ##### `pull`
 
@@ -1365,7 +1370,7 @@ Pull approved translations from a TMS back into local files.
 
 **Requires TMS integration.** Add a `tms:` block to `.deepl-sync.yaml` (at minimum `enabled: true`, `server`, `project_id`) and supply credentials via the `TMS_API_KEY` or `TMS_TOKEN` environment variable. Running `pull` without a configured `tms:` block exits 7 (ConfigError). See [docs/SYNC.md#tms-rest-contract](./SYNC.md#tms-rest-contract) for the full field reference and REST contract.
 
-**JSON success envelope (stable across 1.x):** `{ "ok": true, "pulled": <n>, "skipped": [...] }`
+**JSON success envelope (stable within a major version):** `{ "ok": true, "pulled": <n>, "skipped": [...] }`
 
 #### Examples
 
@@ -1407,9 +1412,9 @@ deepl sync --format json
 deepl sync status --format json
 ```
 
-**`deepl sync --format json` output contract (stable across 1.x):**
+**`deepl sync --format json` output contract (stable within a major version):**
 
-The success payload is written to **stdout** as a single JSON object. The following fields are guaranteed stable and will not be renamed or removed in any 1.x release:
+The success payload is written to **stdout** as a single JSON object. The following fields are guaranteed stable and will not be renamed or removed within the same major version:
 
 | Field | Type | Description |
 |---|---|---|
