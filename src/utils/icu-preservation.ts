@@ -95,7 +95,7 @@ interface ParseBlockResult {
 
 const OFFSET_RE = /^offset\s*:\s*\d+/;
 
-function parseIcuBlock(text: string, start: number): ParseBlockResult | null {
+function parseIcuBlock(text: string, start: number, inPluralContext = false): ParseBlockResult | null {
   let i = start;
 
   // Skip leading whitespace
@@ -132,6 +132,7 @@ function parseIcuBlock(text: string, start: number): ParseBlockResult | null {
   i++;
 
   const isPluralType = keyword === 'plural' || keyword === 'selectordinal';
+  const pluralContext = isPluralType || inPluralContext;
   const segments: IcuSegment[] = [];
   let template = `{${varName}, ${keyword},`;
 
@@ -166,14 +167,14 @@ function parseIcuBlock(text: string, start: number): ParseBlockResult | null {
     if (text[i] !== '{') return null;
 
     // Extract branch content using brace counting
-    const branchContent = extractBraceContent(text, i);
+    const branchContent = extractBraceContent(text, i, pluralContext);
     if (branchContent === null) return null;
 
     const content = branchContent.content;
     i = branchContent.endIndex + 1;
 
     // Check if branch content itself contains nested ICU
-    const nestedResult = tryParseNestedContent(content, isPluralType, segments);
+    const nestedResult = tryParseNestedContent(content, pluralContext, segments);
     const leafIndex = segments.length;
 
     if (nestedResult) {
@@ -190,7 +191,7 @@ function parseIcuBlock(text: string, start: number): ParseBlockResult | null {
 
 function tryParseNestedContent(
   content: string,
-  _parentIsPluralBranch: boolean,
+  inPluralContext: boolean,
   segments: IcuSegment[],
 ): { template: string } | null {
   // Check if content contains a nested ICU block
@@ -201,7 +202,7 @@ function tryParseNestedContent(
   const trimmed = content.trim();
   if (!ICU_DETECT_RE.test(trimmed)) return null;
 
-  const nested = parseIcuBlock(trimmed, 0);
+  const nested = parseIcuBlock(trimmed, 0, inPluralContext);
   if (!nested || nested.endIndex < trimmed.length - 1) return null;
 
   // Merge nested segments into parent segments array
@@ -219,24 +220,57 @@ function tryParseNestedContent(
   return { template: reindexed };
 }
 
-function extractBraceContent(text: string, start: number): { content: string; endIndex: number } | null {
+/**
+ * Brace counting honours ICU single-quote escaping: an apostrophe immediately
+ * followed by a syntax character ({, }, or # in plural context) opens a quoted
+ * literal span ending at the next lone apostrophe; '' is a literal apostrophe.
+ * Braces inside quoted spans do not affect nesting depth.
+ */
+function extractBraceContent(
+  text: string,
+  start: number,
+  inPluralContext: boolean,
+): { content: string; endIndex: number } | null {
   if (text[start] !== '{') return null;
 
   let depth = 0;
   let i = start;
+  let inQuote = false;
 
   while (i < text.length) {
-    if (text[i] === '{') {
-      depth++;
-    } else if (text[i] === '}') {
-      depth--;
-      if (depth === 0) {
-        return {
-          content: text.slice(start + 1, i),
-          endIndex: i,
-        };
+    const ch = text[i];
+
+    if (ch === "'") {
+      if (text[i + 1] === "'") {
+        i += 2;
+        continue;
+      }
+      if (inQuote) {
+        inQuote = false;
+      } else {
+        const next = text[i + 1];
+        if (next === '{' || next === '}' || (inPluralContext && next === '#')) {
+          inQuote = true;
+        }
+      }
+      i++;
+      continue;
+    }
+
+    if (!inQuote) {
+      if (ch === '{') {
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          return {
+            content: text.slice(start + 1, i),
+            endIndex: i,
+          };
+        }
       }
     }
+
     i++;
   }
 
