@@ -337,6 +337,85 @@ describe('yaml parser', () => {
     });
   });
 
+  describe('alias expansion limits', () => {
+    const aliasBomb = (): string => {
+      const lines = ['level0: &level0 [a, b, c, d]'];
+      for (let i = 1; i <= 12; i++) {
+        const refs = Array.from({ length: 9 }, () => `*level${i - 1}`).join(', ');
+        lines.push(`level${i}: &level${i} [${refs}]`);
+      }
+      return `${lines.join('\n')}\n`;
+    };
+
+    const anchorReusedManyTimes = (): string => {
+      const lines = ['base: &base shared'];
+      for (let i = 0; i < 200; i++) {
+        lines.push(`key${i}: *base`);
+      }
+      return `${lines.join('\n')}\n`;
+    };
+
+    it('should reject nested alias fan-out during extract without expanding it', () => {
+      const start = Date.now();
+      expect(() => parser.extract(aliasBomb())).toThrow(/YAML parse error/);
+      expect(Date.now() - start).toBeLessThan(2000);
+    });
+
+    it('should reject nested alias fan-out during reconstruct without expanding it', () => {
+      const start = Date.now();
+      expect(() => parser.reconstruct(aliasBomb(), [])).toThrow(/YAML parse error/);
+      expect(Date.now() - start).toBeLessThan(2000);
+    });
+
+    it('should reject repeated expansion of a large anchor', () => {
+      const lines = ['big: &big'];
+      for (let i = 0; i < 500; i++) {
+        lines.push(`  entry${i}: value${i}`);
+      }
+      for (let i = 0; i < 500; i++) {
+        lines.push(`copy${i}: *big`);
+      }
+      const yaml = `${lines.join('\n')}\n`;
+
+      const start = Date.now();
+      expect(() => parser.extract(yaml)).toThrow(/YAML parse error/);
+      expect(Date.now() - start).toBeLessThan(2000);
+    });
+
+    it('should reject a self-referential anchor during extract', () => {
+      const yaml = 'root: &r\n  child: *r\n';
+      const start = Date.now();
+      expect(() => parser.extract(yaml)).toThrow(/YAML parse error/);
+      expect(Date.now() - start).toBeLessThan(2000);
+    });
+
+    it('should reject a self-referential anchor during reconstruct', () => {
+      const yaml = 'root: &r\n  child: *r\n';
+      expect(() => parser.reconstruct(yaml, [])).toThrow(/YAML parse error/);
+    });
+
+    it('should report which construct exceeded the limit', () => {
+      expect(() => parser.extract(aliasBomb())).toThrow(/alias/i);
+      expect(() => parser.extract('root: &r\n  child: *r\n')).toThrow(/alias/i);
+    });
+
+    it('should still extract a document that reuses one anchor many times', () => {
+      const entries = parser.extract(anchorReusedManyTimes());
+      expect(entries).toHaveLength(201);
+      expect(entries.every(e => e.value === 'shared')).toBe(true);
+    });
+
+    it('should still round-trip a document that reuses one anchor many times', () => {
+      const yaml = anchorReusedManyTimes();
+      const entries: TranslatedEntry[] = parser
+        .extract(yaml)
+        .map(e => ({ key: e.key, value: e.value, translation: 'compartido' }));
+      const result = parser.reconstruct(yaml, entries);
+      expect(result).toContain('compartido');
+      expect(result).toContain('key199');
+    });
+  });
+
   describe('reconstruct trailing newline handling', () => {
     it('should strip trailing newline if original does not end with one', () => {
       const yaml = 'greeting: Hello';
