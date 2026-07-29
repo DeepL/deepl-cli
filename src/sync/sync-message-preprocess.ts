@@ -107,8 +107,19 @@ export async function reassembleIcu(
       { ...baseOpts },
     );
 
+    // Every segment must have come back. Substituting the source segment for a
+    // failed one produced a message that was part English yet reported as a
+    // successful translation; leaving the result unset marks the message failed
+    // so it is retried instead.
+    const anySegmentFailed =
+      segResults.length !== segTexts.length || segResults.some((sr) => !sr?.text);
+    if (anySegmentFailed) {
+      results[icu.textIndex] = null;
+      continue;
+    }
+
     const translatedSegments = segResults.map((sr, si) => {
-      let translated = sr?.text ?? segTexts[si]!.text;
+      let translated = sr.text;
       const pMap = segTexts[si]!.pMap;
       if (pMap.size > 0) translated = restorePlaceholders(translated, pMap);
       return translated;
