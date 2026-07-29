@@ -650,9 +650,13 @@ deepl write "Fresh improvement please." --lang en-US --no-cache
 - Spanish (`es`)
 - French (`fr`)
 - Italian (`it`)
+- Japanese (`ja`)
+- Korean (`ko`)
 - Portuguese (`pt`) - generic, defaults to Brazilian Portuguese
 - Portuguese - Brazilian (`pt-BR`)
 - Portuguese - European (`pt-PT`)
+- Chinese (`zh`) - generic, defaults to Simplified Chinese
+- Chinese - Simplified (`zh-Hans`)
 
 **Writing Styles:**
 
@@ -1072,8 +1076,9 @@ deepl translate "Hello" --to es
 deepl translate "Hello" --to es
 # Fails immediately without retries on auth errors
 
-# Rate limiting (429) - does not retry
-# You may want to wait before retrying manually
+# Rate limiting (429) - retried automatically
+# Honors the Retry-After header when the server sends one,
+# otherwise falls back to jittered exponential backoff
 ```
 
 **Note:** Retry and timeout settings use sensible defaults optimized for the DeepL API. These are internal features that work automatically - no configuration required.
@@ -1331,7 +1336,7 @@ Cache location: `~/.cache/deepl-cli/cache.db` (or `~/.deepl-cli/cache.db` for le
 
 ### Prerequisites
 
-- Node.js >= 20.19.0
+- Node.js >= 24.0.0
 - npm >= 9.0.0
 - DeepL API key
 
