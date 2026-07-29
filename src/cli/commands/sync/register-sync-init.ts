@@ -12,16 +12,9 @@ import {
 } from './sync-options.js';
 import { ExitCode } from '../../../utils/exit-codes.js';
 
-const SOURCE_LANG_DEPRECATION_WARNING =
-  '[deprecated] --source-lang is renamed to --source-locale and will be removed in the next major release. Please update your scripts.\n';
-const TARGET_LANGS_DEPRECATION_WARNING =
-  '[deprecated] --target-langs is renamed to --target-locales and will be removed in the next major release. Please update your scripts.\n';
-
 interface InitOptions {
   sourceLocale?: string;
   targetLocales?: string;
-  sourceLang?: string;
-  targetLangs?: string;
   fileFormat?: string;
   path?: string;
   syncConfig?: string;
@@ -38,8 +31,6 @@ export function registerSyncInit(
     .description('Initialize .deepl-sync.yaml configuration')
     .option('--source-locale <code>', 'Source locale')
     .option('--target-locales <codes>', 'Target locales (comma-separated)')
-    .addOption(new Option('--source-lang <code>').hideHelp())
-    .addOption(new Option('--target-langs <codes>').hideHelp())
     .addOption(
       new Option('--file-format <type>', 'File format').choices([...SUPPORTED_FORMAT_KEYS]),
     )
@@ -49,17 +40,6 @@ export function registerSyncInit(
     )
     .option('--sync-config <path>', 'Path to .deepl-sync.yaml')
     .action((options: InitOptions, command: Command) => handleSyncInit(options, command, deps));
-}
-
-function applyDeprecationAliases(options: InitOptions): void {
-  if (options.sourceLang !== undefined && options.sourceLocale === undefined) {
-    options.sourceLocale = options.sourceLang;
-    process.stderr.write(SOURCE_LANG_DEPRECATION_WARNING);
-  }
-  if (options.targetLangs !== undefined && options.targetLocales === undefined) {
-    options.targetLocales = options.targetLangs;
-    process.stderr.write(TARGET_LANGS_DEPRECATION_WARNING);
-  }
 }
 
 interface InitSuccessPayload {
@@ -87,8 +67,6 @@ async function handleSyncInit(
   const { handleError } = deps;
   options.format = resolveFormat(options, command);
   try {
-    applyDeprecationAliases(options);
-
     const { configExists, detectI18nFiles, generateSyncConfig, resolveInitConfigPath, writeSyncConfig } =
       await import('../../../sync/sync-init.js');
     const pathMod = await import('path');
