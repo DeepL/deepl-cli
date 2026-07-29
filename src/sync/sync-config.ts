@@ -43,6 +43,9 @@ export interface ResolvedSyncConfig extends SyncConfig {
   overrides: SyncConfigOverrides;
 }
 
+// The upward walk stops at the first directory containing `.git` (after
+// checking that directory itself) so a config planted in an ancestor outside
+// the repository is never silently adopted as projectRoot.
 export function findSyncConfigFile(startDir: string): string | null {
   let current = path.resolve(startDir);
   const root = path.parse(current).root;
@@ -51,6 +54,9 @@ export function findSyncConfigFile(startDir: string): string | null {
     const candidate = path.join(current, SYNC_CONFIG_FILENAME);
     if (fs.existsSync(candidate)) {
       return candidate;
+    }
+    if (fs.existsSync(path.join(current, '.git'))) {
+      return null;
     }
     const parent = path.dirname(current);
     if (parent === current || current === root) {

@@ -48,6 +48,53 @@ describe('sync-config', () => {
       const result = findSyncConfigFile(tmpDir);
       expect(result).toBeNull();
     });
+
+    it('should find a config that lives next to .git', () => {
+      fs.mkdirSync(path.join(tmpDir, '.git'));
+      const configPath = path.join(tmpDir, SYNC_CONFIG_FILENAME);
+      fs.writeFileSync(configPath, 'version: 1\n');
+
+      const childDir = path.join(tmpDir, 'src');
+      fs.mkdirSync(childDir);
+
+      expect(findSyncConfigFile(childDir)).toBe(configPath);
+      expect(findSyncConfigFile(tmpDir)).toBe(configPath);
+    });
+
+    it('should not adopt a config from an ancestor above the .git boundary', () => {
+      const configPath = path.join(tmpDir, SYNC_CONFIG_FILENAME);
+      fs.writeFileSync(configPath, 'version: 1\n');
+
+      const repoDir = path.join(tmpDir, 'repo');
+      fs.mkdirSync(path.join(repoDir, '.git'), { recursive: true });
+      const childDir = path.join(repoDir, 'src');
+      fs.mkdirSync(childDir);
+
+      expect(findSyncConfigFile(childDir)).toBeNull();
+      expect(findSyncConfigFile(repoDir)).toBeNull();
+    });
+
+    it('should find a config between the start directory and the .git boundary', () => {
+      const repoDir = path.join(tmpDir, 'repo');
+      fs.mkdirSync(path.join(repoDir, '.git'), { recursive: true });
+      const pkgDir = path.join(repoDir, 'packages', 'app');
+      fs.mkdirSync(pkgDir, { recursive: true });
+      const configPath = path.join(repoDir, 'packages', SYNC_CONFIG_FILENAME);
+      fs.writeFileSync(configPath, 'version: 1\n');
+
+      expect(findSyncConfigFile(pkgDir)).toBe(configPath);
+    });
+
+    it('should treat a .git file (worktree/submodule) as the boundary', () => {
+      const configPath = path.join(tmpDir, SYNC_CONFIG_FILENAME);
+      fs.writeFileSync(configPath, 'version: 1\n');
+
+      const repoDir = path.join(tmpDir, 'repo');
+      fs.mkdirSync(repoDir);
+      fs.writeFileSync(path.join(repoDir, '.git'), 'gitdir: elsewhere\n');
+
+      expect(findSyncConfigFile(repoDir)).toBeNull();
+    });
   });
 
   describe('validateSyncConfig', () => {
