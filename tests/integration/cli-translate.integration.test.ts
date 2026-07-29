@@ -319,7 +319,7 @@ describe('Translate CLI Integration', () => {
 
       // Text should be optional (can use stdin)
       // Shown in usage line as [text]
-      expect(output).toContain('translate [options] [text]');
+      expect(output).toContain('translate|t [options] [text]');
       expect(output).toContain('Arguments:');
     });
 

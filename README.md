@@ -133,6 +133,9 @@ export DEEPL_API_KEY=YOUR_API_KEY
 deepl translate "Hello, world!" --to es
 # Output:
 # ¡Hola, mundo!
+
+# Short alias: t (and w for write)
+deepl t "Hello, world!" --to es
 ```
 
 ## 🔧 Global Options

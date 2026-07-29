@@ -13,6 +13,7 @@ export function registerTranslate(
 
   program
     .command('translate')
+    .alias('t')
     .description('Translate text, files, or directories using DeepL API')
     .argument('[text]', 'Text, file path, or directory to translate (or read from stdin)')
     .optionsGroup('Core Options:')

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **cli**: `t` and `w` command aliases for `translate` and `write` ([#12](https://github.com/DeepL/deepl-cli/issues/12)). The aliases appear in `--help` output and in bash/zsh/fish shell completions. `w` is deliberately assigned to `write` rather than `watch` — write is a primary API feature, watch a workflow helper.
+
 - **ci**: Pushing a `v*` tag now runs the full release pipeline. The npm publish job is enabled (it was hard-disabled with `if: false` since its introduction, which is why the repo has 17 tags and zero GitHub Releases); it authenticates with a granular `NPM_TOKEN` for the first publish and keeps `--provenance` attestation. A new, deliberately independent `release` job creates a GitHub Release from the tag, with notes extracted from the version's CHANGELOG section (falling back to generated notes if the section is missing) — a publish failure cannot suppress the Release, and vice versa. A `homebrew` formula-bump job (version + sha256 PR against `DeepL/homebrew-tap`) ships gated with `if: false` until the tap repo and its cross-repo token exist.
 - **cli**: Global `--timeout <ms>` and `--max-retries <n>` options override the HTTP transport defaults (30000 ms, 3 retries) for a single invocation. Neither was previously configurable from the CLI.
 - **translate**: `--format json` output now includes the documented `cached` boolean, so scripts can distinguish cache hits from fresh API calls.

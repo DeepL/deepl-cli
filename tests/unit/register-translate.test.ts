@@ -57,6 +57,21 @@ describe('registerTranslate', () => {
     ({ program } = setupProgram());
   });
 
+  describe('alias', () => {
+    it('registers t as an alias of translate', () => {
+      const translateCmd = program.commands.find(c => c.name() === 'translate')!;
+      expect(translateCmd.aliases()).toContain('t');
+    });
+
+    it('shows the alias in help output', () => {
+      const translateCmd = program.commands.find(c => c.name() === 'translate')!;
+      let helpOutput = '';
+      translateCmd.configureOutput({ writeOut: (str: string) => { helpOutput += str; } });
+      translateCmd.outputHelp();
+      expect(helpOutput).toContain('translate|t');
+    });
+  });
+
   describe('--output-format option', () => {
     it('should only accept docx as a valid choice', () => {
       const translateCmd = program.commands.find(c => c.name() === 'translate')!;

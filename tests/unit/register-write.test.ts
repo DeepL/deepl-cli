@@ -80,6 +80,20 @@ describe('registerWrite', () => {
     process.exitCode = undefined;
   });
 
+  describe('alias', () => {
+    it('registers w as an alias of write', () => {
+      const writeCmd = program.commands.find(c => c.name() === 'write')!;
+      expect(writeCmd.aliases()).toContain('w');
+    });
+
+    it('dispatches w to the write action', async () => {
+      mockWriteCommand.improve.mockResolvedValue('Improved text');
+      await program.parseAsync(['node', 'test', 'w', 'Hello world']);
+      expect(mockWriteCommand.improve).toHaveBeenCalledWith('Hello world', expect.any(Object));
+      expect(Logger.output).toHaveBeenCalledWith('Improved text');
+    });
+  });
+
   describe('basic improve (text)', () => {
     it('should improve text and output result', async () => {
       mockWriteCommand.improve.mockResolvedValue('Improved text');

@@ -25,7 +25,7 @@ export class CompletionCommand {
     const topLevel: string[] = [];
 
     for (const cmd of this.program.commands) {
-      topLevel.push(cmd.name());
+      topLevel.push(cmd.name(), ...cmd.aliases());
       const subcommands = cmd.commands.map((sub) => sub.name());
       if (subcommands.length > 0) {
         tree.set(cmd.name(), subcommands);
@@ -36,8 +36,12 @@ export class CompletionCommand {
     return tree;
   }
 
+  private findCommand(name: string): Command | undefined {
+    return this.program.commands.find((c) => c.name() === name || c.aliases().includes(name));
+  }
+
   private getCommandOptions(cmdName: string): string[] {
-    const cmd = this.program.commands.find((c) => c.name() === cmdName);
+    const cmd = this.findCommand(cmdName);
     if (!cmd) {
       return [];
     }
@@ -144,7 +148,7 @@ complete -F _deepl_completions deepl
 
     const topLevelDescriptions: string[] = [];
     for (const cmdName of topLevel) {
-      const cmd = this.program.commands.find((c) => c.name() === cmdName);
+      const cmd = this.findCommand(cmdName);
       const desc = cmd ? cmd.description().replace(/'/g, "'\\''") : '';
       topLevelDescriptions.push(`'${cmdName}:${desc}'`);
     }
@@ -218,7 +222,7 @@ _deepl "$@"
     const noSubcmdCondition = '__fish_use_subcommand';
 
     for (const cmdName of topLevel) {
-      const cmd = this.program.commands.find((c) => c.name() === cmdName);
+      const cmd = this.findCommand(cmdName);
       const desc = cmd ? cmd.description() : '';
       lines.push(`complete -c deepl -n '${noSubcmdCondition}' -a '${cmdName}' -d '${desc.replace(/'/g, "\\'")}'`);
     }
