@@ -355,6 +355,7 @@ export class BatchTranslationService {
       absolute: true,
       dot: false,
       deep: depth,
+      followSymbolicLinks: false,
     });
 
     // Filter to only supported files
@@ -422,7 +423,14 @@ export class BatchTranslationService {
     if (options.baseDir) {
       const relativePath = path.relative(options.baseDir, inputPath);
       const relativeDir = path.dirname(relativePath);
-      return path.join(outputDir, relativeDir, outputFilename);
+      const outputPath = path.resolve(outputDir, relativeDir, outputFilename);
+      const resolvedOutputDir = path.resolve(outputDir);
+      if (!outputPath.startsWith(resolvedOutputDir + path.sep) && outputPath !== resolvedOutputDir) {
+        throw new ValidationError(
+          `Output path "${path.join(relativeDir, outputFilename)}" escapes output directory "${outputDir}"`
+        );
+      }
+      return outputPath;
     }
 
     return path.join(outputDir, outputFilename);

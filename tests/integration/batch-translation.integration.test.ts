@@ -267,6 +267,38 @@ describe('Batch Translation Service Integration', () => {
   });
 
   describe('translateDirectory', () => {
+    it('should not follow symlinks out of the input directory', async () => {
+      const inputDir = path.join(tmpDir, 'input');
+      const outsideDir = path.join(tmpDir, 'outside');
+      fs.mkdirSync(inputDir);
+      fs.mkdirSync(outsideDir);
+      fs.writeFileSync(path.join(inputDir, 'real.txt'), 'Hello');
+      fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'Secret');
+      fs.symlinkSync(outsideDir, path.join(inputDir, 'linked-dir'));
+      fs.symlinkSync(
+        path.join(outsideDir, 'secret.txt'),
+        path.join(inputDir, 'linked-file.txt')
+      );
+
+      jest.spyOn(translationService, 'translate').mockResolvedValue({
+        text: 'Hola',
+      });
+
+      const result = await batchService.translateDirectory(
+        inputDir,
+        { targetLang: 'es' },
+        { outputDir: path.join(tmpDir, 'out') }
+      );
+
+      const seen = [
+        ...result.successful.map((e) => e.file),
+        ...result.failed.map((e) => e.file),
+        ...result.skipped.map((e) => e.file),
+      ];
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toBe(path.join(inputDir, 'real.txt'));
+    });
+
     it('should throw error for non-existent directory', async () => {
       await expect(
         batchService.translateDirectory('/nonexistent', { targetLang: 'es' })
