@@ -150,6 +150,24 @@ describe('InitCommand', () => {
     expect(promptConfig.validate?.('valid-key')).toBe(true);
   });
 
+  it('should apply HTTP client options to the key-validation client', async () => {
+    mockPassword.mockResolvedValueOnce('test-api-key-123');
+
+    nock(baseUrl)
+      .get('/v2/usage')
+      .reply(503, { message: 'Service unavailable' })
+      .get('/v2/usage')
+      .reply(200, { character_count: 0, character_limit: 500000 });
+
+    const { InitCommand } = await import('../../src/cli/commands/init');
+    const cmd = new InitCommand(configService, { maxRetries: 0 });
+
+    // With maxRetries: 0 the first 503 is fatal; the default retry policy
+    // would have retried into the queued 200 and succeeded.
+    await expect(cmd.run()).rejects.toThrow();
+    expect(configService.getValue('auth.apiKey')).toBeUndefined();
+  });
+
   it('should validate :fx key against api-free.deepl.com', async () => {
     mockPassword.mockResolvedValueOnce('test-init-key:fx');
     mockSelect.mockResolvedValueOnce('');

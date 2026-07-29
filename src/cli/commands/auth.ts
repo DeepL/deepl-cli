@@ -5,14 +5,17 @@
 
 import { ConfigService } from '../../storage/config.js';
 import { DeepLClient } from '../../api/deepl-client.js';
+import type { DeepLClientOptions } from '../../api/http-client.js';
 import { ValidationError, AuthError } from '../../utils/errors.js';
 import { resolveEndpoint } from '../../utils/resolve-endpoint.js';
 
 export class AuthCommand {
   private config: ConfigService;
+  private httpOptions: DeepLClientOptions;
 
-  constructor(config: ConfigService) {
+  constructor(config: ConfigService, httpOptions: DeepLClientOptions = {}) {
     this.config = config;
+    this.httpOptions = httpOptions;
   }
 
   /**
@@ -33,7 +36,7 @@ export class AuthCommand {
       const usePro = this.config.getValue<boolean>('api.usePro');
       const baseUrl = resolveEndpoint({ apiKey, configBaseUrl, usePro });
 
-      const client = new DeepLClient(apiKey, { baseUrl });
+      const client = new DeepLClient(apiKey, { ...this.httpOptions, baseUrl });
       await client.getUsage(); // Test API key validity
     } catch (error) {
       if (error instanceof Error) {

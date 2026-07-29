@@ -1,4 +1,5 @@
 import { ConfigService } from '../../storage/config.js';
+import type { DeepLClientOptions } from '../../api/http-client.js';
 import { Logger } from '../../utils/logger.js';
 import { resolveEndpoint } from '../../utils/resolve-endpoint.js';
 
@@ -20,9 +21,11 @@ const COMMON_TARGET_LANGUAGES = [
 
 export class InitCommand {
   private config: ConfigService;
+  private httpOptions: DeepLClientOptions;
 
-  constructor(config: ConfigService) {
+  constructor(config: ConfigService, httpOptions: DeepLClientOptions = {}) {
     this.config = config;
+    this.httpOptions = httpOptions;
   }
 
   async run(): Promise<void> {
@@ -49,7 +52,7 @@ export class InitCommand {
       configBaseUrl,
       usePro,
     });
-    const client = new DeepLClient(apiKey.trim(), { baseUrl });
+    const client = new DeepLClient(apiKey.trim(), { ...this.httpOptions, baseUrl });
     await client.getUsage();
 
     this.config.set('auth.apiKey', apiKey.trim());

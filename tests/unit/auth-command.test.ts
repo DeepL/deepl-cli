@@ -102,6 +102,21 @@ describe('AuthCommand', () => {
       await expect(authCommand.setKey('test-key')).rejects.toThrow('Failed to validate API key');
     });
 
+    it('should pass HTTP client options through to the validation client', async () => {
+      const mockGetUsage = jest.fn().mockResolvedValue({ character: { count: 0, limit: 500000 } });
+      (DeepLClient as jest.MockedClass<typeof DeepLClient>).mockImplementation(() => ({
+        getUsage: mockGetUsage,
+      } as any));
+
+      const cmd = new AuthCommand(mockConfigService, { timeout: 1234, maxRetries: 9 });
+      await cmd.setKey('test-key');
+
+      expect(DeepLClient).toHaveBeenCalledWith(
+        'test-key',
+        expect.objectContaining({ timeout: 1234, maxRetries: 9 })
+      );
+    });
+
     it('should handle non-authentication API errors', async () => {
       // Mock DeepL client to throw error without "Authentication failed" message
       const mockGetUsage = jest.fn().mockRejectedValue(new Error('Network timeout'));
@@ -205,6 +220,29 @@ describe('registerAuth - deprecation warning', () => {
     const { Logger } = await import('../../src/utils/logger');
     expect(Logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('deprecated'),
+    );
+  });
+
+  it('should thread getHttpOptions into the key-validation client', async () => {
+    const mockConfigService = createMockConfigService();
+    const mockGetUsage = jest.fn().mockResolvedValue({ character: { count: 0, limit: 500000 } });
+    (DeepLClient as jest.MockedClass<typeof DeepLClient>).mockImplementation(() => ({
+      getUsage: mockGetUsage,
+    } as any));
+
+    const program = new Command();
+    program.exitOverride();
+    registerAuth(program, {
+      getConfigService: () => mockConfigService,
+      getHttpOptions: () => ({ timeout: 55, maxRetries: 1 }),
+      handleError: (error: unknown) => { throw error; },
+    });
+
+    await program.parseAsync(['node', 'deepl', 'auth', 'set-key', 'test-key-123']);
+
+    expect(DeepLClient).toHaveBeenCalledWith(
+      'test-key-123',
+      expect.objectContaining({ timeout: 55, maxRetries: 1 })
     );
   });
 });

@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import type { ConfigService } from '../../storage/config.js';
+import type { DeepLClientOptions } from '../../api/http-client.js';
 import { Logger } from '../../utils/logger.js';
 import { ValidationError } from '../../utils/errors.js';
 
@@ -8,10 +9,11 @@ export function registerAuth(
   program: Command,
   deps: {
     getConfigService: () => ConfigService;
+    getHttpOptions?: () => DeepLClientOptions;
     handleError: (error: unknown) => never;
   },
 ): void {
-  const { getConfigService, handleError } = deps;
+  const { getConfigService, getHttpOptions, handleError } = deps;
 
   program
     .command('auth')
@@ -57,7 +59,7 @@ Command arguments are visible to other users via process listings.
               key = Buffer.concat(chunks).toString('utf-8').trim();
             }
             const { AuthCommand } = await import('./auth.js');
-            const authCommand = new AuthCommand(getConfigService());
+            const authCommand = new AuthCommand(getConfigService(), getHttpOptions?.());
             await authCommand.setKey(key);
             Logger.success(chalk.green('\u2713 API key saved and validated successfully'));
           } catch (error) {
