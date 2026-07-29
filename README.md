@@ -18,8 +18,12 @@
 - **💾 Smart Caching** - Local SQLite cache that evicts oldest entries first
 - **🎯 Context-Aware** - Preserves code blocks, variables, and formatting
 - **📦 Batch Processing** - Translate multiple files with parallel processing
+- **📖 Glossaries** - Single-target and multilingual glossary management (v3 Glossary API)
+- **🗂️ Translation Memories** - Reuse approved translations in translate and sync runs
+- **🖋️ Style Rules (Pro)** - Create, apply, and manage style rules and custom instructions
 - **💰 Cost Transparency** - Track actual billed characters for budget planning
 - **🔧 Developer Workflows** - Git hooks, CI/CD integration
+- **🗝️ Admin API** - Organization key management and usage analytics
 - **🔒 Privacy-First** - Local caching, no telemetry, secure key storage
 
 For security policy and vulnerability reporting, see [SECURITY.md](SECURITY.md).
@@ -38,7 +42,7 @@ For security policy and vulnerability reporting, see [SECURITY.md](SECURITY.md).
 - [Usage](#-usage)
   - **Core Commands:** [Translation](#translation) | [Writing Enhancement](#writing-enhancement) | [Voice Translation](#voice-translation)
   - **Resources:** [Glossaries](#glossaries) | [Translation Memories](#translation-memories)
-  - **Workflow:** [Watch Mode](#watch-mode) | [Git Hooks](#git-hooks)
+  - **Workflow:** [Continuous Localization (sync)](#continuous-localization-deepl-sync) | [Watch Mode](#watch-mode) | [Git Hooks](#git-hooks)
   - **Configuration:** [Setup Wizard](#setup-wizard) | [Authentication](#authentication) | [Configure Defaults](#configure-defaults) | [Cache Management](#cache-management) | [Style Rules](#style-rules)
   - **Information:** [Usage Statistics](#api-usage-statistics) | [Language Detection](#language-detection) | [Languages](#supported-languages) | [Shell Completion](#shell-completion) | [Command Suggestions](#command-suggestions)
   - **Administration:** [Admin API](#admin-api)
@@ -729,6 +733,45 @@ Automatic WebSocket reconnection is enabled by default (up to 3 attempts). Disab
 
 **Note:** The Voice API requires a DeepL Pro or Enterprise plan.
 
+### Continuous Localization (`deepl sync`)
+
+Incremental i18n translation engine: scans your source locale files, diffs them against `.deepl-sync.lock`, translates only new and changed strings, and writes format-preserving target files. Supports 11 formats: JSON, YAML, TOML, Gettext PO, Android XML, iOS Strings, Xcode String Catalog (`.xcstrings`), ARB, XLIFF, Java Properties, and Laravel PHP arrays.
+
+```bash
+# One-time setup - generates .deepl-sync.yaml (framework auto-detection)
+deepl sync init
+
+# Translate new and changed keys across all configured locales
+deepl sync
+
+# Preview changes without making API calls
+deepl sync --dry-run
+
+# CI gate - exit 10 if translations are missing or outdated (no API calls)
+deepl sync --frozen
+
+# Per-locale coverage report
+deepl sync status
+
+# Check placeholder, format-string, and HTML-tag integrity
+deepl sync validate
+
+# Terminology-consistency audit across locales
+deepl sync audit
+
+# Export source strings to XLIFF 1.2 for CAT tool handoff
+deepl sync export --output handoff.xlf
+
+# Resolve git merge conflicts in .deepl-sync.lock
+deepl sync resolve
+
+# Optional TMS integration (requires a tms: block in .deepl-sync.yaml)
+deepl sync push
+deepl sync pull
+```
+
+See **[docs/SYNC.md](./docs/SYNC.md)** for configuration (`.deepl-sync.yaml`), the lockfile model, CI/CD recipes, and the TMS REST contract, and [docs/API.md#sync](./docs/API.md#sync) for the full flag reference.
+
 ### Watch Mode
 
 Monitor files or directories for changes and automatically translate them in real-time. Perfect for keeping documentation and localization files in sync.
@@ -859,7 +902,7 @@ deepl init
 # - Basic configuration
 ```
 
-> To configure continuous localization for an existing project, see also [`deepl sync init`](#sync-init) or run the wizard directly.
+> To configure continuous localization for an existing project, see also [`deepl sync init`](#continuous-localization-deepl-sync) or run the wizard directly.
 
 #### Authentication
 
@@ -1200,9 +1243,43 @@ authentication	Authentifizierung
 - **Visual indicators** - 📖 for single-target, 📚 for multilingual glossaries
 - **Translation integration** - Use `--glossary` flag in translate and watch commands to apply glossary terms
 
+### Translation Memories
+
+Reuse approved translations from your account's translation memories. TMs are authored and uploaded via the DeepL web UI; the CLI lists them and applies them to translations.
+
+```bash
+# List translation memories on the account
+deepl tm list
+# brand-terms (EN → DE, FR, JA)
+# legal-phrases (EN → FR)
+
+# JSON output for scripting
+deepl tm list --format json
+
+# Apply a TM to a single translation (by name or UUID)
+deepl translate "Hello" --to de --translation-memory brand-terms
+
+# Tighten the minimum match score (default: 75)
+deepl translate "Hello" --to de --translation-memory brand-terms --tm-threshold 90
+```
+
+For sync runs, configure `translation.translation_memory` (and optionally `translation.translation_memory_threshold`) in `.deepl-sync.yaml` — see [docs/SYNC.md](./docs/SYNC.md).
+
 ### Style Rules
 
-Style rules are pre-configured translation rules created via the DeepL web UI and applied to translations using their ID (Pro API only).
+Style rules are named rule lists (configured rules plus optional custom instructions) applied to translations via their ID (Pro API only). The CLI supports the full lifecycle:
+
+| Subcommand                                  | Purpose                                                                       |
+| ------------------------------------------- | ----------------------------------------------------------------------------- |
+| `list`                                      | List style rules (`--detailed`, `--page`, `--page-size`, `--format`)          |
+| `create`                                    | Create a style rule (`--name` and `--language` required, optional `--rules`)  |
+| `show <id>`                                 | Show a single style rule (`--detailed`)                                       |
+| `update <id>`                               | Rename (`--name`) and/or replace configured rules (`--rules`)                 |
+| `delete <id>`                               | Delete a style rule (`--yes`, `--dry-run`)                                    |
+| `instructions <id>`                         | List custom instructions on a style rule                                      |
+| `add-instruction <id> <label> <prompt>`     | Add a custom instruction                                                      |
+| `update-instruction <id> <label> <prompt>`  | Update a custom instruction                                                   |
+| `remove-instruction <id> <label>`           | Remove a custom instruction (`--yes`, `--dry-run`)                            |
 
 ```bash
 # List available style rules
@@ -1217,9 +1294,15 @@ deepl style-rules list --format json
 # Paginate results
 deepl style-rules list --page 2 --page-size 10
 
+# Create a style rule and add a custom instruction
+deepl style-rules create --name "Corporate" --language en
+deepl style-rules add-instruction sr-abc123 tone "Be formal"
+
 # Apply a style rule to a translation
 deepl translate "Hello" --to de --style-id "abc-123-def-456"
 ```
+
+See [docs/API.md#style-rules](./docs/API.md#style-rules) for the full subcommand reference, including the configured-rules JSON shape.
 
 ### Admin API
 
@@ -1472,6 +1555,7 @@ npm run examples:fast
 ## 📚 Documentation
 
 - **[API Reference](./docs/API.md)** - Complete API reference with all commands, flags, and options
+- **[Sync Guide](./docs/SYNC.md)** - Continuous localization: `.deepl-sync.yaml` configuration, lockfile model, CI/CD recipes, TMS integration
 - **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Common issues, solutions, and exit codes reference
 - **[Examples](./examples/README.md)** - Practical usage examples for every feature
 - **[Changelog](./CHANGELOG.md)** - Release history and version notes
@@ -1504,6 +1588,10 @@ See [docs/API.md#environment-variables](./docs/API.md#environment-variables) for
 - **No telemetry** - Zero usage tracking or data collection
 - **Environment variable support** - Use `DEEPL_API_KEY` environment variable for CI/CD
 - **GDPR-aligned with DeepL's DPA** - Follows DeepL's Data Processing Agreement terms
+
+## 🤝 Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow (strict TDD), test requirements, commit conventions, and the pull request process.
 
 ## 📄 License
 
