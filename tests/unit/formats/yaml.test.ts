@@ -472,6 +472,39 @@ describe('yaml parser', () => {
     });
   });
 
+  describe('reconstruct with multiple deletions', () => {
+    it('should remove several sequence items while keeping the translated one', () => {
+      const yaml = 'items:\n  - a\n  - b\n  - c\n  - d\n';
+      const entries: TranslatedEntry[] = [
+        { key: 'items\x002', value: 'c', translation: 'ce' },
+      ];
+      const result = parser.reconstruct(yaml, entries);
+      expect(result).toBe('items:\n  - ce\n');
+    });
+
+    it('should apply translations and deletions correctly across a large document', () => {
+      const size = 500;
+      const lines: string[] = ['root:'];
+      for (let i = 0; i < size; i++) {
+        lines.push(`  key_${i}: value ${i}`);
+      }
+      const yaml = lines.join('\n') + '\n';
+
+      const entries: TranslatedEntry[] = [];
+      for (let i = 0; i < size; i += 2) {
+        entries.push({
+          key: `root\0key_${i}`,
+          value: `value ${i}`,
+          translation: `translated ${i}`,
+        });
+      }
+
+      const result = parser.reconstruct(yaml, entries);
+      const roundTripped = parser.extract(result);
+      expect(roundTripped).toEqual(entries.map(e => ({ key: e.key, value: e.translation })));
+    });
+  });
+
   describe('reconstruct trailing newline handling', () => {
     it('should strip trailing newline if original does not end with one', () => {
       const yaml = 'greeting: Hello';
