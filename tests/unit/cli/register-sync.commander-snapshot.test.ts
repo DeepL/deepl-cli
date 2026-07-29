@@ -483,19 +483,10 @@ const EXPECTED: CommandSnapshot = {
           description: 'File format',
           defaultValue: undefined,
           negate: false,
-          choices: [
-            'json',
-            'yaml',
-            'po',
-            'android_xml',
-            'ios_strings',
-            'arb',
-            'xliff',
-            'toml',
-            'properties',
-            'xcstrings',
-            'laravel_php',
-          ],
+          // Populated lazily by a preSubcommand hook so registration does not
+          // load the format parsers; parity with the registry is covered by
+          // sync-init-format-choices.integration.test.ts.
+          choices: undefined,
           required: true,
           optional: false,
           variadic: false,
