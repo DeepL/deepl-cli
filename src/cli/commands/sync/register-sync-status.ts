@@ -61,12 +61,12 @@ async function handleSyncStatus(
       const skippedSuffix = status.skippedKeys > 0
         ? `, ${status.skippedKeys} skipped (pipe pluralization)`
         : '';
-      Logger.info(`Source: ${status.sourceLocale} (${status.totalKeys} keys${skippedSuffix})\n`);
+      Logger.output(`Source: ${status.sourceLocale} (${status.totalKeys} keys${skippedSuffix})\n`);
       for (const locale of locales) {
         const bar = `${'#'.repeat(Math.floor(locale.coverage / 5))}${'.'.repeat(
           20 - Math.floor(locale.coverage / 5),
         )}`;
-        Logger.info(
+        Logger.output(
           `  ${locale.locale}  [${bar}] ${locale.coverage}%  (${locale.missing} missing, ${locale.outdated} outdated)`,
         );
       }

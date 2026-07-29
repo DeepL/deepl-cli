@@ -107,25 +107,25 @@ async function handleSyncAudit(
     if (options.format === 'json') {
       process.stdout.write(JSON.stringify(report, null, 2) + '\n');
     } else {
-      Logger.info(`Audit: ${report.totalTerms} unique source terms\n`);
+      Logger.output(`Audit: ${report.totalTerms} unique source terms\n`);
       if (report.inconsistencies.length === 0) {
-        Logger.info('No terminology inconsistencies found.');
+        Logger.output('No terminology inconsistencies found.');
       } else {
-        Logger.info(`${report.inconsistencies.length} inconsistency(ies) found:\n`);
+        Logger.output(`${report.inconsistencies.length} inconsistency(ies) found:\n`);
         for (const inc of report.inconsistencies) {
-          Logger.info(
+          Logger.output(
             `  "${inc.sourceText}" [${inc.locale}]: ${inc.translations.length} different translations`,
           );
-          Logger.info(`    Files: ${inc.files.join(', ')}`);
+          Logger.output(`    Files: ${inc.files.join(', ')}`);
         }
       }
 
       if (report.missingTargets.length > 0) {
-        Logger.info(
+        Logger.output(
           `\n${report.missingTargets.length} target(s) could not be read and were excluded from the comparison:`,
         );
         for (const target of report.missingTargets) {
-          Logger.info(`  ${target.filePath} [${target.locale}]`);
+          Logger.output(`  ${target.filePath} [${target.locale}]`);
         }
       }
     }

@@ -63,17 +63,17 @@ async function handleSyncValidate(
     if (options.format === 'json') {
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     } else {
-      Logger.info(`Checked ${result.totalChecked} translations\n`);
+      Logger.output(`Checked ${result.totalChecked} translations\n`);
       if (result.issues.length === 0) {
-        Logger.info(chalk.green('All translations passed validation.'));
+        Logger.output(chalk.green('All translations passed validation.'));
       } else {
         for (const issue of result.issues) {
           const icon = issue.severity === 'error' ? chalk.red('ERROR') : chalk.yellow('WARN');
-          Logger.info(
+          Logger.output(
             `  ${icon}  ${issue.locale}/${issue.key}: ${issue.issues.map((i) => i.message).join(', ')}`,
           );
         }
-        Logger.info(`\n${result.errors} error(s), ${result.warnings} warning(s)`);
+        Logger.output(`\n${result.errors} error(s), ${result.warnings} warning(s)`);
       }
     }
 

@@ -78,7 +78,7 @@ Command arguments are visible to other users via process listings.
             const key = await authCommand.getKey();
             if (key) {
               const masked = key.substring(0, 4) + '...' + key.substring(key.length - 4);
-              Logger.info(chalk.blue('API Key:'), masked);
+              Logger.output(chalk.blue('API Key:'), masked);
             } else {
               Logger.output(chalk.yellow('No API key set'));
             }

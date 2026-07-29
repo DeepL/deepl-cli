@@ -439,12 +439,12 @@ describe('registerAuth', () => {
     expect(subNames).toContain('clear');
   });
 
-  it('auth show should display masked key when key exists', async () => {
+  it('auth show should display masked key on stdout when key exists', async () => {
     await loadAndRegister();
     await program.parseAsync(['node', 'test', 'auth', 'show']);
 
-    expect(mockLogger.info).toHaveBeenCalled();
-    const call = mockLogger.info.mock.calls[0]!;
+    expect(mockLogger.output).toHaveBeenCalled();
+    const call = mockLogger.output.mock.calls[0]!;
     expect(call[1]).toContain('abcd');
     expect(call[1]).toContain('wxyz');
   });

@@ -67,7 +67,7 @@ function emitInitSuccess(
   if (format === 'json') {
     emitJsonInitSuccessAndExit(payload);
   }
-  Logger.info(chalk.green(`Created ${payload.configPath}`));
+  Logger.output(chalk.green(`Created ${payload.configPath}`));
 }
 
 async function handleSyncInit(
