@@ -1,6 +1,5 @@
 /**
  * Tests for DeepL API Client
- * Following TDD approach - these tests should fail initially
  */
 
 import nock from 'nock';
@@ -1136,7 +1135,6 @@ describe('DeepLClient', () => {
       }
     });
 
-    // Issue #2: Invalid proxy URL should throw error, not continue silently
     it('should throw error for invalid proxy URL from environment variable (Issue #2)', () => {
       process.env['HTTP_PROXY'] = 'not-a-valid-url';
       expect(() => {

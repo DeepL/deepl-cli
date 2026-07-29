@@ -1,6 +1,5 @@
 /**
  * Tests for Usage Command
- * Following TDD approach
  */
 
  

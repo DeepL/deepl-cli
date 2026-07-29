@@ -1,6 +1,5 @@
 /**
  * Tests for Translation Memory resolver service.
- * Following TDD: RED -> GREEN -> MUTATE-AND-REVERT.
  */
 
 import {

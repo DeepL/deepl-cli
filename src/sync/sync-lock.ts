@@ -45,10 +45,10 @@ export function createEmptyLockFile(sourceLocale: string): SyncLockFile {
 }
 
 /**
- * JSON.stringify replacer that emits plain objects with sorted keys. Replaces
- * the previous deep-clone-then-stringify approach so the lockfile isn't
- * materialized twice in memory: the replacer is invoked lazily as stringify
- * recurses, so only a single sorted-key shell lives at each level of the tree.
+ * JSON.stringify replacer that emits plain objects with sorted keys, so the
+ * lockfile is never materialized twice in memory: the replacer is invoked
+ * lazily as stringify recurses, so only a single sorted-key shell lives at
+ * each level of the tree.
  * Objects whose own-enumeration order is already sorted are returned as-is so
  * leaf shells (translations, stats) don't allocate.
  */

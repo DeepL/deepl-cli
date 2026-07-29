@@ -2,8 +2,8 @@
  * Tests for package.json publish-surface invariants
  *
  * These guard properties that are easy to lose in a merge and expensive to
- * lose silently: the `clean` script was previously added, lost, and only
- * rediscovered when a stale `dist/` was found reaching `npm pack`.
+ * lose silently — e.g. without the `clean` script a stale `dist/` reaches
+ * `npm pack`.
  */
 
 import * as fs from 'fs';

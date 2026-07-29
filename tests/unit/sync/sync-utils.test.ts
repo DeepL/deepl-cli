@@ -22,7 +22,7 @@ describe('resolveTargetPath()', () => {
   it('should not partially match within longer words', () => {
     expect(resolveTargetPath('content/en.json', 'en', 'de')).toBe('content/de.json');
     // "content" contains "en" but only as a substring, not as a path segment
-    // Path with no locale at word boundary now throws ValidationError
+    // A path with no locale at a word boundary throws ValidationError
     expect(() => resolveTargetPath('contents/messages.json', 'en', 'de')).toThrow(ValidationError);
   });
 
@@ -174,9 +174,9 @@ describe('assertPathWithinRoot()', () => {
     });
 
     it('rejects a symlink inside the project that points outside', () => {
-      // Defense-in-depth: symlink-based escapes are now caught by realpath
-      // resolution. A symlink inside the project pointing at a sibling
-      // path must be rejected.
+      // Defense-in-depth: realpath resolution catches symlink-based escapes.
+      // A symlink inside the project pointing at a sibling path must be
+      // rejected.
       const escapeTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'kxri-escape-'));
       const escapeLink = path.join(realRoot, 'escape');
       fs.symlinkSync(escapeTarget, escapeLink);

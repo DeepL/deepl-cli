@@ -2,13 +2,11 @@
  * Tests that source text is never written into a target locale file and
  * recorded as a translation.
  *
- * When the lockfile claimed a locale already had a translation for a key but
- * the target file did not contain one — because the file was deleted to force
- * regeneration, or the stored translation was an empty string — the key fell
- * through to a branch that used the SOURCE value as the translation. The
- * lockfile then recorded it as `translated`, so no later run ever corrected
- * it: the file silently kept English for every affected key, and the run
- * reported success.
+ * When the lockfile claims a locale already has a translation for a key but
+ * the target file supplies none — the file was deleted to force regeneration,
+ * or the stored translation was empty — the key must be re-translated. Using
+ * the SOURCE value and recording it as `translated` would leave English in the
+ * file permanently, because no later run would revisit the key.
  */
 
 import { LocaleTranslator } from '../../../src/sync/sync-locale-translator';
@@ -96,7 +94,7 @@ function makeConfig(): ResolvedSyncConfig {
 }
 
 /**
- * The defect's precondition: the key is `current` (unchanged source), the
+ * Precondition under test: the key is `current` (unchanged source), the
  * lockfile says this locale has a translation, but the target file supplies
  * none — the file was deleted, or held an empty value.
  */

@@ -1,5 +1,5 @@
 /**
- * Tests for CLI exit code when no arguments provided (Issue deepl-cli-422)
+ * Tests for CLI exit code when no arguments provided.
  *
  * Validates that running 'deepl' with no arguments exits with code 0.
  */
@@ -8,10 +8,9 @@ import { execSync } from 'child_process';
 import * as path from 'path';
 
 describe('CLI no-args exit code', () => {
-  // Use the compiled CLI (matches every other e2e test). Previously this
-  // test invoked the TS source via `node --loader ts-node/esm` which added
-  // 1.5-2s of cold-load per call; under full-suite jest parallelism the 10s
-  // execSync timeout occasionally fired and returned exitCode: null.
+  // Use the compiled CLI, like every other e2e test: running the TS source
+  // through ts-node adds 1.5-2s of cold start per call, which does not fit
+  // the 10s execSync timeout under full-suite parallelism.
   const cliPath = path.resolve(__dirname, '../../dist/cli/index.js');
 
   it('should exit with code 0 when no arguments are provided', () => {

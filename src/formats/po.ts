@@ -290,12 +290,11 @@ export class PoFormatParser implements FormatParser {
     return entries;
   }
 
-  // Intentionally NOT migrated to PendingCommentBuffer: po backtracks into
-  // `result` at entry-start to slice trailing contiguous `#`-runs into
-  // `commentLines` for pop-on-delete or splice-with-fuzzy-strip on keep. That
-  // idiom is incompatible with the helper's forward-only flush/drop semantics;
-  // adding a `getBuffer()` accessor would reshape the interface TOML and
-  // properties stabilized around. po stays on its native bookkeeping.
+  // Comment bookkeeping is local rather than via PendingCommentBuffer: po
+  // backtracks into `result` at entry-start to slice trailing contiguous
+  // `#`-runs into `commentLines`, for pop-on-delete or splice-with-fuzzy-strip
+  // on keep. That is incompatible with the buffer's forward-only flush/drop
+  // semantics.
   reconstruct(content: string, entries: TranslatedEntry[]): string {
     const translationMap = new Map<string, TranslatedEntry>();
     for (const entry of entries) {

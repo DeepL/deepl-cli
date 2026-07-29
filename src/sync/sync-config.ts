@@ -618,10 +618,9 @@ export async function loadSyncConfig(
 
 // Emit a security warning whenever a user has put TMS credentials directly
 // in .deepl-sync.yaml instead of the recommended env vars. Writes directly
-// to stderr (no TTY gate) so the warning survives on CI and piped contexts;
-// previously the credential-resolution path in tms-client.ts only fired for
-// `deepl sync push` / `pull`, leaving `deepl sync status` etc. silent even
-// when the config held a secret.
+// to stderr (no TTY gate) so the warning survives on CI and piped contexts.
+// Runs at config load so every sync subcommand warns, not just the ones
+// that resolve TMS credentials in tms-client.ts.
 function warnOnInlineTmsCredentials(tms: SyncTmsConfig | undefined): void {
   if (!tms) return;
   if (tms.api_key && !process.env['TMS_API_KEY']) {

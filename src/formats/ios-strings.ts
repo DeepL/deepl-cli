@@ -67,11 +67,6 @@ export class IosStringsFormatParser implements FormatParser {
     return entries;
   }
 
-  // Intentionally NOT migrated to PendingCommentBuffer: deferred alongside po
-  // because the forward-only helper interface was frozen at the toml +
-  // properties shape and not re-opened. ios-strings is a plausible future
-  // migration once the helper grows a shape that also accommodates po's
-  // backtrack idiom.
   reconstruct(content: string, entries: TranslatedEntry[]): string {
     const translations = new Map<string, string>();
     for (const entry of entries) {

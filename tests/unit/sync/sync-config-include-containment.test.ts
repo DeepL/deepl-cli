@@ -1,18 +1,12 @@
 /**
  * Tests that bucket `include` globs cannot escape the project root.
  *
- * `include` entries were validated only as non-empty strings, while
- * `target_path_pattern` a few lines later explicitly rejected `..`. The
- * unvalidated glob's literal prefix was then resolved and handed to the stale
- * `.bak` sweep, which recursed with no containment check — deleting every old
- * `*.bak` it found and *re-creating* any file whose `.bak` existed while the
- * live file was missing or empty. Verified reachable: with
- * `include: "../../../../../../**\/*.json"` the sweep root became `/var`, an
- * out-of-root `.bak` was deleted and its sibling resurrected. The sweep runs
- * even under `--dry-run`, and its errors were swallowed silently.
- *
- * The `sync init` wizard already rejected this exact input; the check simply
- * did not exist on the config-load path.
+ * An include glob's literal prefix becomes the root of the stale `.bak` sweep,
+ * which recurses without further containment checks: it deletes old `*.bak`
+ * files and re-creates any file whose `.bak` exists while the live file is
+ * missing or empty. A `..`-bearing glob would therefore reach outside the
+ * project, so `include` must reject `..` the same way `target_path_pattern`
+ * does.
  */
 
 import { validateSyncConfig } from '../../../src/sync/sync-config';

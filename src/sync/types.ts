@@ -67,11 +67,10 @@ export interface SyncBehavior {
   max_scan_files?: number;
   bak_sweep_max_age_seconds?: number;
   /**
-   * Per-file parser caps. Default-exceed = file-skip + warn; setting any
-   * value above the hard ceiling fails at config load with a ConfigError.
+   * Per-file parser caps, applied format-agnostically. Default-exceed =
+   * file-skip + warn; setting any value above the hard ceiling fails at
+   * config load with a ConfigError.
    * See {@link DEFAULT_SYNC_LIMITS} and {@link HARD_MAX_SYNC_LIMITS}.
-   * Originally introduced as a security mitigation bound to the Laravel PHP
-   * parser, but format-agnostic where it applies.
    */
   limits?: SyncLimits;
 }

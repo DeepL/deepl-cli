@@ -82,8 +82,8 @@ describe('ICU with surrounding text', () => {
   it('should throw rather than emit empty branches on a length mismatch', () => {
     const result = parseIcu(LEADING);
 
-    // Fewer translations than segments previously produced `one {}` — an empty
-    // plural branch renders nothing for that category.
+    // Fewer translations than segments must throw rather than emit `one {}` —
+    // an empty plural branch renders nothing for that category.
     expect(() => result.reassemble(['only-one'])).toThrow();
   });
 });

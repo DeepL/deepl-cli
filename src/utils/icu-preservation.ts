@@ -10,10 +10,10 @@
 
 const ICU_KEYWORDS = new Set(['plural', 'select', 'selectordinal']);
 
-// Deliberately NOT anchored: "You have {count, plural, ...} in your cart." is
-// the most common real-world shape, and requiring the block at position 0
-// meant such a message was not recognised as ICU at all — the raw syntax went
-// to the MT engine, which translates the keyword and the selectors.
+// Deliberately NOT anchored: "You have {count, plural, ...} in your cart."
+// is the most common real-world shape. Requiring the block at position 0
+// would send the raw ICU syntax to the MT engine, which translates the
+// keyword and the selectors.
 const ICU_DETECT_RE = /\{\s*[\w]+\s*,\s*(?:plural|select|selectordinal)\s*,/;
 
 export interface IcuSegment {

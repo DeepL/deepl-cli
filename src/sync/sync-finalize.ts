@@ -32,9 +32,8 @@ export function finalizeSyncResult(i: FinalizeInputs): SyncResult {
   const hasStrategy = contextCount > 0 || instructionCount > 0;
 
   // docs/API.md defines exit 12 as "completed with at least one failed
-  // locale", so this is `some`, not `every`: previously a run failed only when
-  // EVERY locale failed, so one locale failing completely still exited 0 with
-  // its file absent, CI green, and --auto-commit committing that state.
+  // locale", so this is `some`, not `every`: one locale failing completely
+  // must fail the run even when the others succeeded.
   // A locale that translated nothing and has no failures is simply up to date.
   const anyLocaleFailed = i.fileResults.some(fr => fr.translated === 0 && fr.failed > 0);
 

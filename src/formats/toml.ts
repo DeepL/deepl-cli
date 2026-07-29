@@ -93,10 +93,8 @@ export class TomlFormatParser implements FormatParser {
         const valuePart = entryMatch[4]!;
 
         // Multi-line strings (non-goal): don't attempt rewrite. Emit the whole
-        // block verbatim and skip past it — otherwise body lines that happen to
-        // look like `key = "..."` were treated as entries and deleted, and the
-        // key was re-appended at end of file, leaving a document that no longer
-        // parses.
+        // block verbatim and skip past it, so body lines that happen to look
+        // like `key = "..."` are not mistaken for entries and deleted.
         if (TRIPLE_QUOTE_PREFIX_RE.test(valuePart)) {
           pending.flushToOutput(out);
           const delimiter = valuePart.startsWith('"""') ? '"""' : "'''";
@@ -161,8 +159,8 @@ export class TomlFormatParser implements FormatParser {
 
     // Insert new keys into their own section. Appending `section.key` at end
     // of file would nest it under whichever [section] header is still in
-    // scope there, producing `section.section.key` — and because the intended
-    // key then remained missing, it was re-appended on every later run.
+    // scope there, producing `section.section.key` and leaving the intended
+    // key still missing.
     const newEntries = entries.filter((e) => !usedKeys.has(e.key));
     if (newEntries.length > 0) {
       this.insertNewEntries(out, newEntries);

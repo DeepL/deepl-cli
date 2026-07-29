@@ -2,10 +2,9 @@
  * Tests that concurrency is genuinely bounded.
  *
  * These deliberately do NOT mock p-limit. A manual mock under
- * tests/__mocks__/p-limit.ts was previously auto-applied to every suite,
- * so no test in the repo exercised a real concurrency limit — two real
- * concurrency defects reached a release candidate as a result. The first
- * test here fails if that global mock ever returns.
+ * tests/__mocks__/p-limit.ts is auto-applied repo-wide, which would leave
+ * real concurrency limits unexercised everywhere. The first test here fails
+ * if such a mock is ever introduced.
  */
 
 import pLimit from 'p-limit';
@@ -53,8 +52,8 @@ describe('concurrency limiting', () => {
   });
 
   describe('fast-glob is the real implementation', () => {
-    // tests/__mocks__/fast-glob.ts was auto-applied the same way and resolved
-    // to undefined, so every glob-walking path was unexercised too.
+    // Same exposure for fast-glob: an auto-applied manual mock resolving to
+    // undefined would leave every glob-walking path unexercised.
     it('should return matching paths rather than undefined', async () => {
       const matches = await fg('tests/unit/concurrency-limiting.test.ts');
 

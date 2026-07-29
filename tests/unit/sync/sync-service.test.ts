@@ -422,10 +422,8 @@ describe('SyncService', () => {
     });
 
     it('does not emit the "outer controller" clear-set branch when no backupTracker is supplied', async () => {
-      // Regression guard: the old sync() signature only passed a backupTracker
-      // in watch mode. Non-watch runs now wire one up internally for every
-      // call; this test pins the semantic that non-watch callers still do not
-      // need to receive any backupTracker reference back.
+      // Non-watch runs wire up a backupTracker internally; this pins the
+      // semantic that they do not receive any backupTracker reference back.
       setupLockManager(makeEmptyLockFile());
       const translateBatch = jest.fn().mockResolvedValue([
         { text: 'Hallo', billedCharacters: 5 },
@@ -1059,9 +1057,8 @@ describe('SyncService', () => {
       expect(result.currentKeys).toBe(1);
       // The stale key is re-translated. The current key ("farewell") is too,
       // because this fixture has no de.json on disk: a lockfile entry with no
-      // target content means the file was deleted, and the alternative —
-      // writing the English source and marking it translated — left English in
-      // the locale file permanently.
+      // target content means the file was deleted, so the key must be
+      // translated again rather than recorded as already done.
       const sentTexts = translateBatch.mock.calls.flatMap((call) => call[0] as string[]);
       expect(sentTexts).toContain('Hello');
       expect(sentTexts).toContain('Goodbye');

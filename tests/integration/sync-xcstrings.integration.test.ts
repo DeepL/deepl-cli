@@ -8,10 +8,9 @@
  * file holds every locale) matches
  * tests/fixtures/sync/formats/xcstrings/expected-after-sync/de.xcstrings.
  *
- * Closes a fixture-coverage gap: xcstrings multi-locale write serialization
- * is called out as a landmine in docs/SYNC.md and was not previously
- * exercised from disk fixtures, so XcstringsFormatParser.reconstruct
- * regressions would silently corrupt user translation files.
+ * xcstrings multi-locale write serialization is called out as a landmine in
+ * docs/SYNC.md: XcstringsFormatParser.reconstruct regressions would silently
+ * corrupt user translation files, so it is exercised from disk fixtures.
  */
 
 import * as fs from 'fs';

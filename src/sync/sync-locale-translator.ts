@@ -444,9 +444,9 @@ export class LocaleTranslator {
       } else {
         // No translation in the target file. Translate it, even when the
         // lockfile claims this locale already has one: that combination means
-        // the target file was deleted or emptied. Writing the source value
-        // here instead put English into the locale file and recorded it as
-        // `translated`, so no later run ever corrected it.
+        // the target file was deleted or emptied. Writing the source value here
+        // would record untranslated text as `translated`, which no later run
+        // would correct.
         untranslatedCurrentKeys.push(cd.key);
         if (hasLocaleTranslation) {
           Logger.verbose(

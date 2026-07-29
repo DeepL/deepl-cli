@@ -1,11 +1,10 @@
 /**
  * Tests that a locale which failed entirely is reported as a failure.
  *
- * `allFailed` used `.every()`, so a run only failed when EVERY file/locale
- * failed. With two locales where one succeeded and the other failed
- * completely, the run reported success and exited 0 — leaving the failed
- * locale's file absent while CI went green, and `--auto-commit` committing
- * that state.
+ * A run fails when ANY file/locale failed completely, not only when all did.
+ * Otherwise a run with one succeeded and one failed locale exits 0, leaving
+ * the failed locale's file absent while CI goes green and `--auto-commit`
+ * commits that state.
  */
 
 import { finalizeSyncResult } from '../../../src/sync/sync-finalize';

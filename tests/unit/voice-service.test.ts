@@ -923,10 +923,9 @@ describe('VoiceService', () => {
         }
       });
 
-      // Signal end-of-stream when sendEndOfSource is called (after all
-      // chunks have been sent). This is deterministic — the previous
-      // setImmediate-based polling loop raced with timer advancement and
-      // file I/O, causing timeouts on slow CI machines.
+      // Signal end-of-stream when sendEndOfSource is called, after all chunks
+      // have been sent. Driving it off the call rather than polling keeps this
+      // deterministic under fake timers and file I/O.
       mockClient.sendEndOfSource.mockImplementation(() => {
         process.nextTick(() => ws2Callbacks?.onEndOfStream?.());
       });

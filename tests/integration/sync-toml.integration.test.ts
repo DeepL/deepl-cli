@@ -5,9 +5,8 @@
  * SyncService with a nock-mocked DeepL response, and asserts the target
  * de.toml on disk matches tests/fixtures/sync/formats/toml/expected-after-sync/de.toml.
  *
- * Closes a fixture-coverage gap: toml was not previously exercised from disk
- * fixtures, so TomlFormatParser.reconstruct regressions would slip past unit
- * tests that only exercise in-memory strings.
+ * Disk fixtures are required here: TomlFormatParser.reconstruct regressions
+ * slip past unit tests that only exercise in-memory strings.
  */
 
 import * as fs from 'fs';

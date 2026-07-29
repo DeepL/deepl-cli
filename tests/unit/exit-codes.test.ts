@@ -26,10 +26,9 @@ describe('ExitCode', () => {
     });
 
     it('PartialFailure is distinct from GeneralError', () => {
-      // Regression guard: a prior version aliased PartialFailure to 1
-      // (same as GeneralError), which prevented CI scripts from telling
-      // "some locales failed" apart from "CLI crashed". Exit 12 was chosen
-      // to keep a gap below the Linux signal-exit range (128+signal).
+      // PartialFailure must stay distinct from GeneralError so CI scripts can
+      // tell "some locales failed" from "CLI crashed". 12 keeps a gap below
+      // the Linux signal-exit range (128+signal).
       expect(ExitCode.PartialFailure).not.toBe(ExitCode.GeneralError);
     });
   });

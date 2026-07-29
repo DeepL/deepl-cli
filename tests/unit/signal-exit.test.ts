@@ -1,11 +1,11 @@
 /**
  * Tests signal handling ownership.
  *
- * CacheService's SIGINT handler called process.exit(0). Because the cache
- * singleton is built during service construction, that handler ran before the
- * sync engine's own — so an interrupted `deepl sync` reported success (exit 0)
- * and leaked its process lock. Termination now belongs to the CLI entry point,
- * which defers the exit so every other listener's cleanup runs first.
+ * Termination belongs to the CLI entry point, not to individual services: a
+ * service-level handler calling process.exit() runs before the sync engine's
+ * own listener, which would report success (exit 0) on an interrupt and leak
+ * the process lock. The entry point defers the exit so every other listener's
+ * cleanup runs first.
  */
 
 import {

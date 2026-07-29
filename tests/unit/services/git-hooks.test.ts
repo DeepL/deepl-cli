@@ -1,6 +1,5 @@
 /**
  * Tests for GitHooksService
- * Following TDD approach
  */
 
 import * as fs from 'fs';
@@ -57,11 +56,9 @@ describe('GitHooksService', () => {
   });
 
   describe('generated hook content', () => {
-    // Regression guard for the class of bug reported in PR #70: docs pointed
-    // at the unpublished `deepl-cli` npm name, and the fix missed this file —
-    // so the CLI itself kept emitting a broken install instruction into
-    // generated hooks. Generated output must only ever name the published
-    // package, @deepl/cli.
+    // Generated hook content must only ever name the published package,
+    // @deepl/cli — an unpublished name emits a broken install instruction
+    // into every generated hook.
     const hookTypes = ['pre-commit', 'pre-push', 'commit-msg', 'post-commit'] as const;
 
     it.each(hookTypes)('%s output never references an unpublished package name', (hookType) => {

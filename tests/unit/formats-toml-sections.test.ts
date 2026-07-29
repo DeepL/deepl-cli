@@ -63,9 +63,9 @@ describe('TOML section handling for new keys', () => {
   });
 
   describe('multi-line string blocks', () => {
-    // A body line that looks like `key = "..."` was previously parsed as an
-    // entry and deleted, and the multi-line key was then re-appended at end of
-    // file — producing a document that no longer parses.
+    // A body line inside a multi-line string can look like `key = "..."`; it
+    // must not be parsed as an entry, or the block is torn apart and the
+    // document stops parsing.
     const multiline = [
       'intro = """',
       'Welcome to the app.',

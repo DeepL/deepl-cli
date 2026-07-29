@@ -1,6 +1,5 @@
 /**
  * Tests for Glossary Service
- * Following TDD approach - RED phase
  */
 
 import { GlossaryService } from '../../src/services/glossary';
@@ -657,7 +656,6 @@ describe('GlossaryService', () => {
       });
     });
 
-    // Issue #5: CSV parsing with quoted commas
     it('should handle CSV with quoted commas (Issue #5)', () => {
       // CSV standard: commas inside quotes should not split fields
       const csv = '"hello, world",hola mundo\n"goodbye, friend",adiós amigo';

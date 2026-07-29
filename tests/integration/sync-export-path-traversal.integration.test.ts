@@ -10,8 +10,8 @@
  * happily resolve and return that absolute path. The export pipeline would
  * then read the file and embed its contents in the generated XLIFF.
  *
- * The fix root-anchors every source file against `config.projectRoot` via
- * `assertPathWithinRoot`, matching the existing `--output` destination guard.
+ * Every source file is root-anchored against `config.projectRoot` via
+ * `assertPathWithinRoot`, matching the `--output` destination guard.
  */
 
 import * as fs from 'fs';

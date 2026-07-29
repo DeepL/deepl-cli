@@ -608,11 +608,9 @@ describe('LocaleTranslator', () => {
       expect(result.targetEntries.get('new_key')).toBe('Neuer Wert');
     });
 
-    // Previously this fell back to the SOURCE text and the lockfile kept its
-    // `translated` status, so the locale file silently retained English for
-    // that key and no later run corrected it. A lockfile entry with no
-    // corresponding target content means the file was deleted or emptied, so
-    // the key must be translated again.
+    // A lockfile entry with no corresponding target content means the file was
+    // deleted or emptied, so the key must be translated again rather than
+    // falling back to the SOURCE text.
     it('should re-translate a current key whose lockfile entry has no target content', async () => {
       const config = makeConfig();
       const diffs: SyncDiff[] = [

@@ -1,5 +1,5 @@
 /**
- * Tests for lazy sub-client construction in DeepLClient (Issue deepl-cli-4x9d)
+ * Tests for lazy sub-client construction in DeepLClient.
  */
 
 import nock from 'nock';

@@ -42,9 +42,9 @@ describe('Android XML CDATA safety', () => {
     // attacker's element must not be part of it.
     const markupOnly = out.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
     expect(markupOnly).not.toContain('name="injected"');
-    // Known limitation, unchanged by this fix: extract() is regex-based, so
-    // literal `<string name=…>` text inside a CDATA body is still counted as
-    // an element. A real Android build reads one element here.
+    // Known limitation: extract() is regex-based, so literal `<string name=…>`
+    // text inside a CDATA body counts as an element. A real Android build
+    // reads one element here.
   });
 
   it('should preserve "]]>" as literal text through a round-trip', () => {

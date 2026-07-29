@@ -226,7 +226,7 @@ describe('pushTranslations()', () => {
     const client = makeClient();
     const result = await pushTranslations(makeConfig(), client, makeRegistry());
     expect(result.pushed).toBe(0);
-    // The ENOENT target file is now recorded as a skip rather than silently dropped.
+    // An ENOENT target file is recorded as a skip, not silently dropped.
     expect(result.skipped).toEqual([
       { file: 'locales/en.json', locale: 'de', reason: 'target_missing' },
     ]);

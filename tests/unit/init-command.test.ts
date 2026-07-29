@@ -1,5 +1,5 @@
 /**
- * Tests for the init setup wizard (Issue deepl-cli-zwf)
+ * Tests for the init setup wizard.
  */
 
 import * as path from 'path';

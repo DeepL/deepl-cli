@@ -1,12 +1,11 @@
 /**
  * Tests that ICU structural damage is detected.
  *
- * checkIcuBrackets compared only brace counts and nesting depth, which are
- * identical before and after the MT engine translates the format keyword,
- * the selectors, or the argument name. Verified against the live API:
- * `plural` became `Plural`, `one` became `ein`, `other` became `weiteres` —
- * a message with no valid format type and no fallback branch — and validation
- * returned `pass` with no issues, so `fail_on_error` never tripped.
+ * Brace counts and nesting depth are identical before and after an MT engine
+ * translates the format keyword, the selectors, or the argument name
+ * (`plural` → `Plural`, `one` → `ein`, `other` → `weiteres`), so validation
+ * must inspect those tokens directly. Otherwise a message with no valid format
+ * type and no fallback branch returns `pass` and `fail_on_error` never trips.
  */
 
 import { validateTranslation } from '../../../src/sync/translation-validator';

@@ -4,9 +4,7 @@
  * restorePlaceholders looped `while (restored.includes(placeholder))`,
  * re-running a single `replace` each pass. When the preserved original itself
  * contained the placeholder token, every pass re-inserted it: the guard never
- * went false and the string grew by the original's length forever. Measured
- * before the fix: input `{__VAR_0__}` grew 9 -> 400,009 bytes over 200,000
- * iterations without converging.
+ * went false and the string grew by the original's length forever.
  *
  * `preserveVariables`' pattern is `/\{[\p{L}\p{N}_]+\}/u`, which matches
  * `{__VAR_0__}` because underscores and digits are in the class — so a locale

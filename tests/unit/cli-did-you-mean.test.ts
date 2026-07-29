@@ -1,15 +1,14 @@
 /**
- * Tests for did-you-mean suggestion on unknown commands (Issue deepl-cli-u4p)
+ * Tests for did-you-mean suggestion on unknown commands.
  */
 
 import { execSync } from 'child_process';
 import * as path from 'path';
 
 describe('CLI did-you-mean suggestions', () => {
-  // Use the compiled CLI (same as every other e2e test). Previously this test
-  // invoked the TS source via `node --loader ts-node/esm`, which added
-  // 1.5-2s of cold-start overhead per call and pushed the 10s execSync
-  // timeout over the edge under full-suite parallelism.
+  // Use the compiled CLI, like every other e2e test: running the TS source
+  // through ts-node adds 1.5-2s of cold start per call, which does not fit
+  // the 10s execSync timeout under full-suite parallelism.
   const cliPath = path.resolve(__dirname, '../../dist/cli/index.js');
 
   function runCLI(args: string): { stdout: string; stderr: string; exitCode: number } {

@@ -1,14 +1,11 @@
 /**
  * Tests per-locale staleness detection.
  *
- * computeDiff compared only the entry-level `source_hash`, so if one locale's
- * stored hash lagged behind the source, the key still reported `current` and
- * that locale was never re-translated — and `--frozen`, the CI gate whose
- * whole purpose is catching out-of-date translations, could not see it.
- *
- * Separately, `hasFailed` scanned every locale's status, so a single locale's
- * failure marked the key stale for ALL locales; the next run re-translated
- * every locale and overwrote human-edited files that were perfectly fine.
+ * Staleness is per locale, not per entry: a key is stale for any locale whose
+ * stored hash lags the source, even when other locales are current, so
+ * `--frozen` can see out-of-date translations. Conversely, failure status is
+ * scoped to the locale under test — one locale's failure must not mark the key
+ * stale for all locales and re-translate over human-edited files.
  */
 
 import { computeDiff } from '../../../src/sync/sync-differ';

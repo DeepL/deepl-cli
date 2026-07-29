@@ -1,6 +1,5 @@
 /**
  * Tests for Logger utility
- * Following TDD approach - RED phase
  */
 
 import { Logger } from '../../src/utils/logger';

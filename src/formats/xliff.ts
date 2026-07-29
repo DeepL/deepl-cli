@@ -11,8 +11,8 @@ const UNIT_RE =
 
 const SOURCE_RE = /<(?:\w+:)?source>([\s\S]*?)<\/(?:\w+:)?source>/i;
 // Attributes are optional but must be preserved: `state` is a standard XLIFF
-// attribute that every CAT tool writes, and requiring a bare tag previously
-// made these elements invisible (dropping units and duplicating targets).
+// attribute that every CAT tool writes, so requiring a bare tag would make
+// those elements invisible to this regex.
 const TARGET_RE = /<(\w+:)?target((?:\s[^>]*)?)>([\s\S]*?)<\/(?:\w+:)?target>/i;
 const NOTE_RE = /<(?:\w+:)?note(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?note>/i;
 const SEGMENT_RE = /<(?:\w+:)?segment(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?segment>/i;
@@ -31,10 +31,9 @@ const XML_ENTITY_RE = /&(?:(amp|lt|gt|quot|apos)|#(x[0-9a-fA-F]+|[0-9]+));/g;
  * Decode XML entities in a single pass. Handles the five named entities
  * plus decimal (`&#NN;`) and hex (`&#xNN;`) numeric character references.
  *
- * Single-pass is load-bearing: the previous chained `.replace()` impl
- * double-decoded `&amp;lt;` (first pass `&amp;` → `&`, second pass
- * `&lt;` → `<`), silently corrupting any payload that round-tripped
- * literal entities through translation.
+ * The single pass is required for correctness: chained `.replace()` calls
+ * double-decode `&amp;lt;` (`&amp;` → `&`, then `&lt;` → `<`), corrupting
+ * payloads that carry literal entities.
  */
 function unescapeXml(value: string): string {
   return value.replace(XML_ENTITY_RE, (match, named: string | undefined, numeric: string | undefined) => {

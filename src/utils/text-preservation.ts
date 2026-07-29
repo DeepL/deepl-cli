@@ -51,11 +51,9 @@ export function preserveVariables(text: string, preservationMap: Map<string, str
 export function restorePlaceholders(text: string, preservationMap: Map<string, string>): string {
   let restored = text;
   for (const [placeholder, original] of preservationMap.entries()) {
-    // Single pass per placeholder. The previous `while (includes(placeholder))`
-    // loop never terminated when `original` itself contained the placeholder
-    // token — each pass re-inserted it and the string grew without bound. A
-    // locale value shaped like `{__VAR_0__}` is enough to trigger it, and
-    // because restoration also runs on cached results it hung with no API call.
+    // Single pass per placeholder: `original` may itself contain the
+    // placeholder token (a locale value shaped like `{__VAR_0__}`), so any
+    // loop that re-scans the output would never terminate.
     // The function form of the replacement keeps `$&`/`$1` in `original`
     // literal instead of being read as substitution patterns.
     restored = restored.replaceAll(placeholder, () => original);

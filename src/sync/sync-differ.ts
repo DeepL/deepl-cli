@@ -5,9 +5,9 @@ import { computeSourceHash } from './sync-lock.js';
 /**
  * Is any of `targetLocales` out of date for this entry?
  *
- * Comparing only the entry-level `source_hash` missed the case where one
- * locale's stored hash lagged behind: the key reported `current` forever and
- * that locale was never re-translated, which `--frozen` could not detect.
+ * Staleness is judged per locale, not from the entry-level `source_hash`
+ * alone: a locale whose stored hash lags behind still needs re-translation
+ * even when the source is unchanged.
  * Locales absent from `targetLocales` are ignored, so a leftover entry for a
  * de-configured locale does not flag the key indefinitely.
  */
@@ -42,10 +42,10 @@ export function computeDiff(
     if (!lockEntry) {
       diffs.push({ key, status: 'new', value: entry.value, metadata: entry.metadata });
     } else if (computeSourceHash(entry.value, entry.metadata) === lockEntry.source_hash) {
-      // Scope the check to the configured target locales when they are known.
-      // The previous `Object.values(...).some(failed)` marked the key stale for
-      // EVERY locale as soon as one had failed, so the next run re-translated
-      // locales that were already fine and overwrote human-edited files.
+      // Scope the check to the configured target locales when they are known: a
+      // whole-entry `some(failed)` check would mark the key stale for EVERY
+      // locale as soon as one had failed, re-translating locales that are already
+      // fine and overwriting human-edited files.
       const needsWork = targetLocales
         ? hasOutdatedLocale(lockEntry, lockEntry.source_hash, targetLocales)
         : Object.values(lockEntry.translations).some(t => t.status === 'failed');
