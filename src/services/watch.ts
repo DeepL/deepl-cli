@@ -32,6 +32,7 @@ export interface WatchOptions {
   pattern?: string;
   recursive?: boolean;
   abortSignal?: AbortSignal;
+  onReady?: () => void;
   onChange?: (filePath: string) => void;
   onTranslate?: (filePath: string, result: WatchTranslationResult) => void;
   onError?: (filePath: string, error: Error) => void;
@@ -115,6 +116,14 @@ export class WatchService {
     }
 
     this.watcher = chokidar.watch(watchPath, watcherOptions);
+    this.stats.filesWatched = 0;
+
+    // With ignoreInitial: true the initial scan emits no 'add' events, so the
+    // authoritative file count comes from getWatched() once 'ready' fires.
+    this.watcher.on('ready', () => {
+      this.stats.filesWatched = this.countWatchedFiles();
+      this.watchOptions?.onReady?.();
+    });
 
     this.watcher.on('change', (filePath: string) => {
       try {
@@ -125,6 +134,7 @@ export class WatchService {
     });
 
     this.watcher.on('add', (filePath: string) => {
+      this.stats.filesWatched++;
       try {
         this.handleFileChange(filePath);
       } catch (error) {
@@ -132,7 +142,35 @@ export class WatchService {
       }
     });
 
+    this.watcher.on('unlink', () => {
+      if (this.stats.filesWatched > 0) {
+        this.stats.filesWatched--;
+      }
+    });
+
     this.stats.isWatching = true;
+  }
+
+  /**
+   * Count files currently tracked by the watcher.
+   * getWatched() maps each watched directory to its entries; an entry is a
+   * directory (not a file) exactly when its full path is itself a key.
+   */
+  private countWatchedFiles(): number {
+    if (!this.watcher) {
+      return 0;
+    }
+
+    const watched = this.watcher.getWatched();
+    let count = 0;
+    for (const [dir, entries] of Object.entries(watched)) {
+      for (const entry of entries) {
+        if (!(path.join(dir, entry) in watched)) {
+          count++;
+        }
+      }
+    }
+    return count;
   }
 
   /**
