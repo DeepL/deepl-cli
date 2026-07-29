@@ -270,7 +270,7 @@ export class SyncCommand {
       process.exitCode = ExitCode.PartialFailure;
     }
 
-    if (options.autoCommit && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
+    if (options.autoCommit && result.success && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
       await this.autoCommitTranslations(result, config);
     }
 
@@ -384,7 +384,7 @@ export class SyncCommand {
           backupTracker,
         });
         this.displayResult(result, 'text');
-        if (options.autoCommit && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
+        if (options.autoCommit && result.success && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
           await this.autoCommitTranslations(result, activeConfig);
         }
       },
