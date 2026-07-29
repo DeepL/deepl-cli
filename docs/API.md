@@ -1625,26 +1625,26 @@ Show glossary details including name, ID, languages, creation date, and entry co
 deepl glossary show tech-terms
 # Name: tech-terms
 # ID: abc123...
-# Source language: en
-# Target languages: de
+# Source language: EN
+# Target languages: DE
 # Type: Single target
 # Total entries: 3
-# Created: 2024-10-07T12:34:56Z
+# Created: 2024-10-07T12:34:56.000Z
 
 # Multilingual glossary example
 deepl glossary show multilingual-terms
 # Name: multilingual-terms
 # ID: def456...
-# Source language: en
-# Target languages: es, fr, de
+# Source language: EN
+# Target languages: ES, FR, DE
 # Type: Multilingual
 # Total entries: 15
 #
 # Language pairs:
-#   en → es: 5 entries
-#   en → fr: 5 entries
-#   en → de: 5 entries
-# Created: 2024-10-08T10:00:00Z
+#   EN → ES: 5 entries
+#   EN → FR: 5 entries
+#   EN → DE: 5 entries
+# Created: 2024-10-08T10:00:00.000Z
 ```
 
 ##### `delete <name-or-id>`
