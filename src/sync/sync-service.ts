@@ -130,15 +130,23 @@ export class SyncService {
     process.once('SIGINT', onSignal);
     process.once('SIGTERM', onSignal);
 
-    if (!isOuterWatchRun) {
+    // --dry-run must not modify the working tree, and this sweep both deletes
+    // stale .bak files and can restore a sibling from one. It was previously
+    // gated only on watch runs, so the flag users reach for to avoid side
+    // effects performed them.
+    if (!isOuterWatchRun && !options?.dryRun) {
       try {
         await sweepStaleBackups(
           config.projectRoot,
           resolveBakSweepAgeMs(config.sync?.bak_sweep_max_age_seconds),
           config.buckets,
         );
-      } catch {
-        /* startup sweep is best-effort — never block the sync */
+      } catch (error) {
+        // Still best-effort — never block the sync — but say so rather than
+        // failing silently, which is how the containment bug stayed invisible.
+        Logger.warn(
+          `Stale-backup sweep skipped: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 

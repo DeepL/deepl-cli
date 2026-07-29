@@ -23,12 +23,20 @@ export function bucketSweepRoots(
   buckets: Record<string, { include: string[] }>,
 ): string[] {
   const roots = new Set<string>();
+  const rootPrefix = path.resolve(projectRoot) + path.sep;
   for (const bucket of Object.values(buckets)) {
     for (const glob of bucket.include) {
       const specialIdx = glob.search(/[*?{[]/);
       const literal = specialIdx === -1 ? glob : glob.slice(0, specialIdx);
       const dir = literal.endsWith('/') ? literal.slice(0, -1) : path.dirname(literal);
       const abs = path.resolve(projectRoot, dir);
+      // Defence in depth. validateSyncConfig rejects traversing includes, but
+      // this sweep deletes and re-creates files, so it must never accept a
+      // root outside the project even if it is reached another way.
+      if (abs !== path.resolve(projectRoot) && !(abs + path.sep).startsWith(rootPrefix)) {
+        Logger.warn(`Ignoring stale-backup sweep root outside the project: ${abs}`);
+        continue;
+      }
       roots.add(abs);
     }
   }

@@ -331,6 +331,22 @@ export function validateSyncConfig(raw: unknown): SyncConfig {
           `Ensure every entry in buckets.${safeName}.include is a quoted glob string.`,
         );
       }
+      // Containment must be enforced here, not only in the `sync init` wizard
+      // (sync-init-validate.ts) which already rejects the same input: these
+      // globs feed both the file walk and the stale-.bak sweep, and the sweep
+      // deletes and re-creates files under whatever root it is handed.
+      if (inc.split(/[/\\]/).some((segment) => segment === '..')) {
+        throw new ConfigError(
+          `Sync config bucket "${safeName}" include entry "${inc}" contains a ".." traversal segment`,
+          `Use globs relative to the project root without traversal segments in buckets.${safeName}.include.`,
+        );
+      }
+      if (path.isAbsolute(inc)) {
+        throw new ConfigError(
+          `Sync config bucket "${safeName}" include entry "${inc}" must be relative to the project root`,
+          `Replace the absolute path in buckets.${safeName}.include with a path relative to the project root.`,
+        );
+      }
     }
     if (b['target_path_pattern'] !== undefined) {
       if (typeof b['target_path_pattern'] !== 'string') {

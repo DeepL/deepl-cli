@@ -56,7 +56,7 @@ describe('sync export source-side path-traversal safety', () => {
     if (fs.existsSync(outsideDir)) fs.rmSync(outsideDir, { recursive: true, force: true });
   });
 
-  it('rejects absolute include patterns that resolve outside the project root', async () => {
+  it('rejects an absolute include pattern at config load', async () => {
     writeJson(projectDir, 'locales/en.json', { greeting: 'Hello' });
     writeSyncConfig(projectDir, {
       targetLocales: ['de'],
@@ -64,10 +64,28 @@ describe('sync export source-side path-traversal safety', () => {
       buckets: { json: { include: [path.join(outsideDir, '*.json')] } },
     });
 
+    // Containment is now enforced at the boundary, so such a config never
+    // loads — the export-time guard below is the second line of defence.
+    await expect(loadSyncConfig(projectDir)).rejects.toThrow(/relative to the project root/);
+  });
+
+  it('still rejects an out-of-root source file at export time', async () => {
+    writeJson(projectDir, 'locales/en.json', { greeting: 'Hello' });
+    writeSyncConfig(projectDir, {
+      targetLocales: ['de'],
+      buckets: { json: { include: ['locales/*.json'] } },
+    });
     const config = await loadSyncConfig(projectDir);
 
-    await expect(exportTranslations(config, harness.registry)).rejects.toThrow(ValidationError);
-    await expect(exportTranslations(config, harness.registry)).rejects.toThrow(
+    // Bypass config validation to prove the export pipeline guards
+    // independently: defence in depth, in case a glob reaches it another way.
+    const escaping = {
+      ...config,
+      buckets: { json: { include: [path.join(outsideDir, '*.json')] } },
+    };
+
+    await expect(exportTranslations(escaping, harness.registry)).rejects.toThrow(ValidationError);
+    await expect(exportTranslations(escaping, harness.registry)).rejects.toThrow(
       /escapes project root/,
     );
   });
@@ -76,10 +94,16 @@ describe('sync export source-side path-traversal safety', () => {
     writeJson(projectDir, 'locales/en.json', { greeting: 'Hello' });
     writeSyncConfig(projectDir, {
       targetLocales: ['de'],
-      buckets: { json: { include: [path.join(outsideDir, '*.json')] } },
+      buckets: { json: { include: ['locales/*.json'] } },
     });
 
-    const config = await loadSyncConfig(projectDir);
+    const loaded = await loadSyncConfig(projectDir);
+    // Escaping include injected past config validation, so this asserts the
+    // export pipeline's own guard rather than the boundary check.
+    const config = {
+      ...loaded,
+      buckets: { json: { include: [path.join(outsideDir, '*.json')] } },
+    };
 
     let caught: unknown;
     let result: Awaited<ReturnType<typeof exportTranslations>> | undefined;
