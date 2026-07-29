@@ -4,7 +4,7 @@ import { ValidationError } from '../../../utils/errors.js';
 import type { ServiceDeps } from '../service-factory.js';
 import type { TargetTranslationIndex } from '../../../sync/sync-glossary-report.js';
 import { extractTranslatable } from '../../../sync/sync-bucket-walker.js';
-import { emitJsonErrorAndExit, resolveFormat } from './sync-options.js';
+import { emitJsonErrorAndExit, resolveFormat, resolveSyncConfig } from './sync-options.js';
 
 interface AuditOptions {
   format?: string;
@@ -65,7 +65,9 @@ async function handleSyncAudit(
     const pathMod = await import('path');
     const fsMod = await import('fs');
 
-    const config = await loadSyncConfig(process.cwd(), { configPath: options.syncConfig });
+    const config = await loadSyncConfig(process.cwd(), {
+      configPath: resolveSyncConfig(options, command),
+    });
     const lockPath = pathMod.join(config.projectRoot, LOCK_FILE_NAME);
     const lockManager = new SyncLockManager(lockPath);
     const lockFile = await lockManager.read();

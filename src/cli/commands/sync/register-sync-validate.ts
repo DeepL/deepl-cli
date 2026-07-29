@@ -3,7 +3,13 @@ import chalk from 'chalk';
 import { Logger } from '../../../utils/logger.js';
 import { ExitCode } from '../../../utils/exit-codes.js';
 import type { ServiceDeps } from '../service-factory.js';
-import { emitJsonErrorAndExit, resolveFormat } from './sync-options.js';
+import {
+  emitJsonErrorAndExit,
+  parseLocaleFilter,
+  resolveFormat,
+  resolveLocale,
+  resolveSyncConfig,
+} from './sync-options.js';
 
 interface ValidateOptions {
   locale?: string;
@@ -39,17 +45,16 @@ async function handleSyncValidate(
     const { createDefaultRegistry } = await import('../../../formats/index.js');
     const { validateTranslations } = await import('../../../sync/sync-validate.js');
 
-    const config = await loadSyncConfig(process.cwd(), { configPath: options.syncConfig });
+    const localeFilter = parseLocaleFilter(resolveLocale(options, command));
+    const config = await loadSyncConfig(process.cwd(), {
+      configPath: resolveSyncConfig(options, command),
+      localeFilter,
+    });
 
-    const allLocales = [...config.target_locales];
-    if (options.locale) {
-      const filterLocales = options.locale.split(',').map((l) => l.trim());
+    if (localeFilter) {
       config.target_locales = config.target_locales.filter((l: string) =>
-        filterLocales.includes(l),
+        localeFilter.includes(l),
       );
-      if (config.target_locales.length === 0) {
-        Logger.warn(`No matching locales for filter. Available: ${allLocales.join(', ')}`);
-      }
     }
 
     const registry = await createDefaultRegistry();

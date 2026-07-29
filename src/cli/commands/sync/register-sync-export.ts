@@ -2,7 +2,13 @@ import { Command, Option } from 'commander';
 import { Logger } from '../../../utils/logger.js';
 import { ValidationError } from '../../../utils/errors.js';
 import type { ServiceDeps } from '../service-factory.js';
-import { emitJsonErrorAndExit, resolveFormat } from './sync-options.js';
+import {
+  emitJsonErrorAndExit,
+  parseLocaleFilter,
+  resolveFormat,
+  resolveLocale,
+  resolveSyncConfig,
+} from './sync-options.js';
 
 interface ExportOptions {
   locale?: string;
@@ -47,9 +53,12 @@ async function handleSyncExport(
     const pathMod = await import('path');
     const fsMod = await import('fs');
 
-    const config = await loadSyncConfig(process.cwd(), { configPath: options.syncConfig });
+    const localeFilter = parseLocaleFilter(resolveLocale(options, command));
+    const config = await loadSyncConfig(process.cwd(), {
+      configPath: resolveSyncConfig(options, command),
+      localeFilter,
+    });
     const registry = await createDefaultRegistry();
-    const localeFilter = options.locale?.split(',').map((l: string) => l.trim());
     const result = await exportTranslations(config, registry, { localeFilter });
 
     if (options.output) {
