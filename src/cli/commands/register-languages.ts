@@ -63,7 +63,7 @@ Examples:
 
         const useTable = options.format === 'table';
         if (useTable && !process.stdout.isTTY) {
-          Logger.warn('--format table is not supported in non-TTY output; falling back to plain text');
+          Logger.warn('WARN  --format table is not supported in non-TTY output; falling back to plain text');
         }
         const wantTable = useTable && process.stdout.isTTY;
 

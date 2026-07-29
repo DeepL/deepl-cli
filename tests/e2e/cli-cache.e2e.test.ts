@@ -52,6 +52,14 @@ describe('Cache Command E2E', () => {
     });
   });
 
+  describe('table fallback warning', () => {
+    it('should prefix the non-TTY table fallback warning with WARN', () => {
+      const output = runCLIAll('cache stats --format table');
+
+      expect(output).toContain('WARN  --format table is not supported in non-TTY output; falling back to plain text');
+    });
+  });
+
   describe('cache --help', () => {
     it('should display help text', () => {
       const output = runCLI('cache --help');

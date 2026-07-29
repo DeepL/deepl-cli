@@ -101,7 +101,7 @@ Examples:
               Logger.output(styleRulesCommand.formatStyleRulesJson(rules));
             } else if (options.format === 'table') {
               if (!process.stdout.isTTY) {
-                Logger.warn('--format table is not supported in non-TTY output; falling back to plain text');
+                Logger.warn('WARN  --format table is not supported in non-TTY output; falling back to plain text');
                 Logger.output(styleRulesCommand.formatStyleRulesList(rules));
               } else {
                 Logger.output(styleRulesCommand.formatStyleRulesTable(rules));
@@ -252,7 +252,7 @@ Examples:
               Logger.output(styleRulesCommand.formatCustomInstructionJson(instructions));
             } else if (options.format === 'table') {
               if (!process.stdout.isTTY) {
-                Logger.warn('--format table is not supported in non-TTY output; falling back to plain text');
+                Logger.warn('WARN  --format table is not supported in non-TTY output; falling back to plain text');
                 Logger.output(styleRulesCommand.formatCustomInstructionsList(instructions));
               } else {
                 Logger.output(styleRulesCommand.formatCustomInstructionsTable(instructions));

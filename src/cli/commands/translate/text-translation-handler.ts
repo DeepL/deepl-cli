@@ -236,7 +236,7 @@ export class TextTranslationHandler {
 
     if (options.format === 'table') {
       if (!process.stdout.isTTY) {
-        Logger.warn('--format table is not supported in non-TTY output; falling back to plain text');
+        Logger.warn('WARN  --format table is not supported in non-TTY output; falling back to plain text');
         return results
           .map(result => `[${result.targetLang}] ${result.text}`)
           .join('\n');
