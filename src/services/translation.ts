@@ -120,6 +120,7 @@ export class TranslationService {
         return {
           ...cachedResult,
           text: restorePlaceholders(cachedResult.text, preservationMap),
+          cached: true,
         };
       }
       Logger.verbose('[verbose] Cache miss');
@@ -139,6 +140,7 @@ export class TranslationService {
     return {
       ...result,
       text: restorePlaceholders(result.text, preservationMap),
+      cached: false,
     };
   }
 

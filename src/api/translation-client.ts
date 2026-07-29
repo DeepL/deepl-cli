@@ -54,6 +54,8 @@ export interface TranslationResult {
   detectedSourceLang?: Language;
   billedCharacters?: number;
   modelTypeUsed?: string;
+  /** Set by TranslationService: true when served from the local cache. */
+  cached?: boolean;
 }
 
 export function isTranslationResult(data: unknown): data is TranslationResult {

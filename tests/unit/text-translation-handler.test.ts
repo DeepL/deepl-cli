@@ -408,6 +408,36 @@ describe('TextTranslationHandler', () => {
         expect(parsed).toHaveProperty('text', 'translated');
       });
 
+      it('should include cached=false in JSON output for fresh translations', async () => {
+        mocks.translationService.translate.mockResolvedValue({
+          text: 'translated',
+          detectedSourceLang: 'en',
+          cached: false,
+        });
+
+        const result = await handler.translateText('Hello', defaultOptions({ format: 'json' }));
+
+        expect(JSON.parse(result).cached).toBe(false);
+      });
+
+      it('should include cached=true in JSON output for cache hits', async () => {
+        mocks.translationService.translate.mockResolvedValue({
+          text: 'translated',
+          detectedSourceLang: 'en',
+          cached: true,
+        });
+
+        const result = await handler.translateText('Hello', defaultOptions({ format: 'json' }));
+
+        expect(JSON.parse(result).cached).toBe(true);
+      });
+
+      it('should default cached to false when the service omits the flag', async () => {
+        const result = await handler.translateText('Hello', defaultOptions({ format: 'json' }));
+
+        expect(JSON.parse(result).cached).toBe(false);
+      });
+
       it('should return table for format=table with multi-target', async () => {
         const originalIsTTY = process.stdout.isTTY;
         Object.defineProperty(process.stdout, 'isTTY', {

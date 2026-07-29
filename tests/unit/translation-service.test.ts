@@ -1006,6 +1006,26 @@ describe('TranslationService', () => {
       expect(mockCacheService.get).toHaveBeenCalled();
     });
 
+    it('should flag cache hits with cached=true', async () => {
+      mockCacheService.get.mockReturnValue({
+        text: 'Hola (cached)',
+      });
+
+      const result = await translationService.translate('Hello', { targetLang: 'es' });
+
+      expect(result.cached).toBe(true);
+    });
+
+    it('should flag fresh API translations with cached=false', async () => {
+      mockDeepLClient.translate.mockResolvedValue({
+        text: 'Hola',
+      });
+
+      const result = await translationService.translate('Hello', { targetLang: 'es' });
+
+      expect(result.cached).toBe(false);
+    });
+
     it('should not cache when cache is disabled', async () => {
       mockConfigService.getValue.mockReturnValue(false); // cache.enabled = false
       mockDeepLClient.translate.mockResolvedValue({

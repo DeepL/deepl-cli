@@ -159,7 +159,7 @@ export class TextTranslationHandler {
     Logger.verbose(`[verbose] Character count: ${text.length}`);
 
     if (options.format === 'json') {
-      return formatTranslationJson(result, options.to as Language);
+      return formatTranslationJson(result, options.to as Language, result.cached ?? false);
     }
 
     const metadata: string[] = [];
