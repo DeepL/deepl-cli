@@ -752,7 +752,7 @@ describe('CacheService', () => {
       instances[0]?.close();
     });
 
-    it('should re-register signal handlers after close and recreate', () => {
+    it('does not re-register signal handlers across close/recreate cycles', () => {
       (CacheService as any).instance = null;
       (CacheService as any).handlersRegistered = false;
 
@@ -761,18 +761,21 @@ describe('CacheService', () => {
 
       const processOnceSpy = jest.spyOn(process, 'once');
 
-      const instance2 = CacheService.getInstance({ dbPath: testCachePath });
+      let last: CacheService | undefined;
+      for (let i = 0; i < 5; i++) {
+        last = CacheService.getInstance({ dbPath: testCachePath });
+        last.close();
+      }
 
-      expect(processOnceSpy).toHaveBeenCalledTimes(3);
-      expect(processOnceSpy).toHaveBeenCalledWith('exit', expect.any(Function));
-      expect(processOnceSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
-      expect(processOnceSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+      // Re-registering per cycle accumulates listeners until Node prints
+      // MaxListenersExceededWarning to the user's stderr.
+      expect(processOnceSpy).not.toHaveBeenCalled();
 
       processOnceSpy.mockRestore();
-      instance2.close();
+      last?.close();
     });
 
-    it('should null instance on close', () => {
+    it('should null instance on close but keep handlers registered', () => {
       (CacheService as any).instance = null;
       (CacheService as any).handlersRegistered = false;
 
@@ -780,7 +783,7 @@ describe('CacheService', () => {
       instance.close();
 
       expect((CacheService as any).instance).toBeNull();
-      expect((CacheService as any).handlersRegistered).toBe(false);
+      expect((CacheService as any).handlersRegistered).toBe(true);
     });
   });
 
