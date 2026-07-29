@@ -477,6 +477,9 @@ deepl translate document.docx --to fr --output translated.docx
 | 7    | Configuration error                | No         |
 | 8    | Check found issues (write --check) | No         |
 | 9    | Voice API error                    | No         |
+| 10   | Sync drift detected (sync --frozen) | No        |
+| 11   | Sync lockfile conflict             | No         |
+| 12   | Partial sync failure (some locales failed) | Yes (retry failed locales) |
 
 Use exit codes in scripts for retry logic:
 
@@ -503,7 +506,11 @@ esac
 | `XDG_CACHE_HOME`   | Override XDG cache base (default: `~/.cache`)        |
 | `HTTP_PROXY`       | HTTP proxy URL                                       |
 | `HTTPS_PROXY`      | HTTPS proxy URL (takes precedence over `HTTP_PROXY`) |
+| `TMS_API_KEY`      | API key for the configured TMS server (`sync push`/`pull`) |
+| `TMS_TOKEN`        | Alternative auth token for the configured TMS server |
 | `NO_COLOR`         | Disable colored output when set to any value         |
+| `FORCE_COLOR`      | Force colored output (`NO_COLOR` wins if both are set) |
+| `TERM`             | `TERM=dumb` disables colored output and progress spinners |
 
 ---
 
