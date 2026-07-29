@@ -1,21 +1,52 @@
 import type { ExtractedEntry, FormatParser, TranslatedEntry } from './format.js';
 import { ValidationError } from '../utils/errors.js';
+import {
+  findElement,
+  replaceElements,
+  scanElements,
+  type ElementPattern,
+  type ScannedElement,
+} from './xml-scan.js';
 
 const VERSION_RE = /<(?:\w+:)?xliff[^>]*version=["'](\d+\.\d+)["']/i;
 
-const TRANS_UNIT_RE =
-  /<(?:\w+:)?trans-unit\s+id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/(?:\w+:)?trans-unit>/gi;
+const TRANS_UNIT_EL: ElementPattern = {
+  open: /<(?:\w+:)?trans-unit\s+id=["']([^"'<]+)["'][^><]*>/iy,
+  close: /<\/(?:\w+:)?trans-unit>/iy,
+};
 
-const UNIT_RE =
-  /<(?:\w+:)?unit\s+id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/(?:\w+:)?unit>/gi;
+const UNIT_EL: ElementPattern = {
+  open: /<(?:\w+:)?unit\s+id=["']([^"'<]+)["'][^><]*>/iy,
+  close: /<\/(?:\w+:)?unit>/iy,
+};
 
-const SOURCE_RE = /<(?:\w+:)?source>([\s\S]*?)<\/(?:\w+:)?source>/i;
+const SOURCE_EL: ElementPattern = {
+  open: /<(\w+:)?source>/iy,
+  close: /<\/(?:\w+:)?source>/iy,
+};
+
 // Attributes are optional but must be preserved: `state` is a standard XLIFF
 // attribute that every CAT tool writes, so requiring a bare tag would make
-// those elements invisible to this regex.
-const TARGET_RE = /<(\w+:)?target((?:\s[^>]*)?)>([\s\S]*?)<\/(?:\w+:)?target>/i;
-const NOTE_RE = /<(?:\w+:)?note(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?note>/i;
-const SEGMENT_RE = /<(?:\w+:)?segment(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?segment>/i;
+// those elements invisible to this scan.
+const TARGET_EL: ElementPattern = {
+  open: /<(\w+:)?target((?:\s[^><]*)?)>/iy,
+  close: /<\/(?:\w+:)?target>/iy,
+};
+
+const NOTE_EL: ElementPattern = {
+  open: /<(?:\w+:)?note(?:\s[^><]*)?>/iy,
+  close: /<\/(?:\w+:)?note>/iy,
+};
+
+const SEGMENT_EL: ElementPattern = {
+  open: /<(?:\w+:)?segment(?:\s[^><]*)?>/iy,
+  close: /<\/(?:\w+:)?segment>/iy,
+};
+
+const TRANSLATABLE_EL: ElementPattern = {
+  open: /<(?:\w+:)?(?:source|target)(?:\s[^><]*)?>/iy,
+  close: /<\/(?:\w+:)?(?:source|target)>/iy,
+};
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
@@ -50,9 +81,6 @@ function unescapeXml(value: string): string {
   });
 }
 
-const CDATA_IN_TRANSLATABLE_RE =
-  /<(?:\w+:)?(?:source|target)[^>]*>[\s\S]*?<!\[CDATA\[[\s\S]*?<\/(?:\w+:)?(?:source|target)>/i;
-
 /**
  * Refuse XLIFF input that contains a CDATA section inside a `<source>` or
  * `<target>` element. The regex-based extract/reconstruct pair cannot
@@ -64,11 +92,13 @@ const CDATA_IN_TRANSLATABLE_RE =
  */
 function assertNoCdataInTranslatable(content: string): void {
   if (!content.includes('<![CDATA[')) return;
-  if (CDATA_IN_TRANSLATABLE_RE.test(content)) {
-    throw new ValidationError(
-      'XLIFF <source> / <target> elements containing CDATA sections are not supported.',
-      'Inline the literal text without the <![CDATA[...]]> wrapper, or preprocess the file to entity-escape CDATA content before syncing.',
-    );
+  for (const element of scanElements(content, TRANSLATABLE_EL)) {
+    if (element.inner.includes('<![CDATA[')) {
+      throw new ValidationError(
+        'XLIFF <source> / <target> elements containing CDATA sections are not supported.',
+        'Inline the literal text without the <![CDATA[...]]> wrapper, or preprocess the file to entity-escape CDATA content before syncing.',
+      );
+    }
   }
 }
 
@@ -82,6 +112,36 @@ function escapeXml(value: string): string {
 function detectVersion(content: string): string {
   const match = VERSION_RE.exec(content);
   return match?.[1] ?? '1.2';
+}
+
+function rewriteInner(element: ScannedElement, inner: string): string {
+  return `${element.openTag}${inner}${element.closeTag}`;
+}
+
+/**
+ * Replace the first `<target>` in a block, or insert one after `<source>`
+ * when the block has none.
+ */
+function applyTarget(block: string, escaped: string): string {
+  const target = findElement(block, TARGET_EL);
+  if (target) {
+    const ns = target.groups[0] ?? '';
+    const attrs = target.groups[1] ?? '';
+    return (
+      block.slice(0, target.start) +
+      `<${ns}target${attrs}>${escaped}</${ns}target>` +
+      block.slice(target.end)
+    );
+  }
+
+  const source = findElement(block, SOURCE_EL);
+  if (!source) return block;
+  const ns = source.groups[0] ?? '';
+  return (
+    block.slice(0, source.end) +
+    `\n        <${ns}target>${escaped}</${ns}target>` +
+    block.slice(source.end)
+  );
 }
 
 export class XliffFormatParser implements FormatParser {
@@ -118,156 +178,67 @@ export class XliffFormatParser implements FormatParser {
   }
 
   extractContext(content: string, key: string): string | undefined {
-    const version = detectVersion(content);
+    const unit = detectVersion(content) === '2.0' ? UNIT_EL : TRANS_UNIT_EL;
 
-    if (version === '2.0') {
-      return this.extractContextV2(content, key);
+    for (const element of scanElements(content, unit)) {
+      if (element.groups[0] !== key) continue;
+      const note = findElement(element.inner, NOTE_EL);
+      return note ? unescapeXml(note.inner) : undefined;
     }
-    return this.extractContextV12(content, key);
+    return undefined;
   }
 
   private extractV12(content: string, entries: ExtractedEntry[]): void {
-    const regex = new RegExp(TRANS_UNIT_RE.source, TRANS_UNIT_RE.flags);
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(content)) !== null) {
-      const id = match[1]!;
-      const block = match[2]!;
-
-      const sourceMatch = SOURCE_RE.exec(block);
-      if (!sourceMatch) continue;
-
-      const value = unescapeXml(sourceMatch[1]!);
-      const noteMatch = NOTE_RE.exec(block);
-      const context = noteMatch ? unescapeXml(noteMatch[1]!) : undefined;
-
-      const entry: ExtractedEntry = { key: id, value };
-      if (context !== undefined) {
-        entry.context = context;
-      }
-      entries.push(entry);
+    for (const element of scanElements(content, TRANS_UNIT_EL)) {
+      const source = findElement(element.inner, SOURCE_EL);
+      if (!source) continue;
+      entries.push(this.toEntry(element.groups[0]!, source.inner, element.inner));
     }
   }
 
   private extractV2(content: string, entries: ExtractedEntry[]): void {
-    const regex = new RegExp(UNIT_RE.source, UNIT_RE.flags);
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(content)) !== null) {
-      const id = match[1]!;
-      const block = match[2]!;
+    for (const element of scanElements(content, UNIT_EL)) {
+      const segment = findElement(element.inner, SEGMENT_EL);
+      if (!segment) continue;
 
-      const segmentMatch = SEGMENT_RE.exec(block);
-      if (!segmentMatch) continue;
-
-      const segment = segmentMatch[1]!;
-      const sourceMatch = SOURCE_RE.exec(segment);
-      if (!sourceMatch) continue;
-
-      const value = unescapeXml(sourceMatch[1]!);
-      const noteMatch = NOTE_RE.exec(block);
-      const context = noteMatch ? unescapeXml(noteMatch[1]!) : undefined;
-
-      const entry: ExtractedEntry = { key: id, value };
-      if (context !== undefined) {
-        entry.context = context;
-      }
-      entries.push(entry);
+      const source = findElement(segment.inner, SOURCE_EL);
+      if (!source) continue;
+      entries.push(this.toEntry(element.groups[0]!, source.inner, element.inner));
     }
   }
 
-  private reconstructV12(
-    content: string,
-    translations: Map<string, string>,
-  ): string {
-    const regex = new RegExp(TRANS_UNIT_RE.source, TRANS_UNIT_RE.flags);
-    let result = content.replace(regex, (fullMatch, id: string, block: string) => {
-      const translation = translations.get(id);
+  private toEntry(id: string, rawSource: string, block: string): ExtractedEntry {
+    const entry: ExtractedEntry = { key: id, value: unescapeXml(rawSource) };
+    const note = findElement(block, NOTE_EL);
+    if (note) {
+      entry.context = unescapeXml(note.inner);
+    }
+    return entry;
+  }
+
+  private reconstructV12(content: string, translations: Map<string, string>): string {
+    const result = replaceElements(content, TRANS_UNIT_EL, (element) => {
+      const translation = translations.get(element.groups[0]!);
+      if (translation === undefined) return '';
+      return rewriteInner(element, applyTarget(element.inner, escapeXml(translation)));
+    });
+    return result.replace(/\n{3,}/g, '\n\n');
+  }
+
+  private reconstructV2(content: string, translations: Map<string, string>): string {
+    const result = replaceElements(content, UNIT_EL, (element) => {
+      const translation = translations.get(element.groups[0]!);
       if (translation === undefined) return '';
 
-      const escaped = escapeXml(translation);
-      const targetMatch = TARGET_RE.exec(block);
+      const segment = findElement(element.inner, SEGMENT_EL);
+      if (!segment) return element.text;
 
-      let newBlock: string;
-      if (targetMatch) {
-        const ns = targetMatch[1] ?? '';
-        const attrs = targetMatch[2] ?? '';
-        newBlock = block.replace(TARGET_RE, () => `<${ns}target${attrs}>${escaped}</${ns}target>`);
-      } else {
-        const sourceNsMatch = /<(\w+:)?source>/i.exec(block);
-        const ns = sourceNsMatch?.[1] ?? '';
-        newBlock = block.replace(
-          /(<\/(?:\w+:)?source>)/i,
-          (_match, src: string) => `${src}\n        <${ns}target>${escaped}</${ns}target>`,
-        );
-      }
-
-      return fullMatch.replace(block, () => newBlock);
+      const inner =
+        element.inner.slice(0, segment.start) +
+        rewriteInner(segment, applyTarget(segment.inner, escapeXml(translation))) +
+        element.inner.slice(segment.end);
+      return rewriteInner(element, inner);
     });
-    result = result.replace(/\n{3,}/g, '\n\n');
-    return result;
-  }
-
-  private reconstructV2(
-    content: string,
-    translations: Map<string, string>,
-  ): string {
-    const regex = new RegExp(UNIT_RE.source, UNIT_RE.flags);
-    let result = content.replace(regex, (fullMatch, id: string, block: string) => {
-      const translation = translations.get(id);
-      if (translation === undefined) return '';
-
-      const escaped = escapeXml(translation);
-      const segmentMatch = SEGMENT_RE.exec(block);
-      if (!segmentMatch) return fullMatch;
-
-      const segment = segmentMatch[1]!;
-      const targetMatch = TARGET_RE.exec(segment);
-
-      let newSegment: string;
-      if (targetMatch) {
-        const ns = targetMatch[1] ?? '';
-        const attrs = targetMatch[2] ?? '';
-        newSegment = segment.replace(TARGET_RE, () => `<${ns}target${attrs}>${escaped}</${ns}target>`);
-      } else {
-        const sourceNsMatch = /<(\w+:)?source>/i.exec(segment);
-        const ns = sourceNsMatch?.[1] ?? '';
-        newSegment = segment.replace(
-          /(<\/(?:\w+:)?source>)/i,
-          (_match, src: string) => `${src}\n        <${ns}target>${escaped}</${ns}target>`,
-        );
-      }
-
-      const newBlock = block.replace(segment, () => newSegment);
-      return fullMatch.replace(block, () => newBlock);
-    });
-    result = result.replace(/\n{3,}/g, '\n\n');
-    return result;
-  }
-
-  private extractContextV12(content: string, key: string): string | undefined {
-    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(
-      `<(?:\\w+:)?trans-unit\\s+id=["']${escaped}["'][^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?trans-unit>`,
-      'i',
-    );
-    const match = regex.exec(content);
-    if (!match) return undefined;
-
-    const block = match[1]!;
-    const noteMatch = NOTE_RE.exec(block);
-    return noteMatch ? unescapeXml(noteMatch[1]!) : undefined;
-  }
-
-  private extractContextV2(content: string, key: string): string | undefined {
-    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(
-      `<(?:\\w+:)?unit\\s+id=["']${escaped}["'][^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?unit>`,
-      'i',
-    );
-    const match = regex.exec(content);
-    if (!match) return undefined;
-
-    const block = match[1]!;
-    const noteMatch = NOTE_RE.exec(block);
-    return noteMatch ? unescapeXml(noteMatch[1]!) : undefined;
+    return result.replace(/\n{3,}/g, '\n\n');
   }
 }
