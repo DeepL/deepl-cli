@@ -1,7 +1,7 @@
 # DeepL CLI - API Reference
 
-**Version**: 1.2.0
-**Last Updated**: April 25, 2026
+**Version**: 2.0.0
+**Last Updated**: July 29, 2026
 
 Complete reference for all DeepL CLI commands, options, and configuration.
 
@@ -730,9 +730,13 @@ When `--style` or `--tone` is set for a target language that does not support it
 - `es` - Spanish
 - `fr` - French
 - `it` - Italian
+- `ja` - Japanese
+- `ko` - Korean
 - `pt` - Portuguese (generic, defaults to Brazilian Portuguese)
 - `pt-BR` - Brazilian Portuguese
 - `pt-PT` - European Portuguese
+- `zh` - Chinese (generic, defaults to Simplified Chinese)
+- `zh-Hans` - Simplified Chinese
 
 #### Examples
 
@@ -1134,7 +1138,7 @@ Interactive setup wizard that creates `.deepl-sync.yaml` by scanning the project
 - `--path GLOB` - Source file path or glob pattern
 - `--sync-config PATH` - Path to `.deepl-sync.yaml`
 
-`--source-lang` and `--target-langs` are accepted as deprecated aliases for one minor release and emit a stderr warning; they will be removed in the next major release. `deepl translate --target-lang` is unchanged — it operates on strings and stays aligned with the DeepL API's wire name.
+`--source-lang` and `--target-langs` were accepted as deprecated aliases during `1.x` and were removed in `2.0.0`; use `--source-locale` / `--target-locales`. `deepl translate --target-lang` is unchanged — it operates on strings and stays aligned with the DeepL API's wire name.
 
 **Examples:**
 
@@ -3071,7 +3075,7 @@ Unclassified failure: emitted when an error escapes every typed handler and matc
 
 Authentication failed or no API key is available. Emitted by:
 
-- `deepl auth set-key`, `deepl auth test` when the key cannot be validated
+- `deepl auth set-key` when the key cannot be validated
 - Every command that touches the API (`translate`, `write`, `voice`, `glossary`, `usage`, `sync`, `tm list`, `admin`, etc.) when `DEEPL_API_KEY` is unset and no key is in the config file
 - HTTP 401/403 responses from the DeepL API
 
@@ -3113,7 +3117,7 @@ Remediation: re-read the command's `--help` and the relevant section of this API
 The configuration file or a configuration value is invalid. Emitted by:
 
 - `deepl config set` with a key that is not in the schema, or a value that fails validation (invalid language code, invalid formality, invalid output format, non-positive cache size, non-HTTPS `baseUrl`, path-traversal attempts)
-- `deepl config get/unset` with a malformed key
+- `deepl config get` with a malformed key
 - Any command that loads the config file when the file fails to parse, is missing a required field, or specifies an unsupported version
 - `sync` when `.deepl-sync.yaml` is missing required fields, has invalid locales, or declares an unsupported version
 - `sync push` / `sync pull` when the remote TMS returns 401/403 (surfaced as `ConfigError` with a hint to check `TMS_API_KEY` / `TMS_TOKEN` and the relevant YAML fields)
@@ -3230,5 +3234,5 @@ deepl write --check README.md
 
 ---
 
-**Last Updated**: April 20, 2026
-**DeepL CLI Version**: 1.1.0
+**Last Updated**: July 29, 2026
+**DeepL CLI Version**: 2.0.0
