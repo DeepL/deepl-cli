@@ -13,6 +13,45 @@ describe('Cache Command E2E', () => {
     testConfig.cleanup();
   });
 
+  // Each assertion below runs in a process separate from the one that
+  // toggled the cache, so an in-memory-only toggle cannot satisfy them.
+  describe('enable/disable persistence across processes', () => {
+    const toggleConfig = createTestConfigDir('e2e-cache-toggle');
+    const toggle = makeNodeRunCLI(toggleConfig.path);
+
+    afterAll(() => {
+      toggleConfig.cleanup();
+    });
+
+    it('should report disabled from a later invocation after cache disable', () => {
+      expect(toggle.runCLIAll('cache disable')).toContain('Cache disabled');
+
+      expect(toggle.runCLI('cache stats')).toContain('Cache Status: disabled');
+      expect(toggle.runCLI('config get cache.enabled').trim()).toBe('false');
+    });
+
+    it('should report enabled from a later invocation after cache enable', () => {
+      toggle.runCLIAll('cache disable');
+      expect(toggle.runCLIAll('cache enable')).toContain('Cache enabled');
+
+      expect(toggle.runCLI('cache stats')).toContain('Cache Status: enabled');
+      expect(toggle.runCLI('config get cache.enabled').trim()).toBe('true');
+    });
+
+    it('should report disabled when cache.enabled is set through config directly', () => {
+      toggle.runCLIAll('config set cache.enabled false');
+
+      expect(toggle.runCLI('cache stats')).toContain('Cache Status: disabled');
+    });
+
+    it('should preserve --max-size while persisting the enabled flag', () => {
+      toggle.runCLIAll('cache enable --max-size 100M');
+
+      expect(toggle.runCLI('config get cache.enabled').trim()).toBe('true');
+      expect(toggle.runCLI('config get cache.maxSize').trim()).toBe(String(100 * 1024 * 1024));
+    });
+  });
+
   describe('cache --help', () => {
     it('should display help text', () => {
       const output = runCLI('cache --help');
