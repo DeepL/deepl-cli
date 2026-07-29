@@ -7,11 +7,28 @@
  */
 
 import type { CacheService, CacheServiceOptions } from '../storage/cache.js';
+import type { ConfigService } from '../storage/config.js';
 import { Logger } from '../utils/logger.js';
 import { errorMessage } from '../utils/error-message.js';
 import { isNativeModuleLoadError } from '../utils/native-module-error.js';
 
 type CacheModule = Pick<typeof import('../storage/cache.js'), 'CacheService'>;
+
+/**
+ * Derive cache-service options from persisted config. Reading `cache.enabled`
+ * here is what keeps the service's in-memory flag from diverging from config:
+ * `cache stats` and the translation path then agree on the same value.
+ */
+export function resolveCacheOptions(config: ConfigService, dbPath: string): CacheServiceOptions {
+  const ttlSeconds = config.getValue<number>('cache.ttl');
+  return {
+    dbPath,
+    // Config TTL is in seconds, CacheService expects milliseconds
+    ttl: ttlSeconds !== undefined ? ttlSeconds * 1000 : undefined,
+    maxSize: config.getValue<number>('cache.maxSize'),
+    enabled: config.getValue<boolean>('cache.enabled'),
+  };
+}
 
 export function createCacheServiceGetter(
   getOptions: () => CacheServiceOptions,

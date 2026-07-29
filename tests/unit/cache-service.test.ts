@@ -294,6 +294,43 @@ describe('CacheService', () => {
     });
   });
 
+  describe('enabled option', () => {
+    it('should default to enabled when the option is omitted', () => {
+      expect(cacheService.stats().enabled).toBe(true);
+    });
+
+    it('should start disabled when constructed with enabled: false', () => {
+      const disabled = new CacheService({ dbPath: path.join(testCacheDir, 'disabled.db'), enabled: false });
+      try {
+        expect(disabled.stats().enabled).toBe(false);
+      } finally {
+        disabled.close();
+      }
+    });
+
+    it('should not read or write entries when constructed disabled', () => {
+      const disabled = new CacheService({ dbPath: path.join(testCacheDir, 'disabled-io.db'), enabled: false });
+      try {
+        disabled.set('test', { text: 'Hello' });
+        expect(disabled.get('test')).toBeNull();
+        expect(disabled.stats().entries).toBe(0);
+      } finally {
+        disabled.close();
+      }
+    });
+
+    it('should allow enable() to override a disabled start', () => {
+      const disabled = new CacheService({ dbPath: path.join(testCacheDir, 'reenable.db'), enabled: false });
+      try {
+        disabled.enable();
+        disabled.set('test', { text: 'Hello' });
+        expect(disabled.get('test')).toEqual({ text: 'Hello' });
+      } finally {
+        disabled.close();
+      }
+    });
+  });
+
   describe('enable() / disable()', () => {
     it('should enable cache', () => {
       cacheService.disable();
