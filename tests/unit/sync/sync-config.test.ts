@@ -48,6 +48,53 @@ describe('sync-config', () => {
       const result = findSyncConfigFile(tmpDir);
       expect(result).toBeNull();
     });
+
+    it('should find a config that lives next to .git', () => {
+      fs.mkdirSync(path.join(tmpDir, '.git'));
+      const configPath = path.join(tmpDir, SYNC_CONFIG_FILENAME);
+      fs.writeFileSync(configPath, 'version: 1\n');
+
+      const childDir = path.join(tmpDir, 'src');
+      fs.mkdirSync(childDir);
+
+      expect(findSyncConfigFile(childDir)).toBe(configPath);
+      expect(findSyncConfigFile(tmpDir)).toBe(configPath);
+    });
+
+    it('should not adopt a config from an ancestor above the .git boundary', () => {
+      const configPath = path.join(tmpDir, SYNC_CONFIG_FILENAME);
+      fs.writeFileSync(configPath, 'version: 1\n');
+
+      const repoDir = path.join(tmpDir, 'repo');
+      fs.mkdirSync(path.join(repoDir, '.git'), { recursive: true });
+      const childDir = path.join(repoDir, 'src');
+      fs.mkdirSync(childDir);
+
+      expect(findSyncConfigFile(childDir)).toBeNull();
+      expect(findSyncConfigFile(repoDir)).toBeNull();
+    });
+
+    it('should find a config between the start directory and the .git boundary', () => {
+      const repoDir = path.join(tmpDir, 'repo');
+      fs.mkdirSync(path.join(repoDir, '.git'), { recursive: true });
+      const pkgDir = path.join(repoDir, 'packages', 'app');
+      fs.mkdirSync(pkgDir, { recursive: true });
+      const configPath = path.join(repoDir, 'packages', SYNC_CONFIG_FILENAME);
+      fs.writeFileSync(configPath, 'version: 1\n');
+
+      expect(findSyncConfigFile(pkgDir)).toBe(configPath);
+    });
+
+    it('should treat a .git file (worktree/submodule) as the boundary', () => {
+      const configPath = path.join(tmpDir, SYNC_CONFIG_FILENAME);
+      fs.writeFileSync(configPath, 'version: 1\n');
+
+      const repoDir = path.join(tmpDir, 'repo');
+      fs.mkdirSync(repoDir);
+      fs.writeFileSync(path.join(repoDir, '.git'), 'gitdir: elsewhere\n');
+
+      expect(findSyncConfigFile(repoDir)).toBeNull();
+    });
   });
 
   describe('validateSyncConfig', () => {
@@ -194,6 +241,73 @@ describe('sync-config', () => {
         target_locales: ['de'],
         buckets: { json: { include: ['a.json'] } },
       })).toThrow(/path separators/);
+    });
+
+    it('should reject target locales that are not BCP-47 style codes', () => {
+      for (const bad of ['de_DE', 'de.json', 'de de', 'x', '.git', 'de!', 'verylonglocale-code-way-too-long']) {
+        expect(() => validateSyncConfig({
+          version: 1,
+          source_locale: 'en',
+          target_locales: [bad],
+          buckets: { json: { include: ['a.json'] } },
+        })).toThrow(ConfigError);
+      }
+    });
+
+    it('should reject a source_locale that is not a BCP-47 style code', () => {
+      expect(() => validateSyncConfig({
+        version: 1,
+        source_locale: 'en_US.utf8',
+        target_locales: ['de'],
+        buckets: { json: { include: ['a.json'] } },
+      })).toThrow(ConfigError);
+    });
+
+    it('should accept BCP-47 style locales with script and region subtags', () => {
+      const result = validateSyncConfig({
+        version: 1,
+        source_locale: 'en-US',
+        target_locales: ['de', 'pt-BR', 'zh-Hans', 'sr-Latn-RS'],
+        buckets: { json: { include: ['a.json'] } },
+      });
+      expect(result.target_locales).toEqual(['de', 'pt-BR', 'zh-Hans', 'sr-Latn-RS']);
+    });
+
+    it('should reject a target_path_pattern that resolves into .git/', () => {
+      expect(() => validateSyncConfig({
+        version: 1,
+        source_locale: 'en',
+        target_locales: ['config'],
+        buckets: { json: { include: ['a.json'], target_path_pattern: '.git/{locale}' } },
+      })).toThrow(/\.git/);
+    });
+
+    it('should reject a target_path_pattern that resolves into .github/', () => {
+      expect(() => validateSyncConfig({
+        version: 1,
+        source_locale: 'en',
+        target_locales: ['de'],
+        buckets: { json: { include: ['a.json'], target_path_pattern: '.github/workflows/{locale}.yml' } },
+      })).toThrow(ConfigError);
+    });
+
+    it('should reject a target_path_pattern with a nested .git segment', () => {
+      expect(() => validateSyncConfig({
+        version: 1,
+        source_locale: 'en',
+        target_locales: ['de'],
+        buckets: { json: { include: ['a.json'], target_path_pattern: 'vendor/.git/{locale}.json' } },
+      })).toThrow(ConfigError);
+    });
+
+    it('should accept a target_path_pattern with a harmless dotted directory', () => {
+      const result = validateSyncConfig({
+        version: 1,
+        source_locale: 'en',
+        target_locales: ['de'],
+        buckets: { json: { include: ['a.json'], target_path_pattern: 'locales/{locale}/app.json' } },
+      });
+      expect(result.buckets['json']?.target_path_pattern).toBe('locales/{locale}/app.json');
     });
 
     it('should throw when target_locales is empty', () => {

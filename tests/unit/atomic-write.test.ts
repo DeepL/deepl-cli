@@ -57,6 +57,26 @@ describe('atomicWriteFile', () => {
     expect(fs.readFileSync(filePath, 'utf-8')).toBe('new content');
   });
 
+  it('should preserve the mode of an existing target file', async () => {
+    const filePath = path.join(tmpDir, 'secrets.txt');
+    fs.writeFileSync(filePath, 'old secret');
+    fs.chmodSync(filePath, 0o600);
+
+    await atomicWriteFile(filePath, 'new secret', 'utf-8');
+
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+    expect(fs.readFileSync(filePath, 'utf-8')).toBe('new secret');
+  });
+
+  it('should create new files with default permissions', async () => {
+    const filePath = path.join(tmpDir, 'fresh.txt');
+
+    await atomicWriteFile(filePath, 'content', 'utf-8');
+
+    const expected = 0o666 & ~process.umask();
+    expect(fs.statSync(filePath).mode & 0o777).toBe(expected);
+  });
+
   it('should use a unique temp filename with PID and random suffix', async () => {
     const filePath = path.join(tmpDir, 'output.txt');
     const writeSpy = jest.spyOn(fs.promises, 'writeFile');
@@ -102,6 +122,26 @@ describe('atomicWriteFileSync', () => {
     const buf = Buffer.from([0xde, 0xad, 0xbe, 0xef]);
     atomicWriteFileSync(filePath, buf);
     expect(Buffer.compare(fs.readFileSync(filePath), buf)).toBe(0);
+  });
+
+  it('should preserve the mode of an existing target file', () => {
+    const filePath = path.join(tmpDir, 'secrets.txt');
+    fs.writeFileSync(filePath, 'old secret');
+    fs.chmodSync(filePath, 0o600);
+
+    atomicWriteFileSync(filePath, 'new secret', 'utf-8');
+
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+    expect(fs.readFileSync(filePath, 'utf-8')).toBe('new secret');
+  });
+
+  it('should create new files with default permissions', () => {
+    const filePath = path.join(tmpDir, 'fresh.txt');
+
+    atomicWriteFileSync(filePath, 'content', 'utf-8');
+
+    const expected = 0o666 & ~process.umask();
+    expect(fs.statSync(filePath).mode & 0o777).toBe(expected);
   });
 });
 

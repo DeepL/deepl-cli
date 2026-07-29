@@ -1,4 +1,5 @@
 import { ConfigService } from '../../storage/config.js';
+import type { DeepLClientOptions } from '../../api/http-client.js';
 import { Logger } from '../../utils/logger.js';
 import { resolveEndpoint } from '../../utils/resolve-endpoint.js';
 
@@ -20,17 +21,20 @@ const COMMON_TARGET_LANGUAGES = [
 
 export class InitCommand {
   private config: ConfigService;
+  private httpOptions: DeepLClientOptions;
 
-  constructor(config: ConfigService) {
+  constructor(config: ConfigService, httpOptions: DeepLClientOptions = {}) {
     this.config = config;
+    this.httpOptions = httpOptions;
   }
 
   async run(): Promise<void> {
-    const { input, select } = await import('@inquirer/prompts');
+    const { password, select } = await import('@inquirer/prompts');
     Logger.output("Welcome to DeepL CLI! Let's get you set up.\n");
 
-    const apiKey = await input({
+    const apiKey = await password({
       message: 'Enter your DeepL API key:',
+      mask: true,
       validate: (value: string) => {
         if (!value.trim())
           return 'API key is required. Get one at https://www.deepl.com/pro-api';
@@ -48,7 +52,7 @@ export class InitCommand {
       configBaseUrl,
       usePro,
     });
-    const client = new DeepLClient(apiKey.trim(), { baseUrl });
+    const client = new DeepLClient(apiKey.trim(), { ...this.httpOptions, baseUrl });
     await client.getUsage();
 
     this.config.set('auth.apiKey', apiKey.trim());

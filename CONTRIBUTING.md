@@ -101,7 +101,7 @@ Use `DEEPL_CONFIG_DIR` (set to a temp directory) to isolate test configuration f
 
 - Strict mode is enabled. Avoid `any`.
 - Prefer `async/await` over raw promises.
-- Use Zod for runtime validation where appropriate.
+- Runtime validation is hand-written: use commander's `Option.choices()` for flag values and dedicated validator functions for structured input (e.g. `validateSyncConfig` in `src/sync/sync-config.ts`). There is no schema-validation dependency.
 
 ### Project Structure
 
@@ -109,8 +109,11 @@ Use `DEEPL_CONFIG_DIR` (set to a temp directory) to isolate test configuration f
 src/
   cli/              # CLI commands and argument parsing
   services/         # Business logic
+  sync/             # Continuous localization engine (scan, diff, translate, write, lock)
+  formats/          # i18n file format parsers (JSON, YAML, PO, XLIFF, Android XML, etc.)
   api/              # DeepL API client
   storage/          # SQLite cache and config management
+  data/             # Static data (language registry)
   utils/            # Shared utility functions
   types/            # Type definitions
 tests/

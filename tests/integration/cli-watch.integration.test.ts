@@ -226,7 +226,17 @@ describe('Watch Service Integration', () => {
   });
 
   describe('getStats()', () => {
-    it('should return initial stats', () => {
+    const waitFor = async (condition: () => boolean, timeoutMs = 5000): Promise<void> => {
+      const start = Date.now();
+      while (!condition()) {
+        if (Date.now() - start > timeoutMs) {
+          throw new Error('Timed out waiting for condition');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    };
+
+    it('should return initial stats before watch starts', () => {
       const stats = watchService.getStats();
 
       expect(stats.isWatching).toBe(false);
@@ -246,6 +256,44 @@ describe('Watch Service Integration', () => {
 
       const stats = watchService.getStats();
       expect(stats.isWatching).toBe(true);
+    });
+
+    it('should report the number of files under watch once ready, excluding directories', async () => {
+      fs.writeFileSync(path.join(tmpDir, 'a.txt'), 'Hello');
+      fs.writeFileSync(path.join(tmpDir, 'b.md'), '# Hello');
+      fs.mkdirSync(path.join(tmpDir, 'sub'));
+      fs.writeFileSync(path.join(tmpDir, 'sub', 'c.txt'), 'Hola');
+
+      await new Promise<void>((resolve) => {
+        watchService.watch(tmpDir, {
+          targetLangs: ['es'],
+          outputDir: tmpDir,
+          onReady: resolve,
+        });
+      });
+
+      expect(watchService.getStats().filesWatched).toBe(3);
+    });
+
+    it('should track files added and removed while watching', async () => {
+      jest.spyOn(fileTranslationService, 'translateFile').mockResolvedValue(undefined);
+      fs.writeFileSync(path.join(tmpDir, 'a.txt'), 'Hello');
+
+      await new Promise<void>((resolve) => {
+        watchService.watch(tmpDir, {
+          targetLangs: ['es'],
+          outputDir: tmpDir,
+          onReady: resolve,
+        });
+      });
+      expect(watchService.getStats().filesWatched).toBe(1);
+
+      const newFile = path.join(tmpDir, 'b.txt');
+      fs.writeFileSync(newFile, 'World');
+      await waitFor(() => watchService.getStats().filesWatched === 2);
+
+      fs.unlinkSync(newFile);
+      await waitFor(() => watchService.getStats().filesWatched === 1);
     });
 
     it('should increment error count on translation failure', async () => {

@@ -50,6 +50,16 @@ const DEFAULT_CONCURRENCY = 5;
 const MAX_CONCURRENCY = 100;
 const PLAIN_TEXT_EXTENSIONS = new Set(['.txt', '.md']);
 
+/**
+ * /v2/translate bodies are application/x-www-form-urlencoded, so the API's
+ * per-request size limit applies to the percent-encoded text (up to ~3x the
+ * raw UTF-8 size for non-ASCII). Batch grouping measures that encoded size.
+ * The serialized output is pure ASCII, so string length equals byte length.
+ */
+function formEncodedByteLength(text: string): number {
+  return new URLSearchParams([['t', text]]).toString().length - 't='.length;
+}
+
 export class BatchTranslationService {
   private fileTranslationService: FileTranslationService;
   private translationService: TranslationService | null;
@@ -185,8 +195,9 @@ export class BatchTranslationService {
 
   /**
    * Batch-translate plain text files using TranslationService.translateBatch().
-   * Reads files, applies code/variable preservation, groups into API batches,
-   * then restores placeholders and writes output files.
+   * Files are read one at a time and flushed batch by batch (read → translate
+   * → write → release), so resident memory is bounded by a single batch
+   * rather than the whole file set.
    */
   private async translatePlainTextFilesBatched(
     files: string[],
@@ -199,76 +210,31 @@ export class BatchTranslationService {
     const successful: Array<{ file: string; outputPath: string }> = [];
     const failed: Array<{ file: string; error: string }> = [];
 
-    // Read all files and apply preservation
     interface FileEntry {
       file: string;
       outputPath: string;
       processedText: string;
       preservationMap: Map<string, string>;
     }
-    const entries: FileEntry[] = [];
 
-    for (const file of files) {
-      try {
-        const content = await safeReadFile(file, 'utf-8');
-        if (!content || content.trim() === '') {
-          failed.push({ file, error: 'File is empty' });
-          continue;
-        }
-
-        const byteSize = Buffer.byteLength(content, 'utf8');
-        if (byteSize > MAX_TEXT_BYTES) {
-          failed.push({ file, error: `File too large: ${byteSize} bytes exceeds ${MAX_TEXT_BYTES} byte limit` });
-          continue;
-        }
-
-        const preservationMap = new Map<string, string>();
-        let processedText = preserveCodeBlocks(content, preservationMap);
-        processedText = preserveVariables(processedText, preservationMap);
-
-        const outputPath = this.generateOutputPath(
-          file,
-          translationOptions.targetLang,
-          batchOptions,
-        );
-
-        entries.push({ file, outputPath, processedText, preservationMap });
-      } catch (error) {
-        failed.push({ file, error: errorMessage(error) });
-      }
-    }
-
-    // Group entries into batches respecting size and count limits
-    const batches: FileEntry[][] = [];
+    let completed = startCompleted;
     let currentBatch: FileEntry[] = [];
     let currentBytes = 0;
 
-    for (const entry of entries) {
-      const entryBytes = Buffer.byteLength(entry.processedText, 'utf8');
-
-      if (currentBatch.length > 0 &&
-          (currentBatch.length >= TRANSLATE_BATCH_SIZE || currentBytes + entryBytes > MAX_TEXT_BYTES)) {
-        batches.push(currentBatch);
-        currentBatch = [];
-        currentBytes = 0;
+    const flushBatch = async (): Promise<void> => {
+      const batch = currentBatch;
+      currentBatch = [];
+      currentBytes = 0;
+      if (batch.length === 0) {
+        return;
       }
 
-      currentBatch.push(entry);
-      currentBytes += entryBytes;
-    }
-    if (currentBatch.length > 0) {
-      batches.push(currentBatch);
-    }
-
-    // Translate each batch
-    let completed = startCompleted;
-    for (const batch of batches) {
       if (batchOptions.abortSignal?.aborted) {
         for (const entry of batch) {
           completed++;
           onProgress?.({ completed, total: totalFiles, current: entry.file });
         }
-        continue;
+        return;
       }
 
       const texts = batch.map(e => e.processedText);
@@ -283,7 +249,7 @@ export class BatchTranslationService {
             completed++;
             onProgress?.({ completed, total: totalFiles, current: entry.file });
           }
-          continue;
+          return;
         }
 
         for (let i = 0; i < batch.length; i++) {
@@ -319,7 +285,49 @@ export class BatchTranslationService {
           onProgress?.({ completed, total: totalFiles, current: entry.file });
         }
       }
+    };
+
+    for (const file of files) {
+      let entry: FileEntry;
+      try {
+        const content = await safeReadFile(file, 'utf-8');
+        if (!content || content.trim() === '') {
+          failed.push({ file, error: 'File is empty' });
+          continue;
+        }
+
+        const byteSize = Buffer.byteLength(content, 'utf8');
+        if (byteSize > MAX_TEXT_BYTES) {
+          failed.push({ file, error: `File too large: ${byteSize} bytes exceeds ${MAX_TEXT_BYTES} byte limit` });
+          continue;
+        }
+
+        const preservationMap = new Map<string, string>();
+        let processedText = preserveCodeBlocks(content, preservationMap);
+        processedText = preserveVariables(processedText, preservationMap);
+
+        const outputPath = this.generateOutputPath(
+          file,
+          translationOptions.targetLang,
+          batchOptions,
+        );
+
+        entry = { file, outputPath, processedText, preservationMap };
+      } catch (error) {
+        failed.push({ file, error: errorMessage(error) });
+        continue;
+      }
+
+      const entryBytes = formEncodedByteLength(entry.processedText);
+      if (currentBatch.length > 0 &&
+          (currentBatch.length >= TRANSLATE_BATCH_SIZE || currentBytes + entryBytes > MAX_TEXT_BYTES)) {
+        await flushBatch();
+      }
+
+      currentBatch.push(entry);
+      currentBytes += entryBytes;
     }
+    await flushBatch();
 
     return { successful, failed };
   }
@@ -355,6 +363,7 @@ export class BatchTranslationService {
       absolute: true,
       dot: false,
       deep: depth,
+      followSymbolicLinks: false,
     });
 
     // Filter to only supported files
@@ -422,7 +431,14 @@ export class BatchTranslationService {
     if (options.baseDir) {
       const relativePath = path.relative(options.baseDir, inputPath);
       const relativeDir = path.dirname(relativePath);
-      return path.join(outputDir, relativeDir, outputFilename);
+      const outputPath = path.resolve(outputDir, relativeDir, outputFilename);
+      const resolvedOutputDir = path.resolve(outputDir);
+      if (!outputPath.startsWith(resolvedOutputDir + path.sep) && outputPath !== resolvedOutputDir) {
+        throw new ValidationError(
+          `Output path "${path.join(relativeDir, outputFilename)}" escapes output directory "${outputDir}"`
+        );
+      }
+      return outputPath;
     }
 
     return path.join(outputDir, outputFilename);

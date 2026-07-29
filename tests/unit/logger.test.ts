@@ -261,10 +261,16 @@ describe('Logger', () => {
       }
     });
 
-    it('should pass non-string args through unchanged', () => {
+    it('should redact inside plain object args and leave primitives unchanged', () => {
       const obj = { url: 'wss://api.deepl.com/ws?token=secret' };
       Logger.verbose(obj, 42, null);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(obj, 42, null);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        { url: 'wss://api.deepl.com/ws?token=[REDACTED]' },
+        42,
+        null
+      );
+      // The caller's object is not mutated.
+      expect(obj.url).toBe('wss://api.deepl.com/ws?token=secret');
     });
 
     it('should sanitize multiple string args independently', () => {
@@ -532,12 +538,17 @@ describe('Logger', () => {
       expect(logged).toMatch(/\[REDACTED\]/);
     });
 
-    it('should pass non-string values through unchanged', () => {
+    it('should redact env credentials inside object values', () => {
       process.env['TMS_API_KEY'] = 'test-tms-api-key-12345';
       process.env['TMS_TOKEN'] = 'test-tms-token-67890';
       const obj = { token: 'test-tms-token-67890' };
       Logger.info(obj, 42, null, undefined);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(obj, 42, null, undefined);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        { token: '[REDACTED]' },
+        42,
+        null,
+        undefined
+      );
     });
 
     it('should redact multiple distinct credentials in the same log line', () => {
@@ -568,6 +579,72 @@ describe('Logger', () => {
           process.env['DEEPL_API_KEY'] = originalDeeplKey;
         }
       }
+    });
+  });
+
+  describe('deep sanitization', () => {
+    it('should redact through nested objects and arrays', () => {
+      Logger.error({
+        config: {
+          headers: { Authorization: 'Authorization: Bearer secret-jwt' },
+          urls: ['https://host?token=qp-secret', 'https://host/safe'],
+        },
+      });
+      expect(consoleErrorSpy).toHaveBeenCalledWith({
+        config: {
+          headers: { Authorization: 'Authorization: Bearer [REDACTED]' },
+          urls: ['https://host?token=[REDACTED]', 'https://host/safe'],
+        },
+      });
+    });
+
+    it('should guard against circular references', () => {
+      const obj: Record<string, unknown> = { url: 'https://host?token=loop-secret' };
+      obj['self'] = obj;
+      Logger.error(obj);
+      const logged = consoleErrorSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(logged['url']).toBe('https://host?token=[REDACTED]');
+      expect(logged['self']).toBe('[Circular]');
+    });
+
+    it('should redact Error message and stack while keeping it an Error', () => {
+      const err = new Error('request failed: DeepL-Auth-Key leaked-key-value');
+      Logger.error(err);
+      const logged = consoleErrorSpy.mock.calls[0]?.[0] as Error;
+      expect(logged).toBeInstanceOf(Error);
+      expect(logged.message).toBe('request failed: DeepL-Auth-Key [REDACTED]');
+      expect(logged.stack).not.toContain('leaked-key-value');
+      // The caller's error object is not mutated.
+      expect(err.message).toContain('leaked-key-value');
+    });
+
+    it('should redact extra properties attached to an Error', () => {
+      const err = new Error('boom') as Error & { config?: unknown };
+      err.config = { headers: { Authorization: 'Authorization: ApiKey axios-secret' } };
+      Logger.error(err);
+      const logged = consoleErrorSpy.mock.calls[0]?.[0] as Error & {
+        config?: { headers?: { Authorization?: string } };
+      };
+      expect(logged).toBeInstanceOf(Error);
+      expect(logged.config?.headers?.Authorization).toBe('Authorization: ApiKey [REDACTED]');
+    });
+
+    it('should pass non-plain objects through unchanged', () => {
+      class Custom {
+        value = 'https://host?token=class-secret';
+      }
+      const instance = new Custom();
+      const map = new Map([['k', 'v']]);
+      Logger.error(instance, map);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(instance, map);
+    });
+
+    it('should redact values in null-prototype objects', () => {
+      const obj = Object.create(null) as Record<string, unknown>;
+      obj['url'] = 'https://host?api_key=np-secret';
+      Logger.error(obj);
+      const logged = consoleErrorSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(logged['url']).toBe('https://host?api_key=[REDACTED]');
     });
   });
 });

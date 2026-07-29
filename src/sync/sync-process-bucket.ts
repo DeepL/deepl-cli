@@ -5,7 +5,7 @@ import type { GlossaryService } from '../services/glossary.js';
 import { computeDiff } from './sync-differ.js';
 import { mapWithConcurrency, MULTI_TARGET_CONCURRENCY } from '../utils/concurrency.js';
 import { ValidationError } from '../utils/errors.js';
-import { resolveTargetPath } from './sync-utils.js';
+import { resolveTargetPath, assertPathWithinRoot } from './sync-utils.js';
 import { computeSourceHash } from './sync-lock.js';
 import type { ResolvedSyncConfig } from './sync-config.js';
 import type { SyncLockFile, SyncLockTranslation } from './types.js';
@@ -201,6 +201,7 @@ export async function processBucket(
     } else {
       const targetRelPath = resolveTargetPath(relPath, config.source_locale, locale, bucketConfig.target_path_pattern);
       const targetAbsPath = path.join(config.projectRoot, targetRelPath);
+      assertPathWithinRoot(targetAbsPath, config.projectRoot);
       try {
         const targetContent = await fs.promises.readFile(targetAbsPath, 'utf-8');
         const targetParsed = extractTranslatable(parser, targetContent);
@@ -304,7 +305,9 @@ export async function processBucket(
     });
    } catch (localeError) {
     const msg = localeError instanceof Error ? localeError.message : String(localeError);
-    if (msg.includes('Authentication') || msg.includes('Forbidden') || msg.includes('quota')) {
+    // Containment violations abort the whole sync instead of being retried per locale.
+    if (msg.includes('Authentication') || msg.includes('Forbidden') || msg.includes('quota')
+      || (localeError instanceof ValidationError && msg.includes('escapes project root'))) {
       throw localeError;
     }
     Logger.error(`Sync failed for locale "${locale}" on "${relPath}": ${msg}`);

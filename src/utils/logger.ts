@@ -36,7 +36,57 @@ class LoggerClass {
   }
 
   private sanitize(value: unknown): unknown {
-    if (typeof value !== 'string') return value;
+    return this.sanitizeValue(value, new WeakSet());
+  }
+
+  /**
+   * Recursively redact strings inside plain objects, arrays and Errors so a
+   * dumped axios error (config.headers.Authorization etc.) cannot leak
+   * credentials via util.inspect. Other object types pass through unchanged.
+   */
+  private sanitizeValue(value: unknown, seen: WeakSet<object>): unknown {
+    if (typeof value === 'string') return this.sanitizeString(value);
+    if (value === null || typeof value !== 'object') return value;
+    if (seen.has(value)) return '[Circular]';
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.sanitizeValue(item, seen));
+    }
+
+    if (value instanceof Error) {
+      const copy = Object.create(Object.getPrototypeOf(value) as object) as object;
+      for (const key of Object.getOwnPropertyNames(value)) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor) continue;
+        // Accessor properties (V8 materializes `stack` lazily via a getter)
+        // are flattened to their current value so the copy stays self-contained.
+        const raw = 'value' in descriptor
+          ? descriptor.value
+          : (value as unknown as Record<string, unknown>)[key];
+        Object.defineProperty(copy, key, {
+          value: this.sanitizeValue(raw, seen),
+          writable: true,
+          configurable: true,
+          enumerable: descriptor.enumerable,
+        });
+      }
+      return copy;
+    }
+
+    const proto: unknown = Object.getPrototypeOf(value);
+    if (proto === Object.prototype || proto === null) {
+      const result: Record<string, unknown> = {};
+      for (const [key, entry] of Object.entries(value)) {
+        result[key] = this.sanitizeValue(entry, seen);
+      }
+      return result;
+    }
+
+    return value;
+  }
+
+  private sanitizeString(value: string): string {
     let result = value;
     result = result.replace(/([?&])token=[^&\s]*/gi, '$1token=[REDACTED]');
     result = result.replace(/([?&])api[_-]?key=[^&\s]*/gi, '$1api_key=[REDACTED]');

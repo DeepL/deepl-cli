@@ -616,6 +616,32 @@ describe('sync-context', () => {
       const dupCtx = synthesizeContext(resultDup.get('features.a.title')!, { key: 'features.a.title' });
       expect(dupCtx).toBe(singleCtx);
     });
+
+    it('should not throw on a pattern containing an unbalanced group metacharacter', () => {
+      const patterns = [makeTemplateMatch('item(${i}')];
+      expect(() => resolveTemplatePatterns(patterns, ['item(1', 'item.a'])).not.toThrow();
+    });
+
+    it('should not throw on a pattern containing an unbalanced character class', () => {
+      const patterns = [makeTemplateMatch('a[${i}')];
+      expect(() => resolveTemplatePatterns(patterns, ['a[0', 'ab'])).not.toThrow();
+    });
+
+    it('should match regex metacharacters in patterns literally', () => {
+      const patterns = [makeTemplateMatch('a[${i}')];
+      const result = resolveTemplatePatterns(patterns, ['a[0', 'a0', 'ab']);
+      expect(result.has('a[0')).toBe(true);
+      expect(result.has('a0')).toBe(false);
+      expect(result.has('ab')).toBe(false);
+    });
+
+    it('should treat + and ? in patterns as literal characters', () => {
+      const patterns = [makeTemplateMatch('count+?.${x}')];
+      const result = resolveTemplatePatterns(patterns, ['count+?.a', 'count.a', 'coun.a']);
+      expect(result.has('count+?.a')).toBe(true);
+      expect(result.has('count.a')).toBe(false);
+      expect(result.has('coun.a')).toBe(false);
+    });
   });
 
   describe('DEFAULT_FUNCTION_NAMES', () => {

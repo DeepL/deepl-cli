@@ -10,6 +10,18 @@ import type { Formality } from '../types/common.js';
 
 export const SYNC_CONFIG_FILENAME = '.deepl-sync.yaml';
 
+// Loose BCP-47 matcher. Accepts plain codes (`de`, `ja`), script/region
+// subtags (`zh-Hans`, `pt-BR`), and multi-subtag variants (`en-US-POSIX`).
+// Each subtag is 2-8 alphanumeric chars; case is not enforced because
+// operators commonly type codes in whatever case they remember. Locale codes
+// are interpolated into target file paths, so anything outside this shape is
+// rejected rather than merely denylisted.
+export const LOCALE_CODE_RE = /^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$/;
+
+// Directories a target_path_pattern must never resolve into: writing there
+// lets a translated-locale name become VCS metadata or CI workflow code.
+const FORBIDDEN_TARGET_SEGMENTS: ReadonlySet<string> = new Set(['.git', '.github']);
+
 export interface SyncConfigOverrides {
   frozen?: boolean;
   dryRun?: boolean;
@@ -31,6 +43,9 @@ export interface ResolvedSyncConfig extends SyncConfig {
   overrides: SyncConfigOverrides;
 }
 
+// The upward walk stops at the first directory containing `.git` (after
+// checking that directory itself) so a config planted in an ancestor outside
+// the repository is never silently adopted as projectRoot.
 export function findSyncConfigFile(startDir: string): string | null {
   let current = path.resolve(startDir);
   const root = path.parse(current).root;
@@ -39,6 +54,9 @@ export function findSyncConfigFile(startDir: string): string | null {
     const candidate = path.join(current, SYNC_CONFIG_FILENAME);
     if (fs.existsSync(candidate)) {
       return candidate;
+    }
+    if (fs.existsSync(path.join(current, '.git'))) {
+      return null;
     }
     const parent = path.dirname(current);
     if (parent === current || current === root) {
@@ -258,9 +276,9 @@ export function validateSyncConfig(raw: unknown): SyncConfig {
       'Add source_locale: <code> to .deepl-sync.yaml (e.g., source_locale: en).',
     );
   }
-  if (obj['source_locale'].includes('..') || obj['source_locale'].includes('/') || obj['source_locale'].includes('\\')) {
+  if (!LOCALE_CODE_RE.test(obj['source_locale'])) {
     throw new ConfigError(
-      `Invalid source locale "${sanitizeForTerminal(obj['source_locale'])}": must not contain path separators or ".."`,
+      `Invalid source locale "${sanitizeForTerminal(obj['source_locale'])}": must be a BCP-47 style code (letters, digits, hyphens; no path separators or "..")`,
       'Set source_locale in .deepl-sync.yaml to a plain code like "en" or "en-US".',
     );
   }
@@ -278,9 +296,9 @@ export function validateSyncConfig(raw: unknown): SyncConfig {
         'Ensure every entry in target_locales is a quoted string locale code.',
       );
     }
-    if (locale.includes('..') || locale.includes('/') || locale.includes('\\')) {
+    if (!LOCALE_CODE_RE.test(locale)) {
       throw new ConfigError(
-        `Invalid target locale "${sanitizeForTerminal(locale)}": must not contain path separators or ".."`,
+        `Invalid target locale "${sanitizeForTerminal(locale)}": must be a BCP-47 style code (letters, digits, hyphens; no path separators or "..")`,
         'Set entries in target_locales to plain codes like "de" or "fr-CA".',
       );
     }
@@ -365,6 +383,15 @@ export function validateSyncConfig(raw: unknown): SyncConfig {
         throw new ConfigError(
           `Sync config bucket "${safeName}" target_path_pattern must not contain ".."`,
           `Remove ".." from buckets.${safeName}.target_path_pattern in .deepl-sync.yaml.`,
+        );
+      }
+      const forbidden = b['target_path_pattern']
+        .split(/[/\\]/)
+        .find(seg => FORBIDDEN_TARGET_SEGMENTS.has(seg.toLowerCase()));
+      if (forbidden) {
+        throw new ConfigError(
+          `Sync config bucket "${safeName}" target_path_pattern must not write into "${forbidden}/"`,
+          `Point buckets.${safeName}.target_path_pattern at a locale directory outside ${forbidden}/.`,
         );
       }
     }

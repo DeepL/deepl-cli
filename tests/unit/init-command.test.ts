@@ -9,10 +9,12 @@ import nock from 'nock';
 import { ConfigService } from '../../src/storage/config';
 
 const mockInput = jest.fn<Promise<string>, []>();
+const mockPassword = jest.fn<Promise<string>, [unknown]>();
 const mockSelect = jest.fn<Promise<string>, []>();
 
 jest.mock('@inquirer/prompts', () => ({
   input: (...args: unknown[]) => mockInput(...(args as [])),
+  password: (...args: unknown[]) => mockPassword(...(args as [unknown])),
   select: (...args: unknown[]) => mockSelect(...(args as [])),
 }));
 
@@ -28,6 +30,7 @@ describe('InitCommand', () => {
     configService = new ConfigService(configPath);
     nock.cleanAll();
     mockInput.mockReset();
+    mockPassword.mockReset();
     mockSelect.mockReset();
   });
 
@@ -39,7 +42,7 @@ describe('InitCommand', () => {
   });
 
   it('should save API key after validation', async () => {
-    mockInput.mockResolvedValueOnce('test-api-key-123');
+    mockPassword.mockResolvedValueOnce('test-api-key-123');
     mockSelect.mockResolvedValueOnce('');
 
     nock(baseUrl)
@@ -54,7 +57,7 @@ describe('InitCommand', () => {
   });
 
   it('should save default target language when selected', async () => {
-    mockInput.mockResolvedValueOnce('test-api-key-123');
+    mockPassword.mockResolvedValueOnce('test-api-key-123');
     mockSelect.mockResolvedValueOnce('de');
 
     nock(baseUrl)
@@ -69,7 +72,7 @@ describe('InitCommand', () => {
   });
 
   it('should not set target language when Skip is selected', async () => {
-    mockInput.mockResolvedValueOnce('test-api-key-123');
+    mockPassword.mockResolvedValueOnce('test-api-key-123');
     mockSelect.mockResolvedValueOnce('');
 
     nock(baseUrl)
@@ -84,7 +87,7 @@ describe('InitCommand', () => {
   });
 
   it('should throw on invalid API key', async () => {
-    mockInput.mockResolvedValueOnce('bad-key');
+    mockPassword.mockResolvedValueOnce('bad-key');
 
     nock(baseUrl)
       .get('/v2/usage')
@@ -96,7 +99,7 @@ describe('InitCommand', () => {
   });
 
   it('should trim whitespace from API key', async () => {
-    mockInput.mockResolvedValueOnce('  test-api-key-123  ');
+    mockPassword.mockResolvedValueOnce('  test-api-key-123  ');
     mockSelect.mockResolvedValueOnce('');
 
     nock(baseUrl)
@@ -110,8 +113,63 @@ describe('InitCommand', () => {
     expect(configService.getValue('auth.apiKey')).toBe('test-api-key-123');
   });
 
+  it('should prompt for the API key with a masked password prompt', async () => {
+    mockPassword.mockResolvedValueOnce('test-api-key-123');
+    mockSelect.mockResolvedValueOnce('');
+
+    nock(baseUrl)
+      .get('/v2/usage')
+      .reply(200, { character_count: 0, character_limit: 500000 });
+
+    const { InitCommand } = await import('../../src/cli/commands/init');
+    const cmd = new InitCommand(configService);
+    await cmd.run();
+
+    expect(mockPassword).toHaveBeenCalledWith(
+      expect.objectContaining({ mask: true })
+    );
+    expect(mockInput).not.toHaveBeenCalled();
+  });
+
+  it('should reject blank input in the API key prompt validation', async () => {
+    mockPassword.mockResolvedValueOnce('test-api-key-123');
+    mockSelect.mockResolvedValueOnce('');
+
+    nock(baseUrl)
+      .get('/v2/usage')
+      .reply(200, { character_count: 0, character_limit: 500000 });
+
+    const { InitCommand } = await import('../../src/cli/commands/init');
+    const cmd = new InitCommand(configService);
+    await cmd.run();
+
+    const promptConfig = mockPassword.mock.calls[0]?.[0] as {
+      validate?: (value: string) => string | boolean;
+    };
+    expect(promptConfig.validate?.('   ')).toMatch(/API key is required/);
+    expect(promptConfig.validate?.('valid-key')).toBe(true);
+  });
+
+  it('should apply HTTP client options to the key-validation client', async () => {
+    mockPassword.mockResolvedValueOnce('test-api-key-123');
+
+    nock(baseUrl)
+      .get('/v2/usage')
+      .reply(503, { message: 'Service unavailable' })
+      .get('/v2/usage')
+      .reply(200, { character_count: 0, character_limit: 500000 });
+
+    const { InitCommand } = await import('../../src/cli/commands/init');
+    const cmd = new InitCommand(configService, { maxRetries: 0 });
+
+    // With maxRetries: 0 the first 503 is fatal; the default retry policy
+    // would have retried into the queued 200 and succeeded.
+    await expect(cmd.run()).rejects.toThrow();
+    expect(configService.getValue('auth.apiKey')).toBeUndefined();
+  });
+
   it('should validate :fx key against api-free.deepl.com', async () => {
-    mockInput.mockResolvedValueOnce('test-init-key:fx');
+    mockPassword.mockResolvedValueOnce('test-init-key:fx');
     mockSelect.mockResolvedValueOnce('');
 
     const scope = nock('https://api-free.deepl.com')

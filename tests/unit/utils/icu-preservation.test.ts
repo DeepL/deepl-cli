@@ -124,6 +124,121 @@ describe('icu-preservation', () => {
       });
     });
 
+    describe('offset', () => {
+      it('should parse plural with offset:1', () => {
+        const result = parseIcu('{count, plural, offset:1 one {you and # other} other {you and # others}}');
+        expect(result.isIcu).toBe(true);
+        expect(result.segments).toHaveLength(2);
+        expect(result.segments[0]!.text).toBe('you and # other');
+        expect(result.segments[1]!.text).toBe('you and # others');
+      });
+
+      it('should preserve offset:1 verbatim on reassembly', () => {
+        const input = '{count, plural, offset:1 one {you and # other} other {you and # others}}';
+        const result = parseIcu(input);
+        const roundTrip = result.reassemble(result.segments.map((s) => s.text));
+        expect(roundTrip).toBe(input);
+      });
+
+      it('should parse offset:0', () => {
+        const result = parseIcu('{count, plural, offset:0 one {# item} other {# items}}');
+        expect(result.isIcu).toBe(true);
+        expect(result.reassemble(['# item', '# items'])).toBe(
+          '{count, plural, offset:0 one {# item} other {# items}}',
+        );
+      });
+
+      it('should parse selectordinal with offset', () => {
+        const result = parseIcu('{count, selectordinal, offset:2 one {#st} other {#th}}');
+        expect(result.isIcu).toBe(true);
+        expect(result.segments).toHaveLength(2);
+        expect(result.reassemble(['#st', '#th'])).toBe(
+          '{count, selectordinal, offset:2 one {#st} other {#th}}',
+        );
+      });
+
+      it('should parse nested plural with offset', () => {
+        const input = '{count, plural, offset:1 one {{gender, select, male {He} other {They}}} other {# guests}}';
+        const result = parseIcu(input);
+        expect(result.isIcu).toBe(true);
+        expect(result.segments).toHaveLength(3);
+        expect(result.reassemble(result.segments.map((s) => s.text))).toBe(input);
+      });
+
+      it('should NOT treat offset as valid for select', () => {
+        const result = parseIcu('{gender, select, offset:1 male {He} other {They}}');
+        expect(result.isIcu).toBe(false);
+      });
+    });
+
+    describe('quoting', () => {
+      it('should parse unbalanced quoted opening brace', () => {
+        const result = parseIcu("{count, plural, other {Use '{' to open}}");
+        expect(result.isIcu).toBe(true);
+        expect(result.segments).toHaveLength(1);
+        expect(result.segments[0]!.text).toBe("Use '{' to open");
+      });
+
+      it('should parse unbalanced quoted closing brace', () => {
+        const result = parseIcu("{count, plural, other {Use '}' to close}}");
+        expect(result.isIcu).toBe(true);
+        expect(result.segments[0]!.text).toBe("Use '}' to close");
+      });
+
+      it('should parse balanced quoted braces', () => {
+        const result = parseIcu("{count, plural, other {'{'#'}' items}}");
+        expect(result.isIcu).toBe(true);
+        expect(result.segments[0]!.text).toBe("'{'#'}' items");
+      });
+
+      it('should round-trip quoted spans byte-exact', () => {
+        const input = "{count, plural, other {Use '{' to open}}";
+        const result = parseIcu(input);
+        const roundTrip = result.reassemble(result.segments.map((s) => s.text));
+        expect(roundTrip).toBe(input);
+      });
+
+      it('should keep a plain apostrophe before a non-syntax char literal', () => {
+        const result = parseIcu("{count, plural, other {50'%' off}}");
+        expect(result.isIcu).toBe(true);
+        expect(result.segments[0]!.text).toBe("50'%' off");
+      });
+
+      it('should treat a doubled apostrophe as a literal apostrophe', () => {
+        const result = parseIcu("{count, plural, other {It''s here}}");
+        expect(result.isIcu).toBe(true);
+        expect(result.segments[0]!.text).toBe("It''s here");
+      });
+
+      it('should handle a doubled apostrophe at the end of branch content', () => {
+        const result = parseIcu("{count, plural, other {kids''}}");
+        expect(result.isIcu).toBe(true);
+        expect(result.segments[0]!.text).toBe("kids''");
+      });
+
+      it('should handle a plain apostrophe mid-word', () => {
+        const result = parseIcu("{count, plural, other {five o'clock}}");
+        expect(result.isIcu).toBe(true);
+        expect(result.segments[0]!.text).toBe("five o'clock");
+      });
+
+      it('should quote # in plural context', () => {
+        const result = parseIcu("{count, plural, other {'#{' open}}");
+        expect(result.isIcu).toBe(true);
+        expect(result.segments[0]!.text).toBe("'#{' open");
+      });
+
+      it('should NOT quote # in select context', () => {
+        const result = parseIcu("{gender, select, other {'#{' open}}");
+        expect(result.isIcu).toBe(false);
+      });
+
+      it('should fall back when a quoted brace is left unterminated at end of string', () => {
+        const result = parseIcu("{count, plural, other {items'}}");
+        expect(result.isIcu).toBe(false);
+      });
+    });
+
     describe('non-ICU passthrough', () => {
       it('should return identity reassemble for non-ICU text', () => {
         const result = parseIcu('Hello {name}');

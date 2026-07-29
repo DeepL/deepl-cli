@@ -11,6 +11,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
 
+    # Publishing requires manual approval via the environment's required
+    # reviewers, so a pushed tag alone cannot release to npm.
+    environment: npm-publish
+
     permissions:
       contents: read
       id-token: write

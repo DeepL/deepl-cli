@@ -25,7 +25,11 @@ jest.mock('../../../src/services/file-translation');
 const mockWatcher = {
   on: jest.fn().mockReturnThis(),
   close: jest.fn().mockResolvedValue(undefined),
+  getWatched: jest.fn().mockReturnValue({}),
 };
+
+const getWatcherHandler = (event: string): ((...args: unknown[]) => void) =>
+  mockWatcher.on.mock.calls.find(call => call[0] === event)?.[1];
 
 const flushPromises = () => new Promise<void>(resolve => process.nextTick(resolve));
 
@@ -38,6 +42,7 @@ describe('WatchService', () => {
     // Reset mocks
     jest.clearAllMocks();
     mockWatcher.on.mockReturnThis();
+    mockWatcher.getWatched.mockReturnValue({});
 
     // Mock p-limit to execute tasks immediately
     (mockPLimit as any).mockImplementation((_concurrency: number) => {
@@ -547,6 +552,107 @@ describe('WatchService', () => {
       expect(stats.errorsCount).toBeGreaterThan(0);
 
       consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('filesWatched tracking', () => {
+    const watchOptions = () => ({
+      targetLangs: ['es' as const],
+      outputDir: path.join(testDir, 'output'),
+    });
+
+    it('should report 0 filesWatched before the ready event fires', () => {
+      watchService.watch(testDir, watchOptions());
+
+      expect(watchService.getStats().filesWatched).toBe(0);
+    });
+
+    it('should seed filesWatched from getWatched() on ready, counting files only', () => {
+      const subDir = path.join(testDir, 'sub');
+      mockWatcher.getWatched.mockReturnValue({
+        [path.dirname(testDir)]: [path.basename(testDir)],
+        [testDir]: ['a.txt', 'b.md', 'sub'],
+        [subDir]: ['c.txt'],
+        [path.join(testDir, 'empty')]: [],
+      });
+
+      watchService.watch(testDir, watchOptions());
+      getWatcherHandler('ready')();
+
+      expect(watchService.getStats().filesWatched).toBe(3);
+    });
+
+    it('should call onReady callback after seeding filesWatched', () => {
+      mockWatcher.getWatched.mockReturnValue({
+        [testDir]: ['a.txt'],
+      });
+
+      let filesWatchedAtReady: number | undefined;
+      watchService.watch(testDir, {
+        ...watchOptions(),
+        onReady: () => {
+          filesWatchedAtReady = watchService.getStats().filesWatched;
+        },
+      });
+      getWatcherHandler('ready')();
+
+      expect(filesWatchedAtReady).toBe(1);
+    });
+
+    it('should increment filesWatched on add, even for unsupported file types', () => {
+      watchService.watch(testDir, watchOptions());
+      const addHandler = getWatcherHandler('add');
+
+      addHandler(path.join(testDir, 'new.txt'));
+      addHandler(path.join(testDir, 'new.pdf'));
+
+      expect(watchService.getStats().filesWatched).toBe(2);
+    });
+
+    it('should decrement filesWatched on unlink', () => {
+      mockWatcher.getWatched.mockReturnValue({
+        [testDir]: ['a.txt', 'b.txt'],
+      });
+
+      watchService.watch(testDir, watchOptions());
+      getWatcherHandler('ready')();
+      getWatcherHandler('unlink')(path.join(testDir, 'a.txt'));
+
+      expect(watchService.getStats().filesWatched).toBe(1);
+    });
+
+    it('should not decrement filesWatched below zero', () => {
+      watchService.watch(testDir, watchOptions());
+      getWatcherHandler('unlink')(path.join(testDir, 'a.txt'));
+
+      expect(watchService.getStats().filesWatched).toBe(0);
+    });
+
+    it('should replace pre-ready add counts with the getWatched() snapshot on ready', () => {
+      mockWatcher.getWatched.mockReturnValue({
+        [testDir]: ['a.txt', 'b.txt'],
+      });
+
+      watchService.watch(testDir, watchOptions());
+      getWatcherHandler('add')(path.join(testDir, 'a.txt'));
+      getWatcherHandler('ready')();
+
+      expect(watchService.getStats().filesWatched).toBe(2);
+    });
+
+    it('should reset filesWatched when watch() starts again after stop()', async () => {
+      mockWatcher.getWatched.mockReturnValue({
+        [testDir]: ['a.txt', 'b.txt'],
+      });
+
+      watchService.watch(testDir, watchOptions());
+      getWatcherHandler('ready')();
+      expect(watchService.getStats().filesWatched).toBe(2);
+
+      await watchService.stop();
+      watchService.watch(testDir, watchOptions());
+
+      expect(watchService.getStats().filesWatched).toBe(0);
     });
   });
 

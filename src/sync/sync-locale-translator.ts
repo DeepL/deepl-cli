@@ -14,6 +14,7 @@ import { validateBatch } from './translation-validator.js';
 import { atomicWriteFile } from '../utils/atomic-write.js';
 import { mapWithConcurrency } from '../utils/concurrency.js';
 import { resolveTargetPath, assertPathWithinRoot } from './sync-utils.js';
+import { BACKUP_SUFFIX } from './sync-bak-cleanup.js';
 import { Logger } from '../utils/logger.js';
 import { preserveVariables, restorePlaceholders } from '../utils/text-preservation.js';
 import { expandPlurals, detectIcu, reassembleIcu, writebackPlurals } from './sync-message-preprocess.js';
@@ -514,6 +515,7 @@ export class LocaleTranslator {
       ? relPath
       : resolveTargetPath(relPath, config.source_locale, locale, bucketConfig.target_path_pattern);
     const targetAbsPath = path.join(config.projectRoot, targetRelPath);
+    assertPathWithinRoot(targetAbsPath, config.projectRoot);
 
     let templateContent = content;
     let targetExists = false;
@@ -527,8 +529,8 @@ export class LocaleTranslator {
       templateContent = content;
     }
 
-    if (targetExists && config.sync?.backup !== false && !this.backupPaths.has(targetAbsPath + '.bak')) {
-      const bakPath = targetAbsPath + '.bak';
+    if (targetExists && config.sync?.backup !== false && !this.backupPaths.has(targetAbsPath + BACKUP_SUFFIX)) {
+      const bakPath = targetAbsPath + BACKUP_SUFFIX;
       try {
         await fs.promises.copyFile(targetAbsPath, bakPath);
         this.backupPaths.add(bakPath);
@@ -540,7 +542,6 @@ export class LocaleTranslator {
     const reconstructed = isMultiLocale
       ? parser.reconstruct(templateContent, allTranslatedEntries, locale)
       : parser.reconstruct(templateContent, allTranslatedEntries);
-    assertPathWithinRoot(targetAbsPath, config.projectRoot);
     await fs.promises.mkdir(path.dirname(targetAbsPath), { recursive: true });
     await atomicWriteFile(targetAbsPath, reconstructed, 'utf-8');
 

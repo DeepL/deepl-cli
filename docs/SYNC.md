@@ -581,7 +581,7 @@ deepl sync status --format json
 
 **`skippedKeys`** counts entries the parser tagged as untranslatable and excluded from the translation batch — currently only Laravel pipe-pluralization values (`|{n}`, `|[n,m]`, `|[n,*]`). Included in `totalKeys`; round-trip byte-verbatim via reconstruct.
 
-**JSON output contract.** The field set above is stable across 1.x. `coverage` is an integer 0-100. The success payload is written to **stdout** so `deepl sync status --format json > status.json` captures it in a parseable file; diagnostic logs remain on stderr. On failure, `--format json` emits the nested error envelope `{"ok":false,"error":{"code":"...","message":"...","suggestion":"..."},"exitCode":N}` to **stderr** and exits non-zero; `error.code` matches the error class name (e.g. `ConfigError`). The same stdout/stderr split applies to `deepl sync validate --format json` and `deepl sync audit --format json`.
+**JSON output contract.** The field set above is stable within a major version. `coverage` is an integer 0-100. The success payload is written to **stdout** so `deepl sync status --format json > status.json` captures it in a parseable file; diagnostic logs remain on stderr. On failure, `--format json` emits the nested error envelope `{"ok":false,"error":{"code":"...","message":"...","suggestion":"..."},"exitCode":N}` to **stderr** and exits non-zero; `error.code` matches the error class name (e.g. `ConfigError`). The same stdout/stderr split applies to `deepl sync validate --format json` and `deepl sync audit --format json`.
 
 **Casing.** CLI JSON output uses `camelCase`. The on-disk lockfile and config use `snake_case`. This split is deliberate — JSON is a consumer contract, files are authored configuration.
 
@@ -716,7 +716,7 @@ Analyze the lock file for terminology inconsistencies -- cases where the same so
 deepl sync audit [OPTIONS]
 ```
 
-> Prior to 1.0.0 this subcommand was named `glossary-report`. The old name now errors out with a pointer at `audit`; no alias is kept. This is a clean pre-release rename — `glossary-report` never shipped in a tagged release.
+> Prior to the 1.1.0 release this subcommand was prototyped as `glossary-report`; it never shipped in a tagged release under that name. The old name now errors out with a pointer at `audit`; no alias is kept.
 
 **Options:**
 
@@ -783,7 +783,7 @@ Each target locale's approved dictionary is fetched exactly once per `sync pull`
 
 ## Stability & deprecation
 
-`deepl sync` is on the road to a stable 1.0 public surface. This section records the commitment that governs how public subcommand and flag renames are delivered, so downstream users can rely on a predictable upgrade cadence.
+`deepl sync` has a stable public surface as of 2.0.0. This section records the commitment that governs how public subcommand and flag renames are delivered, so downstream users can rely on a predictable upgrade cadence.
 
 - **Public renames ship with a deprecated alias.** Any rename of a documented subcommand or flag keeps the predecessor as a working alias for one minor release, and the alias emits a stderr deprecation warning naming the replacement.
 - **Aliases are removed at the next major.** A deprecated alias introduced in `1.x` is removed at the `2.0` cut; it is never silently slipped into a later `1.x`.
@@ -808,6 +808,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: npm install -g @deepl/cli
       - name: Check translations are up to date
         run: deepl sync --frozen
@@ -832,6 +835,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: npm install -g @deepl/cli
       - name: Sync and commit translations
         run: |

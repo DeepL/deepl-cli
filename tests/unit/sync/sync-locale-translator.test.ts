@@ -747,7 +747,7 @@ describe('LocaleTranslator', () => {
       expect(parser.reconstruct).toHaveBeenCalledWith(existingTarget, expect.any(Array));
     });
 
-    it('should create a .bak copy of the existing target when the target exists and backup is not disabled', async () => {
+    it('should create a .deepl.bak copy of the existing target when the target exists and backup is not disabled', async () => {
       mockReadFile.mockResolvedValueOnce('{"prior":"X"}');
       const copyFileSpy = fs.promises.copyFile as jest.MockedFunction<typeof fs.promises.copyFile>;
       copyFileSpy.mockResolvedValueOnce(undefined);
@@ -760,7 +760,7 @@ describe('LocaleTranslator', () => {
 
       expect(copyFileSpy).toHaveBeenCalled();
       const copyArgs = copyFileSpy.mock.calls[0]!;
-      expect(String(copyArgs[1])).toMatch(/\.bak$/);
+      expect(String(copyArgs[1])).toMatch(/\.deepl\.bak$/);
     });
 
     it('should skip the backup when sync.backup is explicitly false', async () => {
@@ -1043,6 +1043,49 @@ describe('LocaleTranslator', () => {
 
       // reconstruct sees the source content as the template (whitespace target discarded).
       expect(parser.reconstruct).toHaveBeenCalledWith('{}', expect.any(Array));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 14a. Containment ordering — assertPathWithinRoot runs before any target I/O
+  // ---------------------------------------------------------------------------
+  describe('target-file handling — containment ordering', () => {
+    it('should assert containment before reading the target or writing the backup', async () => {
+      const order: string[] = [];
+      mockAssertPathWithinRoot.mockImplementation(() => { order.push('assert'); });
+      mockReadFile.mockImplementation(() => { order.push('read'); return Promise.resolve('{"prior":"X"}'); });
+      const copyFileSpy = fs.promises.copyFile as jest.MockedFunction<typeof fs.promises.copyFile>;
+      copyFileSpy.mockImplementation(() => { order.push('copy'); return Promise.resolve(); });
+
+      const config = makeConfig();
+      const diffs = [makeDiff('greeting', 'Hello')];
+      const { mock } = captureTranslateBatch(['Hallo']);
+
+      await makeTranslator(mock, config).translate(makeCtx(diffs, new Map()));
+
+      expect(order).toContain('assert');
+      expect(order).toContain('read');
+      expect(order).toContain('copy');
+      expect(order.indexOf('assert')).toBeLessThan(order.indexOf('read'));
+      expect(order.indexOf('assert')).toBeLessThan(order.indexOf('copy'));
+    });
+
+    it('should neither read the target nor write a backup when containment fails', async () => {
+      mockAssertPathWithinRoot.mockImplementation(() => {
+        throw new Error('Target path escapes project root: /evil/de.json');
+      });
+      const copyFileSpy = fs.promises.copyFile as jest.MockedFunction<typeof fs.promises.copyFile>;
+
+      const config = makeConfig();
+      const diffs = [makeDiff('greeting', 'Hello')];
+      const { mock } = captureTranslateBatch(['Hallo']);
+
+      await expect(
+        makeTranslator(mock, config).translate(makeCtx(diffs, new Map())),
+      ).rejects.toThrow(/escapes project root/);
+      expect(mockReadFile).not.toHaveBeenCalled();
+      expect(copyFileSpy).not.toHaveBeenCalled();
+      expect(mockAtomicWriteFile).not.toHaveBeenCalled();
     });
   });
 

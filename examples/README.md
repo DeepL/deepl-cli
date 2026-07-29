@@ -112,7 +112,7 @@ You can run all examples at once using the `run-all.sh` script:
 
 ## Example Files
 
-The `sample-files/` directory contains sample documents used in the examples.
+The example scripts generate their own fixture files under `/tmp` at runtime and clean them up on exit; no sample data is checked into this directory.
 
 ## Contributing Examples
 

@@ -375,9 +375,15 @@ export function resolveTemplatePatterns(
     let regex = regexByPattern.get(tmpl.pattern);
     if (!regex) {
       const glob = templateToGlobPattern(tmpl.pattern);
-      // Escape dots, replace * with single-segment match
-      const regexStr = '^' + glob.replace(/\./g, '\\.').replace(/\*/g, '[^.]+') + '$';
-      regex = new RegExp(regexStr);
+      // Escape all regex metacharacters, then turn the glob * into a
+      // single-segment match. Construction stays guarded so a scanned
+      // pattern can never abort the whole sync.
+      const regexStr = '^' + glob.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '[^.]+') + '$';
+      try {
+        regex = new RegExp(regexStr);
+      } catch {
+        continue;
+      }
       regexByPattern.set(tmpl.pattern, regex);
     }
 

@@ -220,23 +220,75 @@ describe('yaml parser', () => {
     });
   });
 
-  describe('walkNode with aliases resolving to maps/seqs', () => {
-    it('should extract entries from alias that resolves to a map', () => {
+  describe('aliases resolving to collections', () => {
+    it('should extract aliased map content only at its anchor site', () => {
       const yaml = 'defaults: &defaults\n  color: red\n  size: large\ntheme: *defaults\n';
       const entries = parser.extract(yaml);
       const keys = entries.map(e => e.key);
-      expect(keys).toContain('defaults\0color');
-      expect(keys).toContain('defaults\0size');
-      expect(keys).toContain('theme\0color');
-      expect(keys).toContain('theme\0size');
+      expect(keys).toEqual(['defaults\0color', 'defaults\0size']);
     });
 
-    it('should extract entries from alias in a sequence that resolves to a map', () => {
+    it('should extract aliased map content in a sequence only at its anchor site', () => {
       const yaml = 'base: &base\n  x: hello\nitems:\n  - *base\n';
       const entries = parser.extract(yaml);
       const keys = entries.map(e => e.key);
-      expect(keys).toContain('base\0x');
-      expect(keys).toContain('items\x000\x00x');
+      expect(keys).toEqual(['base\0x']);
+    });
+
+    it('should round-trip an alias to a map, preserving the reference', () => {
+      const yaml = 'defaults: &defaults\n  color: red\ntheme: *defaults\n';
+      const entries: TranslatedEntry[] = [
+        { key: 'defaults\0color', value: 'red', translation: 'rojo' },
+      ];
+      const result = parser.reconstruct(yaml, entries);
+      expect(result).toContain('&defaults');
+      expect(result).toContain('theme: *defaults');
+      expect(result).toContain('rojo');
+      expect(result).not.toContain('red');
+    });
+
+    it('should round-trip an alias to a sequence, preserving the reference', () => {
+      const yaml = 'langs: &langs\n  - hello\ncopy: *langs\n';
+      const entries: TranslatedEntry[] = [
+        { key: 'langs\x000', value: 'hello', translation: 'hola' },
+      ];
+      const result = parser.reconstruct(yaml, entries);
+      expect(result).toContain('&langs');
+      expect(result).toContain('copy: *langs');
+      expect(result).toContain('- hola');
+    });
+
+    it('should round-trip merge keys, preserving the merge reference', () => {
+      const yaml = [
+        'defaults: &d',
+        '  color: red',
+        'theme:',
+        '  <<: *d',
+        '  name: Dark',
+        '',
+      ].join('\n');
+      const extracted = parser.extract(yaml);
+      expect(extracted.map(e => e.key)).toEqual(['defaults\0color', 'theme\0name']);
+
+      const entries: TranslatedEntry[] = extracted.map(e => ({
+        ...e,
+        translation: e.value === 'red' ? 'rojo' : 'Oscuro',
+      }));
+      const result = parser.reconstruct(yaml, entries);
+      expect(result).toContain('&d');
+      expect(result).toContain('<<: *d');
+      expect(result).toContain('rojo');
+      expect(result).toContain('Oscuro');
+    });
+
+    it('should translate anchored content so aliases resolve to translations', () => {
+      const yaml = 'defaults: &defaults\n  color: red\ntheme: *defaults\n';
+      const entries: TranslatedEntry[] = [
+        { key: 'defaults\0color', value: 'red', translation: 'rojo' },
+      ];
+      const result = parser.reconstruct(yaml, entries);
+      const roundTripped = parser.extract(result);
+      expect(roundTripped).toEqual([{ key: 'defaults\0color', value: 'rojo' }]);
     });
   });
 
@@ -337,7 +389,9 @@ describe('yaml parser', () => {
     });
   });
 
-  describe('alias expansion limits', () => {
+  describe('alias-heavy documents', () => {
+    // Would expand to 9^12 nodes if collection aliases were followed; any
+    // regression toward expansion blows the test timeout.
     const aliasBomb = (): string => {
       const lines = ['level0: &level0 [a, b, c, d]'];
       for (let i = 1; i <= 12; i++) {
@@ -355,19 +409,28 @@ describe('yaml parser', () => {
       return `${lines.join('\n')}\n`;
     };
 
-    it('should reject nested alias fan-out during extract without expanding it', () => {
-      const start = Date.now();
-      expect(() => parser.extract(aliasBomb())).toThrow(/YAML parse error/);
-      expect(Date.now() - start).toBeLessThan(2000);
+    it('should extract nested alias fan-out without expanding it', () => {
+      const entries = parser.extract(aliasBomb());
+      expect(entries.map(e => e.key)).toEqual([
+        'level0\x000',
+        'level0\x001',
+        'level0\x002',
+        'level0\x003',
+      ]);
     });
 
-    it('should reject nested alias fan-out during reconstruct without expanding it', () => {
-      const start = Date.now();
-      expect(() => parser.reconstruct(aliasBomb(), [])).toThrow(/YAML parse error/);
-      expect(Date.now() - start).toBeLessThan(2000);
+    it('should reconstruct nested alias fan-out without expanding it', () => {
+      const yaml = aliasBomb();
+      const entries: TranslatedEntry[] = parser
+        .extract(yaml)
+        .map(e => ({ ...e, translation: e.value.toUpperCase() }));
+      const result = parser.reconstruct(yaml, entries);
+      expect(result).toContain('&level0');
+      expect(result).toContain('*level11');
+      expect(result).toContain('A');
     });
 
-    it('should reject repeated expansion of a large anchor', () => {
+    it('should extract a large anchor once, leaving its copies as references', () => {
       const lines = ['big: &big'];
       for (let i = 0; i < 500; i++) {
         lines.push(`  entry${i}: value${i}`);
@@ -377,26 +440,19 @@ describe('yaml parser', () => {
       }
       const yaml = `${lines.join('\n')}\n`;
 
-      const start = Date.now();
-      expect(() => parser.extract(yaml)).toThrow(/YAML parse error/);
-      expect(Date.now() - start).toBeLessThan(2000);
+      const entries = parser.extract(yaml);
+      expect(entries).toHaveLength(500);
+      expect(entries.every(e => e.key.startsWith('big\0'))).toBe(true);
     });
 
-    it('should reject a self-referential anchor during extract', () => {
+    it('should extract nothing from a self-referential anchor', () => {
       const yaml = 'root: &r\n  child: *r\n';
-      const start = Date.now();
-      expect(() => parser.extract(yaml)).toThrow(/YAML parse error/);
-      expect(Date.now() - start).toBeLessThan(2000);
+      expect(parser.extract(yaml)).toEqual([]);
     });
 
-    it('should reject a self-referential anchor during reconstruct', () => {
+    it('should round-trip a self-referential anchor unchanged', () => {
       const yaml = 'root: &r\n  child: *r\n';
-      expect(() => parser.reconstruct(yaml, [])).toThrow(/YAML parse error/);
-    });
-
-    it('should report which construct exceeded the limit', () => {
-      expect(() => parser.extract(aliasBomb())).toThrow(/alias/i);
-      expect(() => parser.extract('root: &r\n  child: *r\n')).toThrow(/alias/i);
+      expect(parser.reconstruct(yaml, [])).toBe(yaml);
     });
 
     it('should still extract a document that reuses one anchor many times', () => {
@@ -413,6 +469,39 @@ describe('yaml parser', () => {
       const result = parser.reconstruct(yaml, entries);
       expect(result).toContain('compartido');
       expect(result).toContain('key199');
+    });
+  });
+
+  describe('reconstruct with multiple deletions', () => {
+    it('should remove several sequence items while keeping the translated one', () => {
+      const yaml = 'items:\n  - a\n  - b\n  - c\n  - d\n';
+      const entries: TranslatedEntry[] = [
+        { key: 'items\x002', value: 'c', translation: 'ce' },
+      ];
+      const result = parser.reconstruct(yaml, entries);
+      expect(result).toBe('items:\n  - ce\n');
+    });
+
+    it('should apply translations and deletions correctly across a large document', () => {
+      const size = 500;
+      const lines: string[] = ['root:'];
+      for (let i = 0; i < size; i++) {
+        lines.push(`  key_${i}: value ${i}`);
+      }
+      const yaml = lines.join('\n') + '\n';
+
+      const entries: TranslatedEntry[] = [];
+      for (let i = 0; i < size; i += 2) {
+        entries.push({
+          key: `root\0key_${i}`,
+          value: `value ${i}`,
+          translation: `translated ${i}`,
+        });
+      }
+
+      const result = parser.reconstruct(yaml, entries);
+      const roundTripped = parser.extract(result);
+      expect(roundTripped).toEqual(entries.map(e => ({ key: e.key, value: e.translation })));
     });
   });
 

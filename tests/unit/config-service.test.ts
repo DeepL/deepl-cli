@@ -439,4 +439,46 @@ describe('ConfigService', () => {
       }).not.toThrow();
     });
   });
+
+  describe('prototype pollution protection', () => {
+    it('should reject __proto__ path segments instead of polluting Object.prototype', () => {
+      const originalToString = Object.prototype.toString;
+      try {
+        expect(() => {
+          configService.set('__proto__.toString', 'PWNED');
+        }).toThrow('Invalid path');
+        expect(Object.prototype.toString).toBe(originalToString);
+      } finally {
+        if (Object.prototype.toString !== originalToString) {
+          Object.defineProperty(Object.prototype, 'toString', {
+            value: originalToString,
+            writable: true,
+            configurable: true,
+            enumerable: false,
+          });
+        }
+      }
+    });
+
+    it('should reject constructor path segments', () => {
+      expect(() => {
+        configService.set('constructor.polluted', 'PWNED');
+      }).toThrow('Invalid path');
+    });
+
+    it('should reject prototype path segments', () => {
+      expect(() => {
+        configService.set('auth.prototype', 'PWNED');
+      }).toThrow('Invalid path');
+    });
+
+    it('should not treat inherited properties as valid config paths', () => {
+      expect(() => {
+        configService.set('toString', 'PWNED');
+      }).toThrow('Invalid path');
+      expect(() => {
+        configService.set('auth.hasOwnProperty', 'PWNED');
+      }).toThrow('Invalid path');
+    });
+  });
 });

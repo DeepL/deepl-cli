@@ -2,7 +2,6 @@ import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { Logger } from '../../../utils/logger.js';
 import { ValidationError, ConfigError } from '../../../utils/errors.js';
-import { SUPPORTED_FORMAT_KEYS } from '../../../formats/index.js';
 import type { ServiceDeps } from '../service-factory.js';
 import {
   emitJsonErrorAndExit,
@@ -26,20 +25,32 @@ export function registerSyncInit(
   parent: Command,
   deps: Pick<ServiceDeps, 'handleError'>,
 ): Command {
-  return parent
+  // Choices are filled in lazily so registration does not load every format
+  // parser (yaml, smol-toml, ...) on unrelated CLI invocations. The
+  // preSubcommand hook runs before the subcommand parses its options, so
+  // validation and help output are unaffected.
+  const fileFormatOption = new Option('--file-format <type>', 'File format');
+  const cmd = parent
     .command('init')
     .description('Initialize .deepl-sync.yaml configuration')
     .option('--source-locale <code>', 'Source locale')
     .option('--target-locales <codes>', 'Target locales (comma-separated)')
-    .addOption(
-      new Option('--file-format <type>', 'File format').choices([...SUPPORTED_FORMAT_KEYS]),
-    )
+    .addOption(fileFormatOption)
     .option('--path <pattern>', 'Source file pattern')
     .addOption(
       new Option('--format <format>', 'Output format').choices(['text', 'json']).default('text'),
     )
     .option('--sync-config <path>', 'Path to .deepl-sync.yaml')
     .action((options: InitOptions, command: Command) => handleSyncInit(options, command, deps));
+
+  parent.hook('preSubcommand', async (_thisCommand, actionCommand) => {
+    if (actionCommand === cmd && fileFormatOption.argChoices === undefined) {
+      const { SUPPORTED_FORMAT_KEYS } = await import('../../../formats/index.js');
+      fileFormatOption.choices([...SUPPORTED_FORMAT_KEYS]);
+    }
+  });
+
+  return cmd;
 }
 
 interface InitSuccessPayload {

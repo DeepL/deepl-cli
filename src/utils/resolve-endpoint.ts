@@ -1,4 +1,4 @@
-import { FREE_API_URL, PRO_API_URL } from '../api/http-client.js';
+import { FREE_API_URL, PRO_API_URL } from '../api/endpoints.js';
 
 export interface ResolveEndpointOptions {
   apiKey: string;

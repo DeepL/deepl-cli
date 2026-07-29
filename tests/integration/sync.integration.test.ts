@@ -569,7 +569,7 @@ buckets:
       writeYamlConfig(tmpDir, BASIC_CONFIG_YAML);
       writeSourceFile(tmpDir, 'locales/en.json', '{}\n');
 
-      const staleBak = path.join(tmpDir, 'locales', 'de.json.bak');
+      const staleBak = path.join(tmpDir, 'locales', 'de.json.deepl.bak');
       fs.mkdirSync(path.dirname(staleBak), { recursive: true });
       fs.writeFileSync(staleBak, 'orphan from prior crash', 'utf-8');
       // Backdate 10 minutes past the 5-minute default threshold.
@@ -596,7 +596,7 @@ sync:
 `);
       writeSourceFile(tmpDir, 'locales/en.json', '{}\n');
 
-      const staleBak = path.join(tmpDir, 'locales', 'de.json.bak');
+      const staleBak = path.join(tmpDir, 'locales', 'de.json.deepl.bak');
       fs.mkdirSync(path.dirname(staleBak), { recursive: true });
       fs.writeFileSync(staleBak, 'orphan', 'utf-8');
       // 2 minutes old — stale under the 60-second override, fresh under the default.
@@ -613,7 +613,7 @@ sync:
       writeYamlConfig(tmpDir, BASIC_CONFIG_YAML);
       writeSourceFile(tmpDir, 'locales/en.json', '{}\n');
 
-      const freshBak = path.join(tmpDir, 'locales', 'de.json.bak');
+      const freshBak = path.join(tmpDir, 'locales', 'de.json.deepl.bak');
       fs.mkdirSync(path.dirname(freshBak), { recursive: true });
       fs.writeFileSync(freshBak, 'recent', 'utf-8');
 
@@ -621,6 +621,24 @@ sync:
       await syncService.sync(config);
 
       expect(fs.existsSync(freshBak)).toBe(true);
+    });
+
+    it('leaves user-owned *.bak files untouched even when stale', async () => {
+      writeYamlConfig(tmpDir, BASIC_CONFIG_YAML);
+      writeSourceFile(tmpDir, 'locales/en.json', '{}\n');
+
+      const userBak = path.join(tmpDir, 'locales', 'my-important-notes.bak');
+      fs.mkdirSync(path.dirname(userBak), { recursive: true });
+      fs.writeFileSync(userBak, 'user data', 'utf-8');
+      const tenMinAgo = new Date(Date.now() - 10 * 60_000);
+      fs.utimesSync(userBak, tenMinAgo, tenMinAgo);
+
+      const config = await loadSyncConfig(tmpDir);
+      await syncService.sync(config);
+
+      expect(fs.existsSync(userBak)).toBe(true);
+      expect(fs.readFileSync(userBak, 'utf-8')).toBe('user data');
+      expect(fs.existsSync(path.join(tmpDir, 'locales', 'my-important-notes'))).toBe(false);
     });
 
     it('registers a SIGINT/SIGTERM cleanup handler during a non-watch run that unlinks tracked .bak paths', async () => {

@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import { GlossaryService } from '../../services/glossary.js';
 import { GlossaryInfo, GlossaryLanguagePair, Language, getTargetLang, getTotalEntryCount, isMultilingual } from '../../types/index.js';
 import { safeReadFileSync } from '../../utils/safe-read-file.js';
+import { sanitizeForTerminal } from '../../utils/control-chars.js';
 import { ValidationError, ConfigError } from '../../utils/errors.js';
 
 export class GlossaryCommand {
@@ -233,7 +234,7 @@ export class GlossaryCommand {
     const multilingual = isMultilingual(glossary);
 
     const lines = [
-      `Name: ${glossary.name}`,
+      `Name: ${sanitizeForTerminal(glossary.name)}`,
       `ID: ${glossary.glossary_id}`,
       `Source language: ${glossary.source_lang}`,
       `Target languages: ${glossary.target_langs.join(', ')}`,
@@ -266,7 +267,7 @@ export class GlossaryCommand {
         ? g.target_langs[0]
         : `${g.target_langs.length} targets`;
       const icon = isMultilingual(g) ? '📚' : '📖';
-      return `${icon} ${g.name} (${g.source_lang}→${targetStr}) - ${totalEntries} entries`;
+      return `${icon} ${sanitizeForTerminal(g.name)} (${g.source_lang}→${targetStr}) - ${totalEntries} entries`;
     });
 
     return lines.join('\n');

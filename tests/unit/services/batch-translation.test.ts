@@ -529,6 +529,30 @@ describe('BatchTranslationService', () => {
       expect(mockTranslationService.translateBatch).toHaveBeenCalledTimes(2);
     });
 
+    it('should split batches by form-encoded size so CJK batches stay within the API body limit', async () => {
+      // 10,000 CJK chars: 30,000 raw UTF-8 bytes but 90,000 bytes once
+      // percent-encoded. Raw sum (60,000) fits MAX_TEXT_BYTES; encoded
+      // sum (180,000) does not, so the files must land in separate batches.
+      const cjkText = '你'.repeat(10_000);
+      const file1 = path.join(testDir, 'cjk1.txt');
+      const file2 = path.join(testDir, 'cjk2.txt');
+      fs.writeFileSync(file1, cjkText);
+      fs.writeFileSync(file2, cjkText);
+
+      mockTranslationService.translateBatch.mockImplementation(async (texts) =>
+        texts.map(() => ({ text: 'translated' }))
+      );
+
+      const result = await batchServiceWithTranslation.translateFiles(
+        [file1, file2],
+        { targetLang: 'es' },
+        { outputDir: testDir }
+      );
+
+      expect(result.successful).toHaveLength(2);
+      expect(mockTranslationService.translateBatch).toHaveBeenCalledTimes(2);
+    });
+
     it('should apply and restore code/variable preservation', async () => {
       const file = path.join(testDir, 'code.txt');
       fs.writeFileSync(file, 'Use `console.log()` with {name}');
@@ -707,6 +731,36 @@ describe('BatchTranslationService', () => {
       expect(result.failed[0]!.error).toContain('mismatch');
     });
 
+    it('should read files per batch instead of loading the whole set up-front', async () => {
+      const files: string[] = [];
+      for (let i = 0; i < 52; i++) {
+        const f = path.join(testDir, `stream${i}.txt`);
+        fs.writeFileSync(f, `Text ${i}`);
+        files.push(f);
+      }
+      const lastFile = files[51]!;
+
+      mockTranslationService.translateBatch.mockImplementation(async (texts) => {
+        // Removing a later file while the first batch translates proves it
+        // has not been read yet when this call happens.
+        if (fs.existsSync(lastFile)) {
+          fs.rmSync(lastFile);
+        }
+        return texts.map((t) => ({ text: `translated: ${t}` }));
+      });
+
+      const result = await batchServiceWithTranslation.translateFiles(
+        files,
+        { targetLang: 'es' },
+        { outputDir: testDir }
+      );
+
+      expect(result.successful).toHaveLength(51);
+      expect(result.failed).toHaveLength(1);
+      expect(result.failed[0]!.file).toBe(lastFile);
+      expect(mockTranslationService.translateBatch).toHaveBeenCalledTimes(2);
+    });
+
     it('should reject files exceeding MAX_TEXT_BYTES', async () => {
       const bigFile = path.join(testDir, 'huge.txt');
       fs.writeFileSync(bigFile, 'x'.repeat(MAX_TEXT_BYTES + 1));
@@ -721,6 +775,95 @@ describe('BatchTranslationService', () => {
       expect(result.failed).toHaveLength(1);
       expect(result.failed[0]!.error).toContain('too large');
       expect(mockTranslationService.translateBatch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('output path traversal guard', () => {
+    it('should fail files whose baseDir-relative path escapes the output directory (per-file path)', async () => {
+      const inputDir = path.join(testDir, 'input');
+      const outputDir = path.join(testDir, 'output');
+      fs.mkdirSync(inputDir);
+      const outsideFile = path.join(testDir, 'outside.txt');
+      fs.writeFileSync(outsideFile, 'Content');
+
+      mockFileTranslationService.translateFile.mockResolvedValue(undefined);
+
+      const result = await batchTranslationService.translateFiles(
+        [outsideFile],
+        { targetLang: 'es' },
+        { outputDir, baseDir: inputDir }
+      );
+
+      expect(result.successful).toHaveLength(0);
+      expect(result.failed).toHaveLength(1);
+      expect(result.failed[0]!.error).toMatch(/escapes output directory/);
+      expect(mockFileTranslationService.translateFile).not.toHaveBeenCalled();
+    });
+
+    it('should fail escaping files in the plain-text batched path without calling translateBatch', async () => {
+      const mockTranslationService = createMockTranslationService();
+      const service = new BatchTranslationService(mockFileTranslationService, {
+        translationService: mockTranslationService,
+      });
+
+      const inputDir = path.join(testDir, 'input');
+      const outputDir = path.join(testDir, 'output');
+      fs.mkdirSync(inputDir);
+      const outsideFile = path.join(testDir, 'outside.txt');
+      fs.writeFileSync(outsideFile, 'Content');
+
+      const result = await service.translateFiles(
+        [outsideFile],
+        { targetLang: 'es' },
+        { outputDir, baseDir: inputDir }
+      );
+
+      expect(result.successful).toHaveLength(0);
+      expect(result.failed).toHaveLength(1);
+      expect(result.failed[0]!.error).toMatch(/escapes output directory/);
+      expect(mockTranslationService.translateBatch).not.toHaveBeenCalled();
+    });
+
+    it('should still translate files nested under baseDir', async () => {
+      const inputDir = path.join(testDir, 'input');
+      const outputDir = path.join(testDir, 'output');
+      const subDir = path.join(inputDir, 'sub');
+      fs.mkdirSync(subDir, { recursive: true });
+      const file = path.join(subDir, 'nested.txt');
+      fs.writeFileSync(file, 'Content');
+
+      mockFileTranslationService.translateFile.mockResolvedValue(undefined);
+
+      const result = await batchTranslationService.translateFiles(
+        [file],
+        { targetLang: 'es' },
+        { outputDir, baseDir: inputDir }
+      );
+
+      expect(result.failed).toHaveLength(0);
+      expect(result.successful).toHaveLength(1);
+      expect(result.successful[0]!.outputPath).toBe(
+        path.join(outputDir, 'sub', 'nested.es.txt')
+      );
+    });
+  });
+
+  describe('translateDirectory symlink safety', () => {
+    it('calls fast-glob with followSymbolicLinks:false (symlink-exfil defense)', async () => {
+      const inputDir = path.join(testDir, 'input');
+      fs.mkdirSync(inputDir);
+      mockFastGlob.mockResolvedValue([]);
+
+      await batchTranslationService.translateDirectory(
+        inputDir,
+        { targetLang: 'es' },
+        { outputDir: testDir }
+      );
+
+      expect(mockFastGlob).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ followSymbolicLinks: false })
+      );
     });
   });
 
