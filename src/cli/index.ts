@@ -41,6 +41,9 @@ import { registerDescribe } from './commands/register-describe.js';
 import { validateApiUrl } from '../utils/validate-url.js';
 import { resolveEndpoint } from '../utils/resolve-endpoint.js';
 import { installSignalExit } from '../utils/signal-exit.js';
+import { assertSupportedNodeVersion } from './node-version-check.js';
+
+assertSupportedNodeVersion();
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
