@@ -259,16 +259,30 @@ export class AndroidXmlFormatParser implements FormatParser {
   }
 
   private decodeValue(raw: string): string {
-    const cdataMatch = /^<!\[CDATA\[([\s\S]*)\]\]>$/.exec(raw);
-    if (cdataMatch) {
-      return cdataMatch[1]!;
+    if (raw.startsWith('<![CDATA[')) {
+      // Concatenate adjacent sections: escapeForReconstruct splits on "]]>"
+      // into `]]]]><![CDATA[>`, so a literal "]]>" spans two sections.
+      const sectionRe = /<!\[CDATA\[([\s\S]*?)\]\]>/g;
+      let joined = '';
+      let consumedTo = 0;
+      let match: RegExpExecArray | null;
+      while ((match = sectionRe.exec(raw)) !== null) {
+        if (match.index !== consumedTo) break;
+        joined += match[1]!;
+        consumedTo = match.index + match[0].length;
+      }
+      if (consumedTo === raw.length) return joined;
     }
     return unescapeAndroid(raw);
   }
 
   private escapeForReconstruct(originalInner: string, translation: string): string {
     if (/^<!\[CDATA\[/.test(originalInner)) {
-      return `<![CDATA[${translation}]]>`;
+      // A translation containing "]]>" would close the section early and the
+      // remainder would be parsed as XML. Splitting into adjacent CDATA
+      // sections keeps the text literal without escaping it.
+      const safe = translation.replace(/]]>/g, ']]]]><![CDATA[>');
+      return `<![CDATA[${safe}]]>`;
     }
     return escapeAndroid(translation);
   }
