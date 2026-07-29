@@ -3,7 +3,6 @@ import { Logger } from '../../../utils/logger.js';
 import { ValidationError } from '../../../utils/errors.js';
 import type { ServiceDeps } from '../service-factory.js';
 import type { TargetTranslationIndex } from '../../../sync/sync-glossary-report.js';
-import { extractTranslatable } from '../../../sync/sync-bucket-walker.js';
 import { emitJsonErrorAndExit, resolveFormat, resolveSyncConfig } from './sync-options.js';
 
 interface AuditOptions {
@@ -60,6 +59,7 @@ async function handleSyncAudit(
     const { SyncLockManager } = await import('../../../sync/sync-lock.js');
     const { LOCK_FILE_NAME } = await import('../../../sync/types.js');
     const { generateGlossaryReport } = await import('../../../sync/sync-glossary-report.js');
+    const { extractTranslatable } = await import('../../../sync/sync-bucket-walker.js');
     const { createDefaultRegistry } = await import('../../../formats/index.js');
     const { resolveTargetPath } = await import('../../../sync/sync-utils.js');
     const pathMod = await import('path');
