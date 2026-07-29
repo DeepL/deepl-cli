@@ -1050,10 +1050,14 @@ describe('SyncService', () => {
 
       expect(result.staleKeys).toBe(1);
       expect(result.currentKeys).toBe(1);
-      expect(translateBatch).toHaveBeenCalledTimes(1);
-      const calledTexts = translateBatch.mock.calls[0]![0] as string[];
-      expect(calledTexts).toContain('Hello');
-      expect(calledTexts).not.toContain('Goodbye');
+      // The stale key is re-translated. The current key ("farewell") is too,
+      // because this fixture has no de.json on disk: a lockfile entry with no
+      // target content means the file was deleted, and the alternative —
+      // writing the English source and marking it translated — left English in
+      // the locale file permanently.
+      const sentTexts = translateBatch.mock.calls.flatMap((call) => call[0] as string[]);
+      expect(sentTexts).toContain('Hello');
+      expect(sentTexts).toContain('Goodbye');
     });
   });
 
