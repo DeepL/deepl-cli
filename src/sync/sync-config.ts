@@ -521,14 +521,27 @@ export function validateSyncConfig(raw: unknown): SyncConfig {
   };
 }
 
-// Single source of truth for merging CLI overrides (--formality, --glossary,
-// --model-type, --scan-context, --batch/--no-batch) into a loaded
+// Single source of truth for merging CLI overrides (--locale, --formality,
+// --glossary, --model-type, --scan-context, --batch/--no-batch) into a loaded
 // SyncConfig. All guards that cross the YAML-vs-CLI layer boundary live here
 // so they cannot be bypassed by callers that assemble the config elsewhere.
+// --locale is a filter over target_locales, not a specifier, so a value
+// outside target_locales is a ConfigError rather than a silent no-op.
 export function applyCliOverrides(
   config: SyncConfig,
   overrides: SyncConfigOverrides,
 ): SyncConfig {
+  if (overrides.localeFilter !== undefined) {
+    const unconfigured = overrides.localeFilter.filter(
+      (locale) => !config.target_locales.includes(locale),
+    );
+    if (unconfigured.length > 0) {
+      throw new ConfigError(
+        `--locale ${unconfigured.join(', ')} not in target_locales (configured: ${config.target_locales.join(', ')})`,
+        'Pass only locales listed in target_locales, or add the locale to target_locales in .deepl-sync.yaml.',
+      );
+    }
+  }
   if (overrides.formality !== undefined) {
     config.translation = config.translation ?? {};
     config.translation.formality = overrides.formality as Formality;

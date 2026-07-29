@@ -1198,6 +1198,28 @@ translation:
       buckets: { json: { include: ['locales/en.json'] } },
     });
 
+    it('should accept a localeFilter whose entries are all in target_locales', () => {
+      const config = baseConfig();
+      config.target_locales = ['de', 'fr'];
+      expect(() => applyCliOverrides(config, { localeFilter: ['de', 'fr'] })).not.toThrow();
+    });
+
+    it('should throw ConfigError naming the offending and configured locales', () => {
+      const config = baseConfig();
+      config.target_locales = ['de', 'fr'];
+      expect(() => applyCliOverrides(config, { localeFilter: ['es'] })).toThrow(ConfigError);
+      expect(() => applyCliOverrides(config, { localeFilter: ['es'] })).toThrow(/es/);
+      expect(() => applyCliOverrides(config, { localeFilter: ['es'] })).toThrow(/de, fr/);
+    });
+
+    it('should report every unconfigured locale in a mixed filter', () => {
+      const config = baseConfig();
+      config.target_locales = ['de', 'fr'];
+      expect(() => applyCliOverrides(config, { localeFilter: ['de', 'es', 'zz'] })).toThrow(
+        /es, zz/,
+      );
+    });
+
     it('should merge formality into existing translation block', () => {
       const config = baseConfig();
       config.translation = { glossary: 'g' };

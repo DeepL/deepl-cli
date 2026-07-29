@@ -8,6 +8,9 @@
  * subcommands, so a subcommand that reads only its own option store sees
  * `undefined`. These tests drive the real CLI so the parent/child binding is
  * exercised — asserting on the handlers directly would pass either way.
+ *
+ * Also covers the ConfigError documented at docs/API.md for a --locale value
+ * that is not in `target_locales`.
  */
 
 import { spawnSync, SpawnSyncReturns } from 'child_process';
@@ -152,6 +155,89 @@ describe('CLI sync option routing E2E', () => {
       expect(run.status).toBe(0);
       expect(run.output).toMatch(/\bit\b/);
       expect(run.output).not.toMatch(/^\s+de\s/m);
+    });
+  });
+
+  describe('--locale must name a configured target locale', () => {
+    it('exits 7 on `sync --locale <unconfigured>` naming the offending and configured locales', () => {
+      writeSyncConfig(testFiles.path, ['de', 'fr']);
+      writeSourceFile(testFiles.path);
+
+      const run = runCli(['sync', '--locale', 'es', '--dry-run']);
+
+      expect(run.status).toBe(7);
+      expect(run.output).toContain('es');
+      expect(run.output).toContain('de, fr');
+      expect(run.output).not.toContain('Sync complete');
+    });
+
+    it('exits 7 on `sync status --locale <unconfigured>`', () => {
+      writeSyncConfig(testFiles.path, ['de', 'fr']);
+      writeSourceFile(testFiles.path);
+
+      const run = runCli(['sync', 'status', '--locale', 'es']);
+
+      expect(run.status).toBe(7);
+      expect(run.output).toContain('es');
+      expect(run.output).toContain('de, fr');
+    });
+
+    it('exits 7 on `sync validate --locale <unconfigured>` instead of reporting all-passed', () => {
+      writeSyncConfig(testFiles.path, ['de', 'fr']);
+      writeSourceFile(testFiles.path);
+
+      const run = runCli(['sync', 'validate', '--locale', 'zz']);
+
+      expect(run.status).toBe(7);
+      expect(run.output.toLowerCase()).not.toContain('passed validation');
+    });
+
+    it('exits 7 on `sync export --locale <unconfigured>` instead of exporting every locale', () => {
+      writeSyncConfig(testFiles.path, ['de', 'fr']);
+      writeSourceFile(testFiles.path);
+
+      const run = runCli(['sync', 'export', '--locale', 'zz']);
+
+      expect(run.status).toBe(7);
+      expect(run.stdout).not.toContain('<xliff');
+    });
+
+    it('emits a ConfigError envelope with --format json', () => {
+      writeSyncConfig(testFiles.path, ['de', 'fr']);
+      writeSourceFile(testFiles.path);
+
+      const run = runCli(['sync', 'status', '--locale', 'es', '--format', 'json']);
+
+      expect(run.status).toBe(7);
+      const envelope = JSON.parse(run.stderr.trim()) as {
+        ok: boolean;
+        error: { code: string };
+        exitCode: number;
+      };
+      expect(envelope.ok).toBe(false);
+      expect(envelope.error.code).toBe('ConfigError');
+      expect(envelope.exitCode).toBe(7);
+    });
+
+    it('still accepts a configured locale on the root command', () => {
+      writeSyncConfig(testFiles.path, ['de', 'fr']);
+      writeSourceFile(testFiles.path);
+
+      const run = runCli(['sync', '--locale', 'de', '--dry-run']);
+
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('dry-run');
+    });
+
+    it('still accepts a configured locale on a subcommand', () => {
+      writeSyncConfig(testFiles.path, ['de', 'fr']);
+      writeSourceFile(testFiles.path);
+
+      const run = runCli(['sync', 'status', '--locale', 'de,fr']);
+
+      expect(run.status).toBe(0);
+      expect(run.output).toMatch(/\bde\b/);
+      expect(run.output).toMatch(/\bfr\b/);
     });
   });
 });
