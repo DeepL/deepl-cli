@@ -472,6 +472,19 @@ describe('GlossaryCommand', () => {
 
       expect(result).toContain('Created:');
     });
+
+    it('should sanitize control characters in the glossary name', () => {
+      const hostileGlossary: GlossaryInfo = {
+        ...mockGlossary,
+        name: '\u001b[31mEvil\u0007 Terms',
+      };
+
+      const result = glossaryCommand.formatGlossaryInfo(hostileGlossary);
+
+      expect(result).not.toContain('\u001b');
+      expect(result).not.toContain('\u0007');
+      expect(result).toContain('Name: ?[31mEvil? Terms');
+    });
   });
 
   describe('formatGlossaryList()', () => {
@@ -528,6 +541,19 @@ describe('GlossaryCommand', () => {
       expect(result).toContain('Medical Terms');
       expect(result).toContain('(de→en)');
       expect(result).toContain('20 entries');
+    });
+
+    it('should sanitize control characters in glossary names', () => {
+      const hostileGlossary: GlossaryInfo = {
+        ...mockGlossary,
+        name: '\u001b]0;pwned\u0007Innocent',
+      };
+
+      const result = glossaryCommand.formatGlossaryList([hostileGlossary]);
+
+      expect(result).not.toContain('\u001b');
+      expect(result).not.toContain('\u0007');
+      expect(result).toContain('?]0;pwned?Innocent');
     });
   });
 
