@@ -20,6 +20,13 @@ jest.mock('child_process', () => ({
   execFile: mockExecFile,
 }));
 
+/**
+ * `git status --porcelain -z` output the mocked git returns. NUL-separated
+ * "XY path" entries, matching what auto-commit parses. Tests that care about a
+ * particular working-tree state assign to this.
+ */
+let mockPorcelain = '';
+
 const mockExistsSync = jest.fn((_p: string | URL) => false);
 jest.mock('fs', () => {
   const actual = jest.requireActual('fs');
@@ -603,9 +610,18 @@ describe('SyncCommand', () => {
           if (Array.isArray(args) && args[0] === 'rev-parse' && args[1] === '--git-dir') {
             stdout = '.git';
           }
+          // A file the sync just wrote is dirty. Reporting a clean tree here
+          // described a state git cannot produce, and staging is driven by
+          // what is actually dirty rather than by what the run claims it wrote.
+          if (Array.isArray(args) && args[0] === 'status') {
+            stdout = mockPorcelain;
+          }
           if (cb) cb(null, { stdout, stderr: '' });
         },
       );
+      // Default to a clean tree; tests that expect a commit declare the dirt
+      // their sync would have produced.
+      mockPorcelain = '';
       mockExistsSync.mockReset();
       mockExistsSync.mockImplementation((p: string | URL) => {
         // Lockfile exists by default so autoCommit stages it when lockUpdated=true.
@@ -614,6 +630,7 @@ describe('SyncCommand', () => {
     });
 
     it('should call git add and git commit when autoCommit=true and files were written', async () => {
+      mockPorcelain = ' M locales/de.json\0 M .deepl-sync.lock\0';
       const result = makeResult({
         fileResults: [writtenFile],
         lockUpdated: true,
@@ -638,6 +655,8 @@ describe('SyncCommand', () => {
     });
 
     it('should not stage .deepl-sync.lock when lockUpdated is false', async () => {
+      // Lockfile untouched, so it is not dirty and must not be staged.
+      mockPorcelain = ' M locales/de.json\0';
       const result = makeResult({
         fileResults: [writtenFile],
         lockUpdated: false,
@@ -655,6 +674,7 @@ describe('SyncCommand', () => {
     });
 
     it('should pass cwd=config.projectRoot to every git invocation', async () => {
+      mockPorcelain = ' M locales/de.json\0 M .deepl-sync.lock\0';
       const result = makeResult({ fileResults: [writtenFile], lockUpdated: true });
       const mockService = createMockSyncService(result);
       const command = new SyncCommand(mockService);
@@ -673,6 +693,7 @@ describe('SyncCommand', () => {
     });
 
     it('should stage multiple written files and include all locales in commit message', async () => {
+      mockPorcelain = ' M locales/de.json\0 M locales/fr.json\0 M .deepl-sync.lock\0';
       const writtenFileFr: SyncFileResult = {
         file: 'locales/fr.json',
         locale: 'fr',
@@ -804,6 +825,7 @@ describe('SyncCommand', () => {
     });
 
     it('should log success message after committing', async () => {
+      mockPorcelain = ' M locales/de.json\0 M .deepl-sync.lock\0';
       const result = makeResult({ fileResults: [writtenFile], lockUpdated: true });
       const mockService = createMockSyncService(result);
       const command = new SyncCommand(mockService);
@@ -954,6 +976,12 @@ describe('SyncCommand', () => {
           if (Array.isArray(args) && args[0] === 'rev-parse' && args[1] === '--git-dir') {
             stdout = '.git';
           }
+          // A file the sync just wrote is dirty. Reporting a clean tree here
+          // described a state git cannot produce, and staging is driven by
+          // what is actually dirty rather than by what the run claims it wrote.
+          if (Array.isArray(args) && args[0] === 'status') {
+            stdout = mockPorcelain;
+          }
           if (cb) cb(null, { stdout, stderr: '' });
         },
       );
@@ -972,6 +1000,7 @@ describe('SyncCommand', () => {
         return mockWatcher;
       });
 
+      mockPorcelain = ' M locales/de.json\0 M .deepl-sync.lock\0';
       const result = makeResult({
         fileResults: [
           { file: 'locales/de.json', locale: 'de', translated: 5, skipped: 0, failed: 0, written: true },

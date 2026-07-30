@@ -860,7 +860,7 @@ The `--auto-commit` flag stages translated files and the lock file (when updated
 
 The `.deepl-sync.lock` file is only staged when this sync run actually wrote an updated lockfile; a no-op sync (all locales current) will not stage or commit.
 
-**Combined with `--watch`.** `deepl sync --watch --auto-commit` commits on **every successful sync cycle**, not only the initial pre-watch sync. Each commit is gated by the same preflight checks listed above (clean tree, on a branch, not mid-rebase/merge/cherry-pick, files actually written). If preflight fails for a given cycle, that cycle throws and the watcher logs the error; subsequent cycles retry normally once the tree is clean again.
+**Combined with `--watch`.** `deepl sync --watch --auto-commit` commits on **every successful sync cycle**, not only the initial pre-watch sync. Each commit is gated by the same preflight checks listed above (clean tree, on a branch, not mid-rebase/merge/cherry-pick). If preflight fails for a given cycle, that cycle throws and the watcher logs the error; subsequent cycles report the same refusal until the tree is clean again, at which point the pending translations are committed — including any left behind by an earlier refused cycle. A cycle with nothing to commit is silent.
 
 ### GitLab CI
 
