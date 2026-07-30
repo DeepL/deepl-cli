@@ -2440,6 +2440,7 @@ Set your DeepL API key and validate it with the DeepL API.
 **Options:**
 
 - `--from-stdin` - Read API key from stdin
+- `--no-verify` - Store the key without validating it against the API. Use on offline or proxied networks, where validation cannot reach the API and the key would otherwise be discarded. Exports of `DEEPL_API_KEY` also bypass validation entirely.
 
 **Examples:**
 
@@ -2453,6 +2454,10 @@ deepl auth set-key --from-stdin < ~/.deepl-api-key
 # Provide key as argument
 deepl auth set-key YOUR-API-KEY-HERE
 # ✓ API key saved and validated successfully
+
+# Store without a network round-trip (offline, or behind an unconfigured proxy)
+echo "YOUR-API-KEY" | deepl auth set-key --from-stdin --no-verify
+# ✓ API key saved without validation
 ```
 
 **Security Note:** Prefer `--from-stdin` over passing the key as a command argument. Command arguments are visible to other users via process listings (`ps aux`).
