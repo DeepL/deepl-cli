@@ -270,7 +270,7 @@ export class SyncCommand {
       process.exitCode = ExitCode.PartialFailure;
     }
 
-    if (options.autoCommit && result.success && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
+    if (options.autoCommit && result.success && !result.dryRun && !result.driftDetected) {
       await this.autoCommitTranslations(result, config);
     }
 
@@ -445,11 +445,14 @@ export class SyncCommand {
       .filter(r => r.written)
       .map(r => r.file);
 
-    if (writtenFiles.length === 0) return;
-
     // Preflight: refuse to auto-commit in unsafe repo states. We want to avoid
     // bundling unrelated work into the chore(i18n) commit and to avoid
     // committing onto the wrong ref.
+    //
+    // These run even when this sync wrote nothing. A refused run still leaves
+    // its translations on disk, so the retry finds nothing to translate — and
+    // skipping the checks there reported success while no commit had been made
+    // and the tree was still dirty.
     const expectedStaged = new Set<string>(writtenFiles);
     if (result.lockUpdated) expectedStaged.add(LOCK_FILE_NAME);
 
@@ -508,6 +511,8 @@ export class SyncCommand {
         'Commit or stash them first, then run `deepl sync --auto-commit` again.',
       );
     }
+
+    if (writtenFiles.length === 0) return;
 
     const filesToStage: string[] = [...writtenFiles];
     if (result.lockUpdated && fsMod.existsSync(pathMod.join(cwd, LOCK_FILE_NAME))) {

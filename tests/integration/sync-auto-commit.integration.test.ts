@@ -156,6 +156,7 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
   });
 
   it('dirty tree with unrelated changes: auto-commit refused with ValidationError naming offending files', async () => {
+    expect.assertions(5);
     seedRepo(tmpDir);
     fs.writeFileSync(path.join(tmpDir, 'README.md'), '# changed\n', 'utf-8');
     fs.writeFileSync(path.join(tmpDir, 'src.ts'), 'export {};\n', 'utf-8');
@@ -181,6 +182,7 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
   });
 
   it('mid-rebase state: auto-commit refused', async () => {
+    expect.assertions(3);
     seedRepo(tmpDir);
     // Simulate a mid-rebase repo by writing the rebase-merge directory.
     const rebaseDir = path.join(tmpDir, '.git', 'rebase-merge');
@@ -199,6 +201,7 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
   });
 
   it('detached HEAD: auto-commit refused', async () => {
+    expect.assertions(3);
     seedRepo(tmpDir);
     // Add a second commit then detach at the first.
     fs.writeFileSync(path.join(tmpDir, 'x.txt'), 'x\n', 'utf-8');
@@ -214,8 +217,31 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
       await command.run({ autoCommit: true });
     } catch (err) {
       expect((err as Error).message).toMatch(/Refusing to auto-commit/i);
-      expect((err as Error).message).toMatch(/detached HEAD/i);
+      expect((err as Error).message).toMatch(/HEAD is detached/i);
     }
+  });
+
+  // A refused run leaves its translations on disk, so the retry has nothing new
+  // to translate. The preflight used to be skipped in that case, and the retry
+  // reported success with no commit made and the tree still dirty.
+  it('retry after a refusal refuses again instead of reporting success', async () => {
+    expect.assertions(4);
+    seedRepo(tmpDir);
+    fs.writeFileSync(path.join(tmpDir, 'README.md'), '# changed\n', 'utf-8');
+    const scope = seedTranslateMock();
+    scope.persist();
+
+    const command = new SyncCommand(syncService);
+    await expect(command.run({ autoCommit: true })).rejects.toThrow(ValidationError);
+
+    // The first run wrote the translation before refusing, so nothing is left
+    // to translate on the retry.
+    expect(fs.existsSync(path.join(tmpDir, 'locales', 'de.json'))).toBe(true);
+
+    await expect(command.run({ autoCommit: true })).rejects.toThrow(/Refusing to auto-commit/i);
+
+    nock.cleanAll();
+    expect(git(tmpDir, ['log', '-1', '--pretty=%s']).trim()).toBe('initial');
   });
 
   it('clean repo, no lockfile update: auto-commit does not fail staging a nonexistent lockfile', async () => {
