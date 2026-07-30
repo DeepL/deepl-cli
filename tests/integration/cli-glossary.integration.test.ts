@@ -91,6 +91,7 @@ describe('Glossary CLI Integration', () => {
       const tsvFile = path.join(testDir, 'glossary.tsv');
       fs.writeFileSync(tsvFile, 'Hello\tHola\nWorld\tMundo\n', 'utf-8');
 
+      expect.assertions(2);
       try {
         // Will fail without API key but should recognize file type
         runCLI(`deepl glossary create "Test" en es "${tsvFile}"`, {
@@ -108,6 +109,7 @@ describe('Glossary CLI Integration', () => {
       const csvFile = path.join(testDir, 'glossary.csv');
       fs.writeFileSync(csvFile, 'Hello,Hola\nWorld,Mundo\n', 'utf-8');
 
+      expect.assertions(1);
       try {
         // Will fail without API key but should recognize file type
         runCLI(`deepl glossary create "Test" en es "${csvFile}"`, {
@@ -124,6 +126,7 @@ describe('Glossary CLI Integration', () => {
       const tsvFile = path.join(testDir, 'glossary-multi.tsv');
       fs.writeFileSync(tsvFile, 'Hello\tHola\nWorld\tMundo\n', 'utf-8');
 
+      expect.assertions(2);
       try {
         runCLI(`deepl glossary create "MultiTest" en de,fr,es "${tsvFile}"`, {
           stdio: 'pipe',
@@ -145,6 +148,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should not require any arguments', () => {
+      expect.assertions(2);
       try {
         // Will fail without API key
         runCLI('deepl glossary list', { stdio: 'pipe' });
@@ -354,6 +358,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should not require any arguments', () => {
+      expect.assertions(2);
       try {
         // Will fail without API key
         runCLI('deepl glossary languages', { stdio: 'pipe' });

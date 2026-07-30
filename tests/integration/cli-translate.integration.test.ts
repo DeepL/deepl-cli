@@ -933,6 +933,7 @@ describe('Translate CLI Integration', () => {
         'prefer_more',
         'prefer_less',
       ];
+      expect.assertions(validValues.length);
       for (const value of validValues) {
         try {
           runCLI(`deepl translate "Hello" --to es --formality ${value}`, {
@@ -963,6 +964,7 @@ describe('Translate CLI Integration', () => {
 
     it('should accept valid --tag-handling values', () => {
       const validValues = ['xml', 'html'];
+      expect.assertions(validValues.length);
       for (const value of validValues) {
         try {
           runCLI(
@@ -999,6 +1001,7 @@ describe('Translate CLI Integration', () => {
         'prefer_quality_optimized',
         'latency_optimized',
       ];
+      expect.assertions(validValues.length);
       for (const value of validValues) {
         try {
           runCLI(`deepl translate "Hello" --to es --model-type ${value}`, {
@@ -1030,6 +1033,7 @@ describe('Translate CLI Integration', () => {
 
     it('should accept valid --split-sentences values', () => {
       const validValues = ['on', 'off', 'nonewlines'];
+      expect.assertions(validValues.length);
       for (const value of validValues) {
         try {
           runCLI(`deepl translate "Hello" --to es --split-sentences ${value}`, {
