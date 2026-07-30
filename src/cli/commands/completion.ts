@@ -20,13 +20,18 @@ export class CompletionCommand {
     }
   }
 
+  /** Hidden commands are internal surface and must not be offered to users. */
+  private visibleCommands(parent: Command): Command[] {
+    return this.program.createHelp().visibleCommands(parent);
+  }
+
   private getCommandTree(): Map<string, string[]> {
     const tree = new Map<string, string[]>();
     const topLevel: string[] = [];
 
-    for (const cmd of this.program.commands) {
+    for (const cmd of this.visibleCommands(this.program)) {
       topLevel.push(cmd.name(), ...cmd.aliases());
-      const subcommands = cmd.commands.map((sub) => sub.name());
+      const subcommands = this.visibleCommands(cmd).map((sub) => sub.name());
       if (subcommands.length > 0) {
         tree.set(cmd.name(), subcommands);
       }
@@ -49,9 +54,14 @@ export class CompletionCommand {
   }
 
   private getGlobalOptions(): string[] {
-    return this.program.options
-      .map((opt) => opt.long)
-      .filter((o): o is string => !!o);
+    return [
+      ...new Set(
+        this.program.options
+          .map((opt) => opt.long)
+          .filter((o): o is string => !!o)
+          .concat('--help', '--version'),
+      ),
+    ];
   }
 
   private generateBash(): string {
@@ -69,7 +79,7 @@ export class CompletionCommand {
       subcommandCases.push(`        ${parent})\n            COMPREPLY=($(compgen -W "${words}" -- "\${cur}"))\n            return 0\n            ;;`);
     }
 
-    const topLevelWords = [...topLevel, ...globalOpts, '--help', '--version'].join(' ');
+    const topLevelWords = [...topLevel, ...globalOpts].join(' ');
 
     return `# bash completion for deepl                                -*- shell-script -*-
 #
@@ -122,9 +132,9 @@ complete -F _deepl_completions deepl
       const cmdOpts = this.getCommandOptions(parent);
       const descriptions: string[] = [];
 
-      const parentCmd = this.program.commands.find((c) => c.name() === parent);
+      const parentCmd = this.findCommand(parent);
       if (parentCmd) {
-        for (const sub of parentCmd.commands) {
+        for (const sub of this.visibleCommands(parentCmd)) {
           const desc = sub.description().replace(/'/g, "'\\''");
           descriptions.push(`'${sub.name()}:${desc}'`);
         }
@@ -157,8 +167,6 @@ complete -F _deepl_completions deepl
       const desc = optObj ? optObj.description.replace(/'/g, "'\\''") : '';
       topLevelDescriptions.push(`'${opt}:${desc}'`);
     }
-    topLevelDescriptions.push("'--help:Show help'");
-    topLevelDescriptions.push("'--version:Show version'");
 
     const fpathRef = '${fpath[1]}';
 
@@ -247,7 +255,7 @@ _deepl "$@"
       if (parent === '__root__') {
         continue;
       }
-      const parentCmd = this.program.commands.find((c) => c.name() === parent);
+      const parentCmd = this.findCommand(parent);
       const seenCondition = `__fish_seen_subcommand_from ${parent}`;
       const notSeenSub = subs.length > 0
         ? `; and not __fish_seen_subcommand_from ${subs.join(' ')}`
@@ -255,7 +263,7 @@ _deepl "$@"
 
       lines.push(`# ${parent} subcommands`);
       if (parentCmd) {
-        for (const sub of parentCmd.commands) {
+        for (const sub of this.visibleCommands(parentCmd)) {
           const desc = sub.description().replace(/'/g, "\\'");
           lines.push(`complete -c deepl -n '${seenCondition}${notSeenSub}' -a '${sub.name()}' -d '${desc}'`);
         }

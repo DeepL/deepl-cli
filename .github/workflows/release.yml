@@ -45,7 +45,15 @@ jobs:
             exit 1
           fi
 
+      # A tag can point at any commit, including one CI never ran, so the
+      # publish job re-verifies rather than trusting the branch. No DeepL API
+      # key is available to this job: the suite must stay hermetic.
+      - run: npm run lint
+      - run: npm run type-check
+      - run: npm run check-deps
       - run: npm run build
+      - run: npm test
+
       # First publish authenticates with a granular NPM_TOKEN scoped to
       # @deepl/cli. Switch to OIDC trusted publishing once the package
       # exists on npmjs.com, then revoke the token (tracked in beads).

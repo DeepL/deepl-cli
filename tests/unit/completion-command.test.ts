@@ -277,6 +277,35 @@ describe('CompletionCommand', () => {
     });
   });
 
+  describe('hidden commands', () => {
+    // Hidden commands are internal surface; offering them in tab-completion
+    // publishes them to end users.
+    it.each(['bash', 'zsh', 'fish'] as const)('omits hidden commands from %s completions', (shell) => {
+      const program = new Command();
+      program.name('deepl');
+      program.command('translate').description('Translate text');
+      program.command('_internal', { hidden: true }).description('Internal');
+
+      const script = new CompletionCommand(program).generate(shell);
+
+      expect(script).toContain('translate');
+      expect(script).not.toContain('_internal');
+    });
+
+    it('omits hidden subcommands', () => {
+      const program = new Command();
+      program.name('deepl');
+      const sync = program.command('sync').description('Sync');
+      sync.command('status').description('Status');
+      sync.command('secret-report', { hidden: true }).description('Internal');
+
+      const script = new CompletionCommand(program).generate('fish');
+
+      expect(script).toContain('status');
+      expect(script).not.toContain('secret-report');
+    });
+  });
+
   describe('command aliases', () => {
     it('bash: offers aliases as top-level completions', () => {
       const script = completionCommand.generate('bash');
