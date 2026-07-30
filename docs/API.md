@@ -3197,10 +3197,12 @@ When an error reaches the top-level handler without being a `DeepLCLIError`, the
 - **3 — RateLimitError**: `rate limit exceeded`, `too many requests`, `\b429\b`
 - **4 — QuotaError**: `quota exceeded`, `character limit reached`, `\b456\b`
 - **5 — NetworkError**: `econnrefused`, `enotfound`, `econnreset`, `etimedout`, `socket hang up`, `network error`, `network timeout`, `connection refused`, `connection reset`, `connection timed out`, `service temporarily unavailable`, `\b503\b`
+- **9 — VoiceError**: `voice api`, `voice session`
 - **7 — ConfigError** (checked before 6 because config messages may contain "invalid"): `config file`, `config directory`, `configuration file`, `configuration error`, `failed to load config`, `failed to save config`, `failed to read config`
 - **6 — InvalidInput**: `cannot be empty`, `file not found`, `path not found`, `directory not found`, `not found in glossary`, `unsupported format`, `unsupported language`, `not supported for`, `not supported in`, `invalid target language`, `invalid source language`, `invalid language code`, `invalid glossary`, `invalid hook`, `invalid url`, `invalid size`, `is required`, `cannot specify both`
-- **9 — VoiceError**: `voice api`, `voice session`
 - **1 — GeneralError**: anything not matched above
+
+The list is in the order the classifier actually tests, which is what determines the code when a message matches more than one pattern.
 
 ### Trace IDs
 

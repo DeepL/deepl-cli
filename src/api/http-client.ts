@@ -121,7 +121,48 @@ export class HttpClient {
   protected totalTimeout: number;
   protected _lastTraceId?: string;
 
-  private static parseProxyFromEnv(): ProxyConfig | undefined {
+  /**
+   * Standard NO_PROXY matching: `*` bypasses everything, a leading dot or `*.`
+   * matches subdomains, and an entry may carry a port. Without this a corporate
+   * HTTPS_PROXY was applied even to a localhost endpoint.
+   */
+  private static isProxyBypassed(targetUrl: string): boolean {
+    const noProxy = process.env['NO_PROXY'] ?? process.env['no_proxy'];
+    if (!noProxy) return false;
+
+    let target: URL;
+    try {
+      target = new URL(targetUrl);
+    } catch {
+      return false;
+    }
+
+    const host = target.hostname.toLowerCase();
+    const port = target.port || (target.protocol === 'https:' ? '443' : '80');
+
+    return noProxy
+      .split(',')
+      .map((entry) => entry.trim().toLowerCase())
+      .filter((entry) => entry.length > 0)
+      .some((entry) => {
+        if (entry === '*') return true;
+
+        const [entryHost, entryPort] = entry.split(':');
+        if (entryPort !== undefined && entryPort !== port) return false;
+
+        const pattern = (entryHost ?? '').replace(/^\*\./, '.');
+        if (pattern.startsWith('.')) {
+          return host === pattern.slice(1) || host.endsWith(pattern);
+        }
+        return host === pattern;
+      });
+  }
+
+  private static parseProxyFromEnv(targetUrl?: string): ProxyConfig | undefined {
+    if (targetUrl !== undefined && HttpClient.isProxyBypassed(targetUrl)) {
+      return undefined;
+    }
+
     const httpProxy = process.env['HTTP_PROXY'] ?? process.env['http_proxy'];
     const httpsProxy = process.env['HTTPS_PROXY'] ?? process.env['https_proxy'];
     const proxyUrl = httpsProxy ?? httpProxy;
@@ -203,7 +244,7 @@ export class HttpClient {
       }),
     };
 
-    const proxyConfig = options.proxy ?? HttpClient.parseProxyFromEnv();
+    const proxyConfig = options.proxy ?? HttpClient.parseProxyFromEnv(baseURL);
 
     if (proxyConfig) {
       // SECURITY: a plain-http proxy sitting in front of an https: API
