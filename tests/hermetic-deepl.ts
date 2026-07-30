@@ -25,3 +25,24 @@ export default function installHermeticDeepl(): void {
   process.env['DEEPL_CLI_TEST_SHIM'] = shimDir;
   process.env['PATH'] = `${shimDir}${path.delimiter}${process.env['PATH'] ?? ''}`;
 }
+
+/**
+ * Removes real credentials and the real config directory from the environment
+ * the whole suite inherits.
+ *
+ * nock cannot intercept across a process boundary, so any spawned CLI that
+ * inherits a working DEEPL_API_KEY reaches the live API: doing so spent real
+ * quota and wrote real responses into the developer's cache. Suites that need
+ * a key pass one explicitly, which still overrides this.
+ */
+export function isolateCredentialEnvironment(): void {
+  delete process.env['DEEPL_API_KEY'];
+  delete process.env['TMS_API_KEY'];
+  delete process.env['TMS_TOKEN'];
+
+  if (!process.env['DEEPL_CONFIG_DIR']) {
+    process.env['DEEPL_CONFIG_DIR'] = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'deepl-cli-test-config-'),
+    );
+  }
+}
