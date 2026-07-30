@@ -193,6 +193,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept glossary name or ID', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key but should accept argument
         runCLI('deepl glossary show "My Glossary"', { stdio: 'pipe' });
@@ -229,6 +230,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept glossary name or ID', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key but should accept argument
         runCLI('deepl glossary entries "My Glossary"', { stdio: 'pipe' });
@@ -259,6 +261,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept glossary name or ID with --yes flag', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key but should accept argument
         runCLI('deepl glossary delete "My Glossary" --yes', { stdio: 'pipe' });
@@ -276,6 +279,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept -y short flag', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl glossary delete "My Glossary" -y', { stdio: 'pipe' });
       } catch (error: any) {
@@ -335,6 +339,7 @@ describe('Glossary CLI Integration', () => {
       const tsvFile = path.join(testDir, 'valid-lang.tsv');
       fs.writeFileSync(tsvFile, 'test\tprueba\n', 'utf-8');
 
+      expect.assertions(2);
       try {
         // Common language pairs
         runCLI(`deepl glossary create "Test" en es "${tsvFile}"`, {
@@ -371,6 +376,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should not accept extraneous arguments', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key, but should not accept extra args
         runCLI('deepl glossary languages extra-arg', { stdio: 'pipe' });
@@ -436,6 +442,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept all required arguments', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key but should accept arguments
         runCLI('deepl glossary add-entry "My Glossary" "Hello" "Hola"', {
@@ -505,6 +512,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept all required arguments', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key but should accept arguments
         runCLI(
@@ -561,6 +569,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept all required arguments', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key but should accept arguments
         runCLI('deepl glossary remove-entry "My Glossary" "Hello"', {
@@ -616,6 +625,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept all required arguments', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key but should accept arguments
         runCLI('deepl glossary rename "My Glossary" "New Name"', {
@@ -629,6 +639,7 @@ describe('Glossary CLI Integration', () => {
     });
 
     it('should accept glossary ID as identifier', () => {
+      expect.assertions(1);
       try {
         // Will fail without API key but should accept ID format
         runCLI('deepl glossary rename "abc123-def456" "New Name"', {

@@ -361,6 +361,7 @@ describe('TranslationClient', () => {
 
   describe('listTranslationMemories() error context', () => {
     it('suffixes thrown errors with the [listTranslationMemories] method context', async () => {
+      expect.assertions(2);
       const axiosError = Object.assign(new Error('Request failed'), {
         isAxiosError: true,
         response: { status: 403, data: { message: 'Invalid API key' }, headers: {} },

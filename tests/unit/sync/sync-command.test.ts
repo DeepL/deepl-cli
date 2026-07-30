@@ -164,6 +164,7 @@ describe('SyncCommand', () => {
     });
 
     it('should output valid JSON to stdout when format is json', async () => {
+        expect.assertions(4);
       const result = makeResult();
       const mockService = createMockSyncService(result);
       const command = new SyncCommand(mockService);

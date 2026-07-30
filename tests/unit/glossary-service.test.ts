@@ -531,6 +531,7 @@ describe('GlossaryService', () => {
       });
 
       it('throws ConfigError with a UUID-disambiguation hint when two glossaries share the same name', async () => {
+        expect.assertions(3);
         mockDeepLClient.listGlossaries.mockResolvedValue([
           { ...cleanGlossary, glossary_id: 'first-id', name: 'shared' },
           { ...cleanGlossary, glossary_id: 'second-id', name: 'shared' },
@@ -550,6 +551,7 @@ describe('GlossaryService', () => {
       });
 
       it('does not echo raw control chars from the caller input into the error message', async () => {
+        expect.assertions(3);
         mockDeepLClient.listGlossaries.mockResolvedValue([]);
         const dirty = 'bad\x07name';
 

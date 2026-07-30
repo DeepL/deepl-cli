@@ -92,6 +92,7 @@ describe('sync-service template-pattern prep: source files read once per sync', 
   });
 
   it('reads each bucket source file at most once when template patterns are configured', async () => {
+      expect.assertions(1);
     const configPath = path.join(tmpDir, '.deepl-sync.yaml');
     fs.writeFileSync(configPath, CONFIG_YAML, 'utf-8');
     const srcPath = path.join(tmpDir, 'src', 'Features.tsx');

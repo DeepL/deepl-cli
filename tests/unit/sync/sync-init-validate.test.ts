@@ -17,6 +17,7 @@ describe('sync-init-validate', () => {
     });
 
     it('rejects source locale appearing in target-locales (case-insensitive)', () => {
+      expect.assertions(4);
       expect(() => validateSyncInitFlags({ ...base, targetLocales: 'de,EN,fr' }))
         .toThrow(ValidationError);
       try {
@@ -30,6 +31,7 @@ describe('sync-init-validate', () => {
     });
 
     it('rejects duplicate target-locales (case-insensitive)', () => {
+      expect.assertions(3);
       expect(() => validateSyncInitFlags({ ...base, targetLocales: 'de,fr,DE' }))
         .toThrow(ValidationError);
       try {

@@ -46,6 +46,7 @@ describe('Structured File Translation CLI Integration', () => {
       const testFile = path.join(testDir, 'validation.json');
       fs.writeFileSync(testFile, JSON.stringify({ key: 'test' }, null, 2));
 
+      expect.assertions(1);
       try {
         runCLI(`deepl translate "${testFile}" --to es --output /tmp/out.json`);
       } catch (error: any) {
@@ -56,9 +57,11 @@ describe('Structured File Translation CLI Integration', () => {
     });
 
     it('should accept YAML file with --to and --output flags', () => {
+      expect.assertions(1);
       const testFile = path.join(testDir, 'validation.yaml');
       fs.writeFileSync(testFile, 'key: test\n');
 
+      expect.assertions(1);
       try {
         runCLI(`deepl translate "${testFile}" --to es --output /tmp/out.yaml`);
       } catch (error: any) {
@@ -68,9 +71,11 @@ describe('Structured File Translation CLI Integration', () => {
     });
 
     it('should accept .yml file with --to and --output flags', () => {
+      expect.assertions(1);
       const testFile = path.join(testDir, 'validation.yml');
       fs.writeFileSync(testFile, 'key: test\n');
 
+      expect.assertions(1);
       try {
         runCLI(`deepl translate "${testFile}" --to es --output /tmp/out.yml`);
       } catch (error: any) {

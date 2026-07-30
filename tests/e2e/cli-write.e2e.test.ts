@@ -37,6 +37,7 @@ describe('Write Command E2E', () => {
 
   describe('Error Handling', () => {
     it('should accept write without --lang flag (auto-detect)', () => {
+      expect.assertions(1);
       try {
         execSync('deepl write "test text"', { encoding: 'utf-8', stdio: 'pipe' });
       } catch (error: any) {
@@ -56,6 +57,7 @@ describe('Write Command E2E', () => {
     });
 
     it('should accept --lang ja without validation error', () => {
+      expect.assertions(1);
       try {
         execSync('deepl write "test" --lang ja', { encoding: 'utf-8', stdio: 'pipe' });
       } catch (error: any) {
@@ -64,6 +66,7 @@ describe('Write Command E2E', () => {
     });
 
     it('should accept --lang ko without validation error', () => {
+      expect.assertions(1);
       try {
         execSync('deepl write "test" --lang ko', { encoding: 'utf-8', stdio: 'pipe' });
       } catch (error: any) {
@@ -72,6 +75,7 @@ describe('Write Command E2E', () => {
     });
 
     it('should accept --lang zh without validation error', () => {
+      expect.assertions(1);
       try {
         execSync('deepl write "test" --lang zh', { encoding: 'utf-8', stdio: 'pipe' });
       } catch (error: any) {
@@ -80,6 +84,7 @@ describe('Write Command E2E', () => {
     });
 
     it('should accept --lang zh-Hans without validation error', () => {
+      expect.assertions(1);
       try {
         execSync('deepl write "test" --lang zh-Hans', { encoding: 'utf-8', stdio: 'pipe' });
       } catch (error: any) {
@@ -114,6 +119,7 @@ describe('Write Command E2E', () => {
       fs.writeFileSync(testFile, 'Test content', 'utf-8');
 
       // This will fail without API key, but should recognize it as a file operation
+      expect.assertions(1);
       try {
         execSync(`deepl write "${testFile}" --lang en-US`, { encoding: 'utf-8', stdio: 'pipe' });
       } catch (error: any) {

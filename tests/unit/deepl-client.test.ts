@@ -1174,6 +1174,7 @@ describe('DeepLClient', () => {
     });
 
     it('should not leak credentials when proxy URL with auth fails to parse host', () => {
+      expect.assertions(2);
       process.env['HTTP_PROXY'] = 'http://user:s3cret@';
       try {
         new DeepLClient(apiKey);

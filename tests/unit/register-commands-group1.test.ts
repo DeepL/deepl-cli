@@ -609,6 +609,7 @@ describe('registerCompletion', () => {
   });
 
   it('should mention supported shells in error for unsupported shell', async () => {
+    expect.assertions(3);
     await loadAndRegister();
 
     try {

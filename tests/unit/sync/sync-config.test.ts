@@ -1505,6 +1505,7 @@ ${extra}
 
   describe('error message terminal sanitization', () => {
     it('replaces control chars in unknown-field key before rendering in ConfigError', () => {
+      expect.assertions(4);
       const evil = 'evil\x1b[31mkey\x00';
       try {
         validateSyncConfig({
@@ -1525,6 +1526,7 @@ ${extra}
     });
 
     it('replaces zero-width codepoints in unknown-field key before rendering in ConfigError', () => {
+      expect.assertions(2);
       const evil = 'foo\u200bbar';
       try {
         validateSyncConfig({

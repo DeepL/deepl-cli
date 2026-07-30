@@ -1153,6 +1153,7 @@ describe('DeepLClient Integration', () => {
     });
 
     it('should capture trace ID from error response', async () => {
+      expect.assertions(1);
       const client = new DeepLClient(API_KEY);
       clients.push(client);
 

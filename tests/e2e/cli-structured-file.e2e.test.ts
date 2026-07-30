@@ -20,6 +20,7 @@ describe('Structured File Translation E2E', () => {
 
   describe('JSON file support', () => {
     it('should accept JSON file input without "unsupported file type" error', () => {
+      expect.assertions(1);
       const inputPath = path.join(testDir, 'test.json');
       const outputPath = path.join(testDir, 'test-es.json');
 
@@ -106,6 +107,7 @@ describe('Structured File Translation E2E', () => {
 
   describe('YAML file support', () => {
     it('should accept YAML file input without "unsupported file type" error', () => {
+      expect.assertions(1);
       const inputPath = path.join(testDir, 'test.yaml');
       const outputPath = path.join(testDir, 'test-es.yaml');
 
@@ -120,6 +122,7 @@ describe('Structured File Translation E2E', () => {
     });
 
     it('should accept .yml file input without "unsupported file type" error', () => {
+      expect.assertions(1);
       const inputPath = path.join(testDir, 'test.yml');
       const outputPath = path.join(testDir, 'test-es.yml');
 

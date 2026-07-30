@@ -236,6 +236,7 @@ describe('resolveTranslationMemoryId', () => {
 
   describe('name-not-found', () => {
     it('throws ConfigError with the verbatim suggestion', async () => {
+      expect.assertions(4);
       const client = makeClient([]);
       const cache = new Map<string, string>();
 
@@ -256,6 +257,7 @@ describe('resolveTranslationMemoryId', () => {
     });
 
     it('sanitizes control chars and clamps to 80 chars in the error message', async () => {
+      expect.assertions(2);
       const client = makeClient([]);
       const cache = new Map<string, string>();
       const dirty = `bad\x07${'x'.repeat(100)}`;

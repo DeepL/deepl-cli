@@ -86,6 +86,7 @@ describe('Style Rules CLI Integration', () => {
 
   describe('option flags validation', () => {
     it('should accept --detailed flag without error', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules list --detailed', { stdio: 'pipe' });
       } catch (error: any) {
@@ -96,6 +97,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept --page flag without error', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules list --page 2', { stdio: 'pipe' });
       } catch (error: any) {
@@ -106,6 +108,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept --page-size flag without error', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules list --page-size 10', { stdio: 'pipe' });
       } catch (error: any) {
@@ -116,6 +119,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept --format json flag without error', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules list --format json', { stdio: 'pipe' });
       } catch (error: any) {
@@ -126,6 +130,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept all flags combined', () => {
+      expect.assertions(2);
       try {
         runCLI(
           'deepl style-rules list --detailed --page 1 --page-size 5 --format json',
@@ -139,6 +144,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept create subcommand with required flags', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules create --name Foo --language en', { stdio: 'pipe', excludeApiKey: true });
       } catch (error: any) {
@@ -159,6 +165,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept show subcommand with positional id', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules show sr-1', { stdio: 'pipe', excludeApiKey: true });
       } catch (error: any) {
@@ -179,6 +186,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept update subcommand with --name', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules update sr-1 --name "New"', { stdio: 'pipe', excludeApiKey: true });
       } catch (error: any) {
@@ -204,6 +212,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept instructions subcommand with positional style-id', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules instructions sr-1', { stdio: 'pipe', excludeApiKey: true });
       } catch (error: any) {
@@ -224,6 +233,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept add-instruction with three positional args', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules add-instruction sr-1 tone "Be formal"', { stdio: 'pipe', excludeApiKey: true });
       } catch (error: any) {
@@ -244,6 +254,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept update-instruction with three positional args', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl style-rules update-instruction sr-1 tone "Be friendlier"', { stdio: 'pipe', excludeApiKey: true });
       } catch (error: any) {
@@ -261,6 +272,7 @@ describe('Style Rules CLI Integration', () => {
     });
 
     it('should accept --source-language on add-instruction', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl style-rules add-instruction sr-1 tone "Be formal" --source-language en', { stdio: 'pipe', excludeApiKey: true });
       } catch (error: any) {
