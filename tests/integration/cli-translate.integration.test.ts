@@ -186,6 +186,7 @@ describe('Translate CLI Integration', () => {
       const outputFile = path.join(testDir, 'output.txt');
       fs.writeFileSync(testFile, 'Hello', 'utf-8');
 
+      expect.assertions(1);
       try {
         // This will fail without API key, but should recognize valid arguments
         runCLI(
@@ -242,6 +243,7 @@ describe('Translate CLI Integration', () => {
       fs.mkdirSync(testSubDir2, { recursive: true });
       fs.writeFileSync(path.join(testSubDir2, 'file1.txt'), 'Content', 'utf-8');
 
+      expect.assertions(1);
       try {
         // This will fail without API key, but should recognize valid arguments
         runCLI(
@@ -375,6 +377,7 @@ describe('Translate CLI Integration', () => {
       const outputFile = path.join(testDir, 'output.txt');
       fs.writeFileSync(txtFile, 'Test content', 'utf-8');
 
+      expect.assertions(1);
       try {
         // Will fail without API key but should recognize file type
         runCLI(
@@ -392,6 +395,7 @@ describe('Translate CLI Integration', () => {
       const outputFile = path.join(testDir, 'output.md');
       fs.writeFileSync(mdFile, '# Test\n\nContent', 'utf-8');
 
+      expect.assertions(1);
       try {
         // Will fail without API key but should recognize file type
         runCLI(`deepl translate "${mdFile}" --to es --output "${outputFile}"`, {
@@ -424,6 +428,7 @@ describe('Translate CLI Integration', () => {
 
     it('should accept --show-billed-characters flag without error', () => {
       // Verify the flag is recognized (will fail on API key but shouldn't error on unknown flag)
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to es --show-billed-characters', {
           stdio: 'pipe',
@@ -449,6 +454,7 @@ describe('Translate CLI Integration', () => {
       const outputFile = path.join(testDir, 'output.pptx');
       fs.writeFileSync(pptxFile, 'Mock PPTX content', 'utf-8');
 
+      expect.assertions(1);
       try {
         runCLI(
           `deepl translate "${pptxFile}" --to es --output "${outputFile}" --enable-minification`,
@@ -531,6 +537,7 @@ describe('Translate CLI Integration', () => {
         args: '--ignore-tags "script,style"',
       },
     ])('should accept $flag flag without error', ({ flag, args }) => {
+      expect.assertions(1);
       try {
         runCLI(
           `deepl translate "<p>Hello</p>" --to es --tag-handling xml ${args}`,
@@ -545,6 +552,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept all XML tag handling flags together', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "<p>Hello</p>" --to es --tag-handling xml --outline-detection false --splitting-tags "br,hr" --non-splitting-tags "code" --ignore-tags "script"',
@@ -565,6 +573,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept --format table flag without error', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl translate "Hello" --to es,fr,de --format table', {
           stdio: 'pipe',
@@ -577,6 +586,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should recognize table format as valid option', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl translate "Test" --to es,fr --format table', {
           stdio: 'pipe',
@@ -589,6 +599,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should work with multiple target languages', () => {
+      expect.assertions(2);
       try {
         runCLI(
           'deepl translate "Hello world" --to es,fr,de,ja --format table',
@@ -602,6 +613,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept table format with other options', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "Test" --to es,fr --format table --formality more --context "Business email"',
@@ -614,6 +626,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept table format with --show-billed-characters', () => {
+      expect.assertions(2);
       try {
         runCLI(
           'deepl translate "Test" --to es,fr,de --format table --show-billed-characters --no-cache',
@@ -634,6 +647,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept a single --custom-instruction flag', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "Hello" --to es --custom-instruction "Use informal tone"',
@@ -646,6 +660,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept multiple --custom-instruction flags', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "Hello" --to es --custom-instruction "Use informal tone" --custom-instruction "Preserve brand names"',
@@ -658,6 +673,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept --custom-instruction with other options', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "Hello" --to es --formality more --custom-instruction "Keep it formal" --model-type quality_optimized',
@@ -677,6 +693,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept --style-id flag', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to es --style-id "abc-123-def"', {
           stdio: 'pipe',
@@ -688,6 +705,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept --style-id with other options', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "Hello" --to es --style-id "abc-123" --formality more',
@@ -707,6 +725,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept --enable-beta-languages flag', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to es --enable-beta-languages', {
           stdio: 'pipe',
@@ -718,6 +737,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept --enable-beta-languages with other options', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "Hello" --to es --enable-beta-languages --formality more',
@@ -762,6 +782,7 @@ describe('Translate CLI Integration', () => {
 
   describe('expanded language support', () => {
     it('should accept extended language codes', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to sw', { stdio: 'pipe' });
       } catch (error: any) {
@@ -771,6 +792,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept ES-419 target variant', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to es-419', { stdio: 'pipe' });
       } catch (error: any) {
@@ -780,6 +802,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept zh-hans and zh-hant variants', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to zh-hans', { stdio: 'pipe' });
       } catch (error: any) {
@@ -789,6 +812,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept newly added core languages (he, vi)', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to he', { stdio: 'pipe' });
       } catch (error: any) {
@@ -805,6 +829,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept --tag-handling-version with --tag-handling', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "<p>Hello</p>" --to es --tag-handling html --tag-handling-version v2',
@@ -844,6 +869,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept https:// URLs', () => {
+      expect.assertions(1);
       try {
         runCLIWithKey(
           'deepl translate "Hello" --to es --api-url https://api-free.deepl.com/v2'
@@ -855,6 +881,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should allow http://localhost for local testing', () => {
+      expect.assertions(1);
       try {
         runCLIWithKey(
           'deepl translate "Hello" --to es --api-url http://localhost:3000/v2'
@@ -866,6 +893,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should allow http://127.0.0.1 for local testing', () => {
+      expect.assertions(1);
       try {
         runCLIWithKey(
           'deepl translate "Hello" --to es --api-url http://127.0.0.1:5000/v2'
@@ -905,6 +933,7 @@ describe('Translate CLI Integration', () => {
         'prefer_more',
         'prefer_less',
       ];
+      expect.assertions(validValues.length);
       for (const value of validValues) {
         try {
           runCLI(`deepl translate "Hello" --to es --formality ${value}`, {
@@ -935,6 +964,7 @@ describe('Translate CLI Integration', () => {
 
     it('should accept valid --tag-handling values', () => {
       const validValues = ['xml', 'html'];
+      expect.assertions(validValues.length);
       for (const value of validValues) {
         try {
           runCLI(
@@ -971,6 +1001,7 @@ describe('Translate CLI Integration', () => {
         'prefer_quality_optimized',
         'latency_optimized',
       ];
+      expect.assertions(validValues.length);
       for (const value of validValues) {
         try {
           runCLI(`deepl translate "Hello" --to es --model-type ${value}`, {
@@ -1002,6 +1033,7 @@ describe('Translate CLI Integration', () => {
 
     it('should accept valid --split-sentences values', () => {
       const validValues = ['on', 'off', 'nonewlines'];
+      expect.assertions(validValues.length);
       for (const value of validValues) {
         try {
           runCLI(`deepl translate "Hello" --to es --split-sentences ${value}`, {

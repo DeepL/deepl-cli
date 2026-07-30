@@ -35,6 +35,25 @@ describe('--no-input E2E', () => {
         expect(error.stderr.toString()).toContain('not supported in non-interactive mode');
       }
     });
+
+    // Without --no-input the wizard used to start prompting, then die at EOF
+    // with exit 1 and a Node unsettled-top-level-await warning. Docker without
+    // -it, CI, and piped invocations all take this path.
+    it('should exit with code 6 when stdin is not a terminal', () => {
+      expect.assertions(3);
+      try {
+        execSync('deepl init < /dev/null', {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+          shell: '/bin/sh',
+        });
+      } catch (error: any) {
+        const stderr = error.stderr.toString();
+        expect(error.status).toBe(6);
+        expect(stderr).toContain('not supported in non-interactive mode');
+        expect(stderr).not.toContain('unsettled top-level await');
+      }
+    });
   });
 
   describe('write --interactive', () => {

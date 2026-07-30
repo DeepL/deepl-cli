@@ -57,15 +57,7 @@ For security policy and vulnerability reporting, see [SECURITY.md](SECURITY.md).
 
 ## 📦 Installation
 
-> **Prerequisite:** Node.js **24 or later** (except for Homebrew, which installs Node for you). The cache uses Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) module — no native compilation, no build toolchain needed.
-
-### Homebrew (macOS / Linux)
-
-```bash
-brew install deepl/tap/deepl
-```
-
-Installs the `deepl` command and everything it needs, including Node.
+> **Prerequisite:** Node.js **24 or later**. The cache uses Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) module — no native compilation, no build toolchain needed.
 
 ### npm
 
@@ -77,6 +69,16 @@ deepl --version
 ```
 
 The package is scoped, but the command is just `deepl`.
+
+### Homebrew (macOS / Linux)
+
+_Not available yet — the tap ships shortly after the first npm release. Use npm in the meantime._
+
+```bash
+brew install deepl/tap/deepl
+```
+
+Once available, this installs the `deepl` command and everything it needs, including Node.
 
 ### From Source
 
@@ -115,10 +117,12 @@ deepl init
 Or set your API key directly:
 
 ```bash
-deepl auth set-key YOUR_API_KEY
-
-# Recommended: pipe key from stdin to avoid exposing it in process listings
+# Piping from stdin keeps the key out of process listings and shell history
 echo "YOUR_API_KEY" | deepl auth set-key --from-stdin
+
+# Passing it as an argument also works, but is deprecated and warns:
+# other users can read it via `ps`
+deepl auth set-key YOUR_API_KEY
 ```
 
 Or use an environment variable:
@@ -149,6 +153,8 @@ DeepL CLI supports global flags that work with all commands:
 | `--verbose`     | `-v`  | Show extra information                                       |
 | `--config FILE` | `-c`  | Use alternate configuration file                             |
 | `--no-input`    |       | Disable all interactive prompts (abort instead of prompting) |
+| `--timeout MS`  |       | HTTP request timeout in milliseconds (default 30000)         |
+| `--max-retries N` |     | Retries per failed request (default 3)                       |
 
 ### Verbose Mode
 
@@ -1074,6 +1080,9 @@ deepl translate "Hello" --to es
 # Both HTTP_PROXY and HTTPS_PROXY are supported (case-insensitive)
 export http_proxy=http://proxy.example.com:8080
 export https_proxy=https://proxy.example.com:8443
+
+# Exempt hosts from the proxy with NO_PROXY (comma-separated)
+export NO_PROXY=localhost,127.0.0.1,.internal.example.com
 ```
 
 **Features:**
@@ -1081,6 +1090,7 @@ export https_proxy=https://proxy.example.com:8443
 - ✅ Automatic proxy detection from environment variables
 - ✅ HTTP and HTTPS proxy support
 - ✅ Proxy authentication support
+- ✅ `NO_PROXY` / `no_proxy` bypass, including `*`, a leading dot or `*.` for subdomains, and optional `host:port` entries
 - ✅ Follows standard proxy environment variable conventions
 - ✅ Works with all DeepL CLI commands
 
@@ -1377,8 +1387,8 @@ deepl admin usage --start 2024-01-01 --end 2024-12-31 --format json
 Generate shell completion scripts for tab-completion of commands, options, and arguments:
 
 ```bash
-# Bash
-deepl completion bash > /etc/bash_completion.d/deepl
+# Bash (system-wide; needs write access to that directory)
+deepl completion bash | sudo tee /etc/bash_completion.d/deepl > /dev/null
 
 # Zsh
 deepl completion zsh > "${fpath[1]}/_deepl"
@@ -1389,6 +1399,11 @@ deepl completion fish > ~/.config/fish/completions/deepl.fish
 # Or source directly in your current session
 source <(deepl completion bash)
 ```
+
+> **Bash only:** the generated script uses `_init_completion`, which the
+> [bash-completion](https://github.com/scop/bash-completion) package provides. Without it
+> loaded the script is a no-op rather than an error. Install it with
+> `brew install bash-completion@2` (macOS) or your distribution's `bash-completion` package.
 
 ### Cache Management
 

@@ -8,8 +8,11 @@
 
     /* Emit */
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    // Maps are excluded from the published package, so emitting them only
+    // leaves dangling sourceMappingURL comments in the shipped files. Tests
+    // and local development map through ts-jest and ts-node, not dist.
+    "declarationMap": false,
+    "sourceMap": false,
     "outDir": "./dist",
     "rootDir": "./src",
     "removeComments": true,

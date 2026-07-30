@@ -46,6 +46,7 @@ describe('Auth CLI Integration', () => {
 
   describe('deepl auth show', () => {
     it('should show "No API key set" when no key configured', () => {
+      expect.assertions(1);
       // Clear any existing key first
       try {
         runCLI('deepl auth clear');

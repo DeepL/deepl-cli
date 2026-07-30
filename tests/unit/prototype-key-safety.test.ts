@@ -84,6 +84,38 @@ describe('prototype-named key safety', () => {
       expect(Object.hasOwn(parsed, key)).toBe(true);
       expect(parsed[key]).toBe('vorhanden');
     });
+
+    // The cases above reconstruct a key the target already holds. Inserting a
+    // key the target lacks is a different code path, and the one where plain
+    // assignment silently drops the translation instead of polluting: on a
+    // fresh {}, obj['__proto__'] = v retargets that object's prototype, so a
+    // negative "was Object.prototype polluted" assertion still passes.
+    it.each(PROTO_KEYS)('should insert a %s key absent from the target as own data', (key) => {
+      const parser = new JsonFormatParser();
+
+      const out = parser.reconstruct('{"greeting":"Hallo"}', [
+        { key: 'greeting', value: 'Hello', translation: 'Hallo' },
+        { key, value: 'Source', translation: 'eingefuegt' },
+      ]);
+
+      const parsed = JSON.parse(out) as Record<string, unknown>;
+      expect(Object.hasOwn(parsed, key)).toBe(true);
+      expect(parsed[key]).toBe('eingefuegt');
+      expect(probeOnFreshObject('eingefuegt')).toBeUndefined();
+    });
+
+    it('should insert a nested key under __proto__ as own data', () => {
+      const parser = new JsonFormatParser();
+
+      const out = parser.reconstruct('{"greeting":"Hallo"}', [
+        { key: 'greeting', value: 'Hello', translation: 'Hallo' },
+        { key: '__proto__.nested', value: 'Source', translation: 'verschachtelt' },
+      ]);
+
+      const parsed = JSON.parse(out) as Record<string, unknown>;
+      expect(Object.hasOwn(parsed, '__proto__')).toBe(true);
+      expect((parsed['__proto__'] as Record<string, unknown>)['nested']).toBe('verschachtelt');
+    });
   });
 
   describe('sanitizePullKeysResponse', () => {

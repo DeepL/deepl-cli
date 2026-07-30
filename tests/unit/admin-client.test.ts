@@ -137,6 +137,7 @@ describe('AdminClient', () => {
 
   describe('authentication errors', () => {
     it('should suggest an administrator key on 403 instead of re-setting the key', async () => {
+      expect.assertions(3);
       nock(baseUrl).get('/v2/admin/developer-keys').reply(403, {});
 
       let caught: unknown;
@@ -153,6 +154,7 @@ describe('AdminClient', () => {
     });
 
     it('should suggest an administrator key on 401', async () => {
+      expect.assertions(2);
       nock(baseUrl).get('/v2/admin/developer-keys').reply(401, {});
 
       let caught: unknown;

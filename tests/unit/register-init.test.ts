@@ -12,10 +12,19 @@ jest.mock('../../src/cli/commands/init', () => ({
 }));
 
 describe('registerInit', () => {
+  const realIsTTY = process.stdin.isTTY;
+
   beforeEach(() => {
     (InitCommand as jest.Mock).mockImplementation(() => ({
       run: jest.fn().mockResolvedValue(undefined),
     }));
+    // The wizard requires an interactive terminal; jest workers have none, so
+    // the tests that reach it declare one explicitly.
+    process.stdin.isTTY = true;
+  });
+
+  afterEach(() => {
+    process.stdin.isTTY = realIsTTY;
   });
 
   it('should have the correct description', () => {
@@ -60,5 +69,26 @@ describe('registerInit', () => {
     await program.parseAsync(['node', 'deepl', 'init']);
 
     expect(InitCommand).toHaveBeenCalledWith(configService, undefined);
+  });
+
+  it('should refuse to start the wizard when stdin is not a terminal', async () => {
+    process.stdin.isTTY = false;
+    const program = new Command();
+    program.exitOverride();
+    const handleError = jest.fn() as jest.Mock & ((error: unknown) => never);
+
+    registerInit(program, {
+      getConfigService: () => ({}) as ConfigService,
+      handleError,
+    });
+
+    await program.parseAsync(['node', 'deepl', 'init']);
+
+    expect(InitCommand).not.toHaveBeenCalled();
+    expect(handleError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('not supported in non-interactive mode'),
+      }),
+    );
   });
 });

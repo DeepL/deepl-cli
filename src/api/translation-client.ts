@@ -155,11 +155,11 @@ export class TranslationClient extends HttpClient {
       );
 
       if (!response.translations) {
-        throw new NetworkError('Unexpected API response. Please retry your translation. If the issue persists, report it at https://github.com/user/deepl-cli/issues');
+        throw new NetworkError('Unexpected API response. Please retry your translation. If the issue persists, report it at https://github.com/DeepL/deepl-cli/issues');
       }
 
       if (response.translations.length !== texts.length) {
-        throw new NetworkError('Unexpected API response. Please retry your translation. If the issue persists, report it at https://github.com/user/deepl-cli/issues');
+        throw new NetworkError('Unexpected API response. Please retry your translation. If the issue persists, report it at https://github.com/DeepL/deepl-cli/issues');
       }
 
       return response.translations.map((translation) => ({

@@ -11,6 +11,7 @@ import * as path from 'path';
 
 interface PackageManifest {
   name: string;
+  version: string;
   publishConfig?: { access?: string };
   repository: { type: string; url: string };
   bugs: { url: string };
@@ -19,9 +20,12 @@ interface PackageManifest {
     clean?: string;
     build: string;
     prepublishOnly: string;
+    'check-deps'?: string;
   };
   files: string[];
   bin: Record<string, string>;
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
 }
 
 describe('package.json manifest', () => {
@@ -71,6 +75,24 @@ describe('package.json manifest', () => {
 
     it('should point bin at a path inside dist', () => {
       expect(Object.values(pkg.bin).every((target) => target.startsWith('dist/'))).toBe(true);
+    });
+  });
+
+  describe('runtime dependencies', () => {
+    // Consumers install dependencies only. A package imported by src/ but
+    // declared under devDependencies resolves in this tree and fails on every
+    // real install, and dependency ranges cannot be changed after publish.
+    it.each(['@inquirer/prompts', 'diff'])('should declare %s as a runtime dependency', (name) => {
+      expect(pkg.dependencies[name]).toBeDefined();
+      expect(pkg.devDependencies[name]).toBeUndefined();
+    });
+
+    it('should not declare packages that no source file imports', () => {
+      expect(pkg.dependencies['inquirer']).toBeUndefined();
+    });
+
+    it('should expose the dependency check as a script so CI can gate on it', () => {
+      expect(pkg.scripts['check-deps']).toContain('check-dependencies');
     });
   });
 

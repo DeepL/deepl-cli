@@ -297,8 +297,8 @@ describe('CLI Workflow E2E', () => {
 
       // Step 3: Show should now indicate no key is set
       try {
-        runCLI('deepl auth show');
-        // If it doesn't throw, check that it says "not set" or similar
+        const output = runCLI('deepl auth show');
+        expect(output).toMatch(/No API key set|not set|not configured/i);
       } catch (error: any) {
         const output = error.stderr ?? error.stdout;
         expect(output).toMatch(/not set|not configured/i);
@@ -534,6 +534,7 @@ describe('CLI Workflow E2E', () => {
 
     describe('entry editing workflow', () => {
       it('should support complete workflow: create → add → update → remove', () => {
+        expect.assertions(6);
         // Clear API key to test the workflow structure (will fail on auth)
         try {
           runCLI('deepl auth clear');
@@ -570,6 +571,7 @@ describe('CLI Workflow E2E', () => {
       });
 
       it('should accept glossary ID in addition to name', () => {
+        expect.assertions(1);
         // Clear API key
         try {
           runCLI('deepl auth clear');
@@ -767,6 +769,7 @@ describe('CLI Workflow E2E', () => {
     });
 
     it('should accept --detailed and pagination flags', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl style-rules list --detailed --page 1 --page-size 10');
       } catch (error: any) {
@@ -778,6 +781,7 @@ describe('CLI Workflow E2E', () => {
 
   describe('Expanded Language Support', () => {
     it('should accept extended language codes like Swahili', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to sw');
       } catch (error: any) {
@@ -787,6 +791,7 @@ describe('CLI Workflow E2E', () => {
     });
 
     it('should accept ES-419 Latin American Spanish', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to es-419');
       } catch (error: any) {
@@ -796,6 +801,7 @@ describe('CLI Workflow E2E', () => {
     });
 
     it('should accept Chinese simplified/traditional variants', () => {
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to zh-hant');
       } catch (error: any) {
@@ -807,6 +813,7 @@ describe('CLI Workflow E2E', () => {
 
   describe('Tag Handling Version', () => {
     it('should accept --tag-handling-version flag', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "<p>Hello</p>" --to es --tag-handling html --tag-handling-version v2'

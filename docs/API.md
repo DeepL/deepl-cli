@@ -97,8 +97,8 @@ deepl cache enable
 
 **Quiet Mode Behavior:**
 
-- ✅ **Always shown**: Errors, warnings about critical issues, essential output (translation results, JSON data, command output)
-- ❌ **Suppressed**: Informational messages, success confirmations, progress spinners, status updates
+- ✅ **Always shown**: Errors and their `Suggestion:` remediation lines, essential output (translation results, JSON data, command output)
+- ❌ **Suppressed**: Warnings, informational messages, success confirmations, progress spinners, status updates
 - 🎯 **Use cases**: CI/CD pipelines, scripting, parsing output, quiet automation
 
 **Non-Interactive Mode (`--no-input`):**
@@ -2440,6 +2440,7 @@ Set your DeepL API key and validate it with the DeepL API.
 **Options:**
 
 - `--from-stdin` - Read API key from stdin
+- `--no-verify` - Store the key without validating it against the API. Use on offline or proxied networks, where validation cannot reach the API and the key would otherwise be discarded. Exports of `DEEPL_API_KEY` also bypass validation entirely.
 
 **Examples:**
 
@@ -2453,6 +2454,10 @@ deepl auth set-key --from-stdin < ~/.deepl-api-key
 # Provide key as argument
 deepl auth set-key YOUR-API-KEY-HERE
 # ✓ API key saved and validated successfully
+
+# Store without a network round-trip (offline, or behind an unconfigured proxy)
+echo "YOUR-API-KEY" | deepl auth set-key --from-stdin --no-verify
+# ✓ API key saved without validation
 ```
 
 **Security Note:** Prefer `--from-stdin` over passing the key as a command argument. Command arguments are visible to other users via process listings (`ps aux`).
@@ -3192,10 +3197,12 @@ When an error reaches the top-level handler without being a `DeepLCLIError`, the
 - **3 — RateLimitError**: `rate limit exceeded`, `too many requests`, `\b429\b`
 - **4 — QuotaError**: `quota exceeded`, `character limit reached`, `\b456\b`
 - **5 — NetworkError**: `econnrefused`, `enotfound`, `econnreset`, `etimedout`, `socket hang up`, `network error`, `network timeout`, `connection refused`, `connection reset`, `connection timed out`, `service temporarily unavailable`, `\b503\b`
+- **9 — VoiceError**: `voice api`, `voice session`
 - **7 — ConfigError** (checked before 6 because config messages may contain "invalid"): `config file`, `config directory`, `configuration file`, `configuration error`, `failed to load config`, `failed to save config`, `failed to read config`
 - **6 — InvalidInput**: `cannot be empty`, `file not found`, `path not found`, `directory not found`, `not found in glossary`, `unsupported format`, `unsupported language`, `not supported for`, `not supported in`, `invalid target language`, `invalid source language`, `invalid language code`, `invalid glossary`, `invalid hook`, `invalid url`, `invalid size`, `is required`, `cannot specify both`
-- **9 — VoiceError**: `voice api`, `voice session`
 - **1 — GeneralError**: anything not matched above
+
+The list is in the order the classifier actually tests, which is what determines the code when a message matches more than one pattern.
 
 ### Trace IDs
 

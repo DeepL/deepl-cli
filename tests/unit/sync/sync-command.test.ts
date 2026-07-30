@@ -164,6 +164,7 @@ describe('SyncCommand', () => {
     });
 
     it('should output valid JSON to stdout when format is json', async () => {
+        expect.assertions(4);
       const result = makeResult();
       const mockService = createMockSyncService(result);
       const command = new SyncCommand(mockService);
@@ -757,14 +758,23 @@ describe('SyncCommand', () => {
       expect(commitCalls).toHaveLength(0);
     });
 
-    it('should not call git when fileResults is empty', async () => {
+    // The preflight runs even with nothing to commit, so that a retry after a
+    // refusal reports the refusal again rather than succeeding silently. Only
+    // staging and committing are skipped.
+    it('should run the preflight but not commit when fileResults is empty', async () => {
       const result = makeResult({ fileResults: [] });
       const mockService = createMockSyncService(result);
       const command = new SyncCommand(mockService);
 
       await command.run({ autoCommit: true });
 
-      expect(mockExecFile).not.toHaveBeenCalled();
+      const args = mockExecFile.mock.calls
+        .filter((c: unknown[]) => Array.isArray(c[1]))
+        .map((c: unknown[]) => (c[1] as string[]).join(' '));
+
+      expect(args).toContain('symbolic-ref -q HEAD');
+      expect(args.some((a) => a.startsWith('add '))).toBe(false);
+      expect(args.some((a) => a.startsWith('commit '))).toBe(false);
     });
 
     it('should not call git when dryRun is true', async () => {

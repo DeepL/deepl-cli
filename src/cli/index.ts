@@ -15,7 +15,7 @@ import { createCacheServiceGetter, resolveCacheOptions } from './cache-loader.js
 import { resolvePaths } from '../utils/paths.js';
 import type { DeepLClient } from '../api/deepl-client.js';
 import { Logger } from '../utils/logger.js';
-import { DeepLCLIError } from '../utils/errors.js';
+import { AuthError, DeepLCLIError } from '../utils/errors.js';
 import { ExitCode, getExitCodeFromError } from '../utils/exit-codes.js';
 import { isSymlink } from '../utils/safe-read-file.js';
 import { setNoInput } from '../utils/confirm.js';
@@ -116,13 +116,9 @@ async function createDeepLClient(
   const key = apiKey ?? envKey;
 
   if (!key) {
-    Logger.error(chalk.red('Error: API key not set'));
-    Logger.warn(
-      chalk.yellow(
-        'Run: deepl init (setup wizard) or deepl auth set-key <your-api-key>'
-      )
-    );
-    process.exit(ExitCode.AuthError);
+    // Routed through handleError so the remediation survives --quiet, which
+    // suppresses Logger.warn entirely.
+    handleError(new AuthError('API key not set'));
   }
 
   const configBaseUrl = configService.getValue<string>('api.baseUrl');
@@ -261,13 +257,9 @@ function getApiKeyAndOptions(): {
   const key = apiKey ?? envKey;
 
   if (!key) {
-    Logger.error(chalk.red('Error: API key not set'));
-    Logger.warn(
-      chalk.yellow(
-        'Run: deepl init (setup wizard) or deepl auth set-key <your-api-key>'
-      )
-    );
-    process.exit(ExitCode.AuthError);
+    // Routed through handleError so the remediation survives --quiet, which
+    // suppresses Logger.warn entirely.
+    handleError(new AuthError('API key not set'));
   }
 
   const configBaseUrl = configService.getValue<string>('api.baseUrl');
@@ -380,14 +372,23 @@ program.on('command:*', (operands: string[]) => {
     return;
   }
 
-  const commandNames = program.commands.map((cmd) => cmd.name());
+  // Hidden commands are internal surface, so they are never suggested. An
+  // alias match resolves to the command it aliases, which is the name the
+  // user is looking for.
+  const candidates = program
+    .createHelp()
+    .visibleCommands(program)
+    .flatMap((cmd) => [cmd.name(), ...cmd.aliases()].map((name) => ({ name, target: cmd.name() })));
+
   let bestMatch = '';
   let bestDistance = Infinity;
-  for (const name of commandNames) {
-    const d = levenshtein(unknown, name);
+  for (const { name, target } of candidates) {
+    // A typed prefix is a stronger signal than edit distance: "tr" is 2 edits
+    // from both "tm" and "translate", but only one of them was being typed.
+    const d = name.startsWith(unknown) ? 0 : levenshtein(unknown, name);
     if (d < bestDistance) {
       bestDistance = d;
-      bestMatch = name;
+      bestMatch = target;
     }
   }
 

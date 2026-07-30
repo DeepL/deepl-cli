@@ -338,6 +338,55 @@ describe('ConfigService', () => {
       // Cleanup
       fs.rmSync(uniqueDir, { recursive: true, force: true });
     });
+
+    describe('temp file safety', () => {
+      // The API key is written in plaintext, so the intermediate file must not
+      // land on a path anyone else could have prepared in advance.
+      it('should not write through a symlink planted at the predictable temp path', () => {
+        const uniqueDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepl-tmp-safety-'));
+        const configPath = path.join(uniqueDir, 'config.json');
+        const stolenPath = path.join(uniqueDir, 'stolen.txt');
+        fs.symlinkSync(stolenPath, `${configPath}.tmp`);
+
+        const service = new ConfigService(configPath);
+        service.set('auth.apiKey', 'secret-key-value');
+
+        expect(fs.existsSync(stolenPath)).toBe(false);
+        expect(fs.lstatSync(configPath).isSymbolicLink()).toBe(false);
+        expect(fs.readFileSync(configPath, 'utf-8')).toContain('secret-key-value');
+
+        fs.rmSync(uniqueDir, { recursive: true, force: true });
+      });
+
+      it('should not write to the predictable temp path even when it is free', () => {
+        const uniqueDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepl-tmp-unique-'));
+        const configPath = path.join(uniqueDir, 'config.json');
+        const predictablePath = `${configPath}.tmp`;
+        fs.writeFileSync(predictablePath, 'planted', 'utf-8');
+
+        const service = new ConfigService(configPath);
+        service.set('auth.apiKey', 'first');
+        service.set('auth.apiKey', 'second');
+
+        expect(fs.readFileSync(predictablePath, 'utf-8')).toBe('planted');
+        expect(fs.readFileSync(configPath, 'utf-8')).toContain('second');
+
+        fs.rmSync(uniqueDir, { recursive: true, force: true });
+      });
+
+      it('should leave no temp file behind after a successful write', () => {
+        const uniqueDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepl-tmp-clean-'));
+        const configPath = path.join(uniqueDir, 'config.json');
+
+        const service = new ConfigService(configPath);
+        service.set('auth.apiKey', 'test');
+
+        expect(fs.readdirSync(uniqueDir)).toEqual(['config.json']);
+        expect(fs.existsSync(`${configPath}.tmp`)).toBe(false);
+
+        fs.rmSync(uniqueDir, { recursive: true, force: true });
+      });
+    });
   });
 
   describe('error logging sanitization', () => {

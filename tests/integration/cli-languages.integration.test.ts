@@ -27,6 +27,7 @@ describe('Languages CLI Integration', () => {
 
   describe('deepl languages without API key (graceful degradation)', () => {
     it('should show registry-only output with warning when no API key', () => {
+      expect.assertions(2);
       try {
         runCLI('deepl auth clear');
       } catch {

@@ -6,7 +6,7 @@ DeepL CLI is a command-line interface for the DeepL API that integrates translat
 
 ### Current Status
 
-- **Version**: see `VERSION` file / `package.json`
+- **Version**: see `package.json` (the single source of truth; `src/version.ts` reads it at runtime)
 - **Tests**: see `npm test` output (target: all green; coverage thresholds enforced by jest config)
 - **Test mix**: ~70-75% unit, ~25-30% integration/e2e
 
@@ -78,7 +78,7 @@ Use **Semantic Versioning** with **Conventional Commits**:
 ### When Cutting a Release
 
 1. Move Unreleased items to `## [X.Y.Z] - YYYY-MM-DD`
-2. Update `VERSION` and `package.json` version
+2. Set the version with `npm version X.Y.Z --no-git-tag-version` (updates `package.json` and the lockfile together; the release workflow refuses to publish if the tag and `package.json` disagree)
 3. Create annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z: <summary>"`
 4. Push: `git push && git push --tags`
 

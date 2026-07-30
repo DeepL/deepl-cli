@@ -423,7 +423,7 @@ deepl cache enable
 
 Translation and write commands keep working with caching disabled for the run; your cache database is not modified. `deepl cache` subcommands fail until the CLI runs on a supported Node.js version.
 
-**Solution:** run the CLI with Node.js 24+ (e.g. `nvm install 24 && nvm use 24`), or install via Homebrew (`brew install deepl/tap/deepl`), which manages Node for you.
+**Solution:** run the CLI with Node.js 24 or later — e.g. `nvm install 24 && nvm use 24`, or install Node 24 from [nodejs.org](https://nodejs.org/).
 
 ---
 

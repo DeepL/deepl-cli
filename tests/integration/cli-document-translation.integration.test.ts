@@ -915,6 +915,7 @@ describe('Document Translation CLI Integration', () => {
       const testFile = path.join(testDir, 'cli-doc4.pdf');
       fs.writeFileSync(testFile, Buffer.from([0x25, 0x50, 0x44, 0x46]));
 
+      expect.assertions(1);
       try {
         runCLI(
           `deepl translate "${testFile}" --to es --output "${testDir}/out.docx" --output-format docx`,
@@ -930,6 +931,7 @@ describe('Document Translation CLI Integration', () => {
       const testFile = path.join(testDir, 'cli-doc5.pptx');
       fs.writeFileSync(testFile, Buffer.from([0x50, 0x4b, 0x03, 0x04]));
 
+      expect.assertions(1);
       try {
         runCLI(
           `deepl translate "${testFile}" --to es --output "${testDir}/out.pptx" --enable-minification`,
@@ -963,6 +965,7 @@ describe('Document Translation CLI Integration', () => {
           fs.writeFileSync(testFile, docType.content ?? '');
         }
 
+        expect.assertions(1);
         try {
           runCLI(
             `deepl translate "${testFile}" --to es --output "${outputFile}"`,

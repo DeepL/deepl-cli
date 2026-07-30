@@ -206,6 +206,38 @@ describe('registerWrite', () => {
       expect(handleError).not.toHaveBeenCalled();
     });
 
+    // `deepl languages` prints lowercase codes and `translate --to` lowercases
+    // before validating, so write rejecting them made the CLI's own output
+    // unusable with the command documented as consistent with translate.
+    it.each([
+      ['en-us', 'en-US'],
+      ['en-US', 'en-US'],
+      ['EN-US', 'en-US'],
+      ['pt-br', 'pt-BR'],
+      ['zh-hans', 'zh-Hans'],
+      ['DE', 'de'],
+    ])('should accept --lang %s and normalize it to %s', async (input, canonical) => {
+      mockCreateWriteCommand.mockResolvedValue(mockWriteCommand);
+      mockWriteCommand.improve.mockResolvedValue('ok');
+      await program.parseAsync(['node', 'test', 'write', 'Hello', '--lang', input]);
+      expect(handleError).not.toHaveBeenCalled();
+      expect(mockWriteCommand.improve).toHaveBeenCalledWith(
+        'Hello',
+        expect.objectContaining({ lang: canonical }),
+      );
+    });
+
+    it('should accept the same casing via --to as via --lang', async () => {
+      mockCreateWriteCommand.mockResolvedValue(mockWriteCommand);
+      mockWriteCommand.improve.mockResolvedValue('ok');
+      await program.parseAsync(['node', 'test', 'write', 'Hello', '--to', 'pt-br']);
+      expect(handleError).not.toHaveBeenCalled();
+      expect(mockWriteCommand.improve).toHaveBeenCalledWith(
+        'Hello',
+        expect.objectContaining({ lang: 'pt-BR' }),
+      );
+    });
+
     it('should reject both --style and --tone', async () => {
       await program.parseAsync([
         'node', 'test', 'write', 'Hello', '--style', 'business', '--tone', 'friendly',

@@ -82,6 +82,7 @@ describe('extractGlobLiteralPrefix', () => {
     });
 
     it('includes the offending pattern in the error message', () => {
+      expect.assertions(2);
       let caught: unknown = null;
       try {
         extractGlobLiteralPrefix('{..,src}/**');

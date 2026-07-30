@@ -131,6 +131,7 @@ describe('WatchCommand', () => {
     });
 
     it('should parse multiple target languages', async () => {
+      expect.assertions(2);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
 
@@ -154,6 +155,7 @@ describe('WatchCommand', () => {
     });
 
     it('should use custom output directory when provided', async () => {
+      expect.assertions(1);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -176,6 +178,7 @@ describe('WatchCommand', () => {
     });
 
     it('should create translations subdirectory for directory input', async () => {
+      expect.assertions(1);
       (fs.existsSync as jest.Mock).mockReturnValueOnce(true).mockReturnValueOnce(false);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => true });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -194,6 +197,7 @@ describe('WatchCommand', () => {
     });
 
     it('should use same directory for file input when no output specified', async () => {
+      expect.assertions(1);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -215,6 +219,7 @@ describe('WatchCommand', () => {
     });
 
     it('should pass debounce option to WatchService', async () => {
+      expect.assertions(1);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -237,6 +242,7 @@ describe('WatchCommand', () => {
     });
 
     it('should pass pattern option to WatchService', async () => {
+      expect.assertions(1);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -259,6 +265,7 @@ describe('WatchCommand', () => {
     });
 
     it('should pass translation options to watch service', async () => {
+      expect.assertions(1);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -286,6 +293,7 @@ describe('WatchCommand', () => {
     });
 
     it('should register onChange callback', async () => {
+      expect.assertions(2);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -310,6 +318,7 @@ describe('WatchCommand', () => {
     });
 
     it('should register onTranslate callback for multiple languages', async () => {
+      expect.assertions(2);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -335,6 +344,7 @@ describe('WatchCommand', () => {
     });
 
     it('should register onTranslate callback for single language', async () => {
+      expect.assertions(1);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -360,6 +370,7 @@ describe('WatchCommand', () => {
     });
 
     it('should register onError callback', async () => {
+      expect.assertions(2);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -418,6 +429,7 @@ describe('WatchCommand', () => {
     }, 1000);
 
     it('should use current directory when file is in root', async () => {
+      expect.assertions(1);
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => false });
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -457,6 +469,7 @@ describe('WatchCommand', () => {
     });
 
     it('should auto-commit translations when autoCommit is enabled for multiple languages', async () => {
+      expect.assertions(1);
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
 
       // Mock exec to simulate git commands
@@ -493,6 +506,7 @@ describe('WatchCommand', () => {
     });
 
     it('should auto-commit translations when autoCommit is enabled for single language', async () => {
+      expect.assertions(1);
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
 
       try {
@@ -517,6 +531,7 @@ describe('WatchCommand', () => {
     });
 
     it('should handle auto-commit when not in git repository', async () => {
+      expect.assertions(1);
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
 
       try {
@@ -542,6 +557,7 @@ describe('WatchCommand', () => {
     });
 
     it('should handle auto-commit with no output files', async () => {
+      expect.assertions(1);
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
 
       try {
@@ -566,6 +582,7 @@ describe('WatchCommand', () => {
     });
 
     it('should handle auto-commit errors gracefully', async () => {
+      expect.assertions(1);
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
 
       try {
@@ -600,6 +617,7 @@ describe('WatchCommand', () => {
     });
 
     it('should call getStagedFiles and pass result to WatchService when gitStaged is true', async () => {
+      expect.assertions(2);
       const stagedSet = new Set(['/abs/file1.txt']);
       jest.spyOn(watchCommand, 'getStagedFiles').mockResolvedValue(stagedSet);
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
@@ -651,6 +669,7 @@ describe('WatchCommand', () => {
     });
 
     it('should not call getStagedFiles when gitStaged is not set', async () => {
+      expect.assertions(1);
       jest.spyOn(watchCommand, 'getStagedFiles');
       mockWatchService.watch.mockImplementation(() => { throw new Error('Test complete'); });
 

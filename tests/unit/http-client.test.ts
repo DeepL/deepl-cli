@@ -291,4 +291,63 @@ describe('HttpClient', () => {
       }
     });
   });
+
+  describe('NO_PROXY', () => {
+    const PROXY_VARS = ['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy', 'NO_PROXY', 'no_proxy'];
+    let saved: Record<string, string | undefined>;
+
+    beforeEach(() => {
+      saved = Object.fromEntries(PROXY_VARS.map((name) => [name, process.env[name]]));
+      PROXY_VARS.forEach((name) => delete process.env[name]);
+      process.env['HTTPS_PROXY'] = 'http://proxy.example.com:8080';
+    });
+
+    afterEach(() => {
+      for (const [name, value] of Object.entries(saved)) {
+        if (value === undefined) {
+          delete process.env[name];
+        } else {
+          process.env[name] = value;
+        }
+      }
+    });
+
+    function proxyFor(baseUrl: string): unknown {
+      const instance = new TestHttpClient(apiKey, { baseUrl });
+      return (instance as unknown as { client: { defaults: { proxy?: unknown } } }).client.defaults
+        .proxy;
+    }
+
+    it('uses the proxy when NO_PROXY does not match', () => {
+      process.env['NO_PROXY'] = 'example.org';
+
+      expect(proxyFor('https://api.deepl.com')).toMatchObject({ host: 'proxy.example.com' });
+    });
+
+    it.each([
+      ['exact host', 'api.deepl.com', 'https://api.deepl.com'],
+      ['wildcard', '*', 'https://api.deepl.com'],
+      ['leading dot subdomain', '.deepl.com', 'https://api.deepl.com'],
+      ['star-dot subdomain', '*.deepl.com', 'https://api.deepl.com'],
+      ['host with matching port', 'localhost:8080', 'http://localhost:8080'],
+      ['entry among several', 'foo.test,api.deepl.com,bar.test', 'https://api.deepl.com'],
+      ['case-insensitive', 'API.DeepL.com', 'https://api.deepl.com'],
+    ])('bypasses the proxy for %s', (_label, noProxy, target) => {
+      process.env['NO_PROXY'] = noProxy;
+
+      expect(proxyFor(target)).toBeUndefined();
+    });
+
+    it('does not bypass when only the port differs', () => {
+      process.env['NO_PROXY'] = 'localhost:9999';
+
+      expect(proxyFor('http://localhost:8080')).toMatchObject({ host: 'proxy.example.com' });
+    });
+
+    it('honours the lowercase no_proxy spelling', () => {
+      process.env['no_proxy'] = 'api.deepl.com';
+
+      expect(proxyFor('https://api.deepl.com')).toBeUndefined();
+    });
+  });
 });

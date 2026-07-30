@@ -63,4 +63,16 @@ describe('CLI did-you-mean suggestions', () => {
     const combined = result.stdout + result.stderr;
     expect(combined).toContain('deepl --help');
   });
+
+  it('should suggest translate, not an unrelated command, for a prefix of an alias', () => {
+    const result = runCLI('tr');
+    const combined = result.stdout + result.stderr;
+    expect(combined).toContain('Did you mean: deepl translate?');
+  });
+
+  it.each(['descibe', 'describe'])('should never suggest the hidden _describe command (%s)', (typo) => {
+    const result = runCLI(typo);
+    const combined = result.stdout + result.stderr;
+    expect(combined).not.toContain('_describe');
+  });
 });

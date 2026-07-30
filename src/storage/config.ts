@@ -3,6 +3,7 @@
  * Handles loading, saving, and accessing configuration
  */
 
+import { randomBytes } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { DeepLConfig, Formality, OutputFormat } from '../types/index.js';
@@ -251,21 +252,26 @@ export class ConfigService {
    * Save configuration to disk
    */
   private save(): void {
+    // The temp name is unpredictable and created exclusively: at a fixed path a
+    // pre-planted symlink would redirect this file — which holds the API key in
+    // plaintext — to a path of the planter's choosing, and the rename would
+    // then leave config.json as that symlink for every later write. `wx` fails
+    // rather than following anything already there.
+    const tmpPath = `${this.configPath}.tmp.${process.pid}.${randomBytes(6).toString('hex')}`;
     try {
       const dir = path.dirname(this.configPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       }
-      const tmpPath = this.configPath + '.tmp';
       fs.writeFileSync(
         tmpPath,
         JSON.stringify(this.config, null, 2),
-        { encoding: 'utf-8', mode: 0o600 }
+        { encoding: 'utf-8', mode: 0o600, flag: 'wx' }
       );
+      // The mode above is masked by the umask at creation; chmod is not.
+      fs.chmodSync(tmpPath, 0o600);
       fs.renameSync(tmpPath, this.configPath);
     } catch (error) {
-      // Clean up temp file on failure
-      const tmpPath = this.configPath + '.tmp';
       try { fs.unlinkSync(tmpPath); } catch { /* ignore cleanup errors */ }
       throw new ConfigError(`Failed to save config: ${errorMessage(error)}`);
     }

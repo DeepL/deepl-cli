@@ -6,6 +6,7 @@
 
 import { execSync } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 describe('hermetic deepl shim', () => {
@@ -25,5 +26,32 @@ describe('hermetic deepl shim', () => {
     ) as { version: string };
 
     expect(version).toBe(pkg.version);
+  });
+
+  describe('credential isolation', () => {
+    // A spawned CLI cannot be intercepted by nock, so an inherited real key
+    // reaches the live API. These assert the suite never carries one.
+    it.each(['DEEPL_API_KEY', 'TMS_API_KEY', 'TMS_TOKEN'])(
+      'does not carry %s in the inherited environment',
+      (name) => {
+        expect(process.env[name]).toBeUndefined();
+      },
+    );
+
+    it('points DEEPL_CONFIG_DIR at a temporary directory, not the real one', () => {
+      const configDir = process.env['DEEPL_CONFIG_DIR'];
+
+      expect(configDir).toBeDefined();
+      expect(configDir!.startsWith(os.tmpdir())).toBe(true);
+    });
+
+    it('reports no API key to a bare spawned command', () => {
+      const output = execSync('deepl auth show 2>&1 || true', {
+        encoding: 'utf-8',
+        shell: '/bin/sh',
+      });
+
+      expect(output).toMatch(/no api key|not set|not configured/i);
+    });
   });
 });

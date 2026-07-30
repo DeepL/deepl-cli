@@ -37,6 +37,7 @@ describe('Auth Command E2E', () => {
 
   describe('auth show', () => {
     it('should show "No API key set" when no key configured', () => {
+      expect.assertions(1);
       // Clear any existing key first
       try {
         runCLI('auth clear');
