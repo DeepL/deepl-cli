@@ -57,15 +57,7 @@ For security policy and vulnerability reporting, see [SECURITY.md](SECURITY.md).
 
 ## 📦 Installation
 
-> **Prerequisite:** Node.js **24 or later** (except for Homebrew, which installs Node for you). The cache uses Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) module — no native compilation, no build toolchain needed.
-
-### Homebrew (macOS / Linux)
-
-```bash
-brew install deepl/tap/deepl
-```
-
-Installs the `deepl` command and everything it needs, including Node.
+> **Prerequisite:** Node.js **24 or later**. The cache uses Node's built-in [`node:sqlite`](https://nodejs.org/api/sqlite.html) module — no native compilation, no build toolchain needed.
 
 ### npm
 
@@ -77,6 +69,16 @@ deepl --version
 ```
 
 The package is scoped, but the command is just `deepl`.
+
+### Homebrew (macOS / Linux)
+
+_Not available yet — the tap ships shortly after the first npm release. Use npm in the meantime._
+
+```bash
+brew install deepl/tap/deepl
+```
+
+Once available, this installs the `deepl` command and everything it needs, including Node.
 
 ### From Source
 

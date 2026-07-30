@@ -20,7 +20,8 @@
     "!dist/**/*.js.map",
     "!dist/**/*.d.ts.map",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "SECURITY.md"
   ],
   "bin": {
     "deepl": "dist/cli/index.js"

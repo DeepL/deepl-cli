@@ -186,6 +186,7 @@ describe('Translate CLI Integration', () => {
       const outputFile = path.join(testDir, 'output.txt');
       fs.writeFileSync(testFile, 'Hello', 'utf-8');
 
+      expect.assertions(1);
       try {
         // This will fail without API key, but should recognize valid arguments
         runCLI(
@@ -242,6 +243,7 @@ describe('Translate CLI Integration', () => {
       fs.mkdirSync(testSubDir2, { recursive: true });
       fs.writeFileSync(path.join(testSubDir2, 'file1.txt'), 'Content', 'utf-8');
 
+      expect.assertions(1);
       try {
         // This will fail without API key, but should recognize valid arguments
         runCLI(
@@ -375,6 +377,7 @@ describe('Translate CLI Integration', () => {
       const outputFile = path.join(testDir, 'output.txt');
       fs.writeFileSync(txtFile, 'Test content', 'utf-8');
 
+      expect.assertions(1);
       try {
         // Will fail without API key but should recognize file type
         runCLI(
@@ -392,6 +395,7 @@ describe('Translate CLI Integration', () => {
       const outputFile = path.join(testDir, 'output.md');
       fs.writeFileSync(mdFile, '# Test\n\nContent', 'utf-8');
 
+      expect.assertions(1);
       try {
         // Will fail without API key but should recognize file type
         runCLI(`deepl translate "${mdFile}" --to es --output "${outputFile}"`, {
@@ -424,6 +428,7 @@ describe('Translate CLI Integration', () => {
 
     it('should accept --show-billed-characters flag without error', () => {
       // Verify the flag is recognized (will fail on API key but shouldn't error on unknown flag)
+      expect.assertions(1);
       try {
         runCLI('deepl translate "Hello" --to es --show-billed-characters', {
           stdio: 'pipe',
@@ -449,6 +454,7 @@ describe('Translate CLI Integration', () => {
       const outputFile = path.join(testDir, 'output.pptx');
       fs.writeFileSync(pptxFile, 'Mock PPTX content', 'utf-8');
 
+      expect.assertions(1);
       try {
         runCLI(
           `deepl translate "${pptxFile}" --to es --output "${outputFile}" --enable-minification`,
@@ -531,6 +537,7 @@ describe('Translate CLI Integration', () => {
         args: '--ignore-tags "script,style"',
       },
     ])('should accept $flag flag without error', ({ flag, args }) => {
+      expect.assertions(1);
       try {
         runCLI(
           `deepl translate "<p>Hello</p>" --to es --tag-handling xml ${args}`,
@@ -545,6 +552,7 @@ describe('Translate CLI Integration', () => {
     });
 
     it('should accept all XML tag handling flags together', () => {
+      expect.assertions(1);
       try {
         runCLI(
           'deepl translate "<p>Hello</p>" --to es --tag-handling xml --outline-detection false --splitting-tags "br,hr" --non-splitting-tags "code" --ignore-tags "script"',
