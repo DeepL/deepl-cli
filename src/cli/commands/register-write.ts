@@ -10,6 +10,14 @@ import { ValidationError } from '../../utils/errors.js';
 import { createWriteCommand, type ServiceDeps } from './service-factory.js';
 
 const WRITE_LANGUAGES = ['de', 'en', 'en-GB', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'pt-BR', 'pt-PT', 'zh', 'zh-Hans'] as const;
+/**
+ * Codes are accepted in any casing and normalized to the API's form, matching
+ * `translate --to` and the lowercase codes `deepl languages` prints.
+ */
+const WRITE_LANGUAGE_BY_LOWERCASE = new Map<string, WriteLanguage>(
+  WRITE_LANGUAGES.map((language) => [language.toLowerCase(), language]),
+);
+
 const WRITE_STYLES = ['default', 'simple', 'business', 'academic', 'casual', 'prefer_simple', 'prefer_business', 'prefer_academic', 'prefer_casual'] as const;
 const WRITE_TONES = ['default', 'enthusiastic', 'friendly', 'confident', 'diplomatic', 'prefer_enthusiastic', 'prefer_friendly', 'prefer_confident', 'prefer_diplomatic'] as const;
 
@@ -92,8 +100,12 @@ Examples:
           text = stdinText;
         }
 
-        if (options.lang && !(WRITE_LANGUAGES as readonly string[]).includes(options.lang)) {
-          throw new ValidationError(`Invalid language code: ${options.lang}. Valid options: ${WRITE_LANGUAGES.join(', ')}`);
+        if (options.lang) {
+          const canonical = WRITE_LANGUAGE_BY_LOWERCASE.get(options.lang.toLowerCase());
+          if (!canonical) {
+            throw new ValidationError(`Invalid language code: ${options.lang}. Valid options: ${WRITE_LANGUAGES.join(', ')}`);
+          }
+          options.lang = canonical;
         }
 
         if (options.style && !(WRITE_STYLES as readonly string[]).includes(options.style)) {

@@ -40,9 +40,7 @@ export function isolateCredentialEnvironment(): void {
   delete process.env['TMS_API_KEY'];
   delete process.env['TMS_TOKEN'];
 
-  if (!process.env['DEEPL_CONFIG_DIR']) {
-    process.env['DEEPL_CONFIG_DIR'] = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'deepl-cli-test-config-'),
-    );
-  }
+  process.env['DEEPL_CONFIG_DIR'] ??= fs.mkdtempSync(
+    path.join(os.tmpdir(), 'deepl-cli-test-config-'),
+  );
 }

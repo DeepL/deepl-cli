@@ -34,7 +34,8 @@ Command arguments are visible to other users via process listings.
         .description('Set your DeepL API key')
         .argument('[api-key]', 'Your DeepL API key (or pipe via stdin)')
         .option('--from-stdin', 'Read API key from stdin')
-        .action(async (apiKey: string | undefined, opts: { fromStdin?: boolean }) => {
+        .option('--no-verify', 'Store the key without validating it against the API (for offline or proxied networks)')
+        .action(async (apiKey: string | undefined, opts: { fromStdin?: boolean; verify?: boolean }) => {
           try {
             let key = apiKey;
             if (apiKey && !opts.fromStdin) {
@@ -60,8 +61,14 @@ Command arguments are visible to other users via process listings.
             }
             const { AuthCommand } = await import('./auth.js');
             const authCommand = new AuthCommand(getConfigService(), getHttpOptions?.());
-            await authCommand.setKey(key);
-            Logger.success(chalk.green('\u2713 API key saved and validated successfully'));
+            await authCommand.setKey(key, { verify: opts.verify });
+            Logger.success(
+              chalk.green(
+                opts.verify === false
+                  ? '\u2713 API key saved without validation'
+                  : '\u2713 API key saved and validated successfully',
+              ),
+            );
           } catch (error) {
             handleError(error);
 

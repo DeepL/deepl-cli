@@ -9,6 +9,7 @@ import { AuthCommand } from '../../src/cli/commands/auth';
 import { ConfigService } from '../../src/storage/config';
 import { DeepLClient } from '../../src/api/deepl-client';
 import { createMockConfigService } from '../helpers/mock-factories';
+import { NetworkError } from '../../src/utils/errors';
 
 // Mock chalk (ESM-only)
 jest.mock('chalk', () => {
@@ -125,6 +126,45 @@ describe('AuthCommand', () => {
       } as any));
 
       await expect(authCommand.setKey('test-key')).rejects.toThrow('Network timeout');
+    });
+
+    describe('offline storage', () => {
+      // Validation requires network access, so on a locked-down network every
+      // documented way to store a key was closed.
+      it('should store the key without contacting the API when verify is false', async () => {
+        const mockGetUsage = jest.fn();
+        (DeepLClient as jest.MockedClass<typeof DeepLClient>).mockImplementation(() => ({
+          getUsage: mockGetUsage,
+        } as any));
+
+        await authCommand.setKey('a1b2c3d4-e5f6-7890-abcd-ef1234567890:fx', { verify: false });
+
+        expect(mockConfigService.set).toHaveBeenCalledWith(
+          'auth.apiKey',
+          'a1b2c3d4-e5f6-7890-abcd-ef1234567890:fx',
+        );
+        expect(mockGetUsage).not.toHaveBeenCalled();
+      });
+
+      it('should still reject an empty key when verification is skipped', async () => {
+        await expect(authCommand.setKey('', { verify: false })).rejects.toThrow(
+          'API key cannot be empty',
+        );
+      });
+
+      it('should name the offline alternatives when the API is unreachable', async () => {
+        const mockGetUsage = jest
+          .fn()
+          .mockRejectedValue(new NetworkError('connect ECONNREFUSED 127.0.0.1:443'));
+        (DeepLClient as jest.MockedClass<typeof DeepLClient>).mockImplementation(() => ({
+          getUsage: mockGetUsage,
+        } as any));
+
+        await expect(authCommand.setKey('test-key')).rejects.toMatchObject({
+          suggestion: expect.stringContaining('--no-verify'),
+        });
+        expect(mockConfigService.set).not.toHaveBeenCalled();
+      });
     });
   });
 

@@ -97,8 +97,8 @@ deepl cache enable
 
 **Quiet Mode Behavior:**
 
-- ✅ **Always shown**: Errors, warnings about critical issues, essential output (translation results, JSON data, command output)
-- ❌ **Suppressed**: Informational messages, success confirmations, progress spinners, status updates
+- ✅ **Always shown**: Errors and their `Suggestion:` remediation lines, essential output (translation results, JSON data, command output)
+- ❌ **Suppressed**: Warnings, informational messages, success confirmations, progress spinners, status updates
 - 🎯 **Use cases**: CI/CD pipelines, scripting, parsing output, quiet automation
 
 **Non-Interactive Mode (`--no-input`):**

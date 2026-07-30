@@ -462,7 +462,7 @@ describe('registerAuth', () => {
     await loadAndRegister();
     await program.parseAsync(['node', 'test', 'auth', 'set-key', 'my-api-key-12345']);
 
-    expect(mockSetKey).toHaveBeenCalledWith('my-api-key-12345');
+    expect(mockSetKey).toHaveBeenCalledWith('my-api-key-12345', { verify: true });
     expect(mockLogger.success).toHaveBeenCalledWith(expect.stringContaining('API key saved'));
   });
 
