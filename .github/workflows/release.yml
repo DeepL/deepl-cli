@@ -20,15 +20,31 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
+      # Actions in this job are pinned to commit SHAs because it is the only
+      # job holding NPM_TOKEN; a moved tag here would run unreviewed code
+      # with publish credentials.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
           cache: npm
 
       - run: npm ci
+
+      # npm rejects a duplicate version, but this package's first publish has
+      # no prior version to collide with: without this check, tagging v2.0.0
+      # before the version bump publishes the stale version under a v2.0.0
+      # provenance attestation, and npm versions cannot be reused.
+      - name: Verify tag matches package version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p 'require("./package.json").version')"
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $package_version"
+            exit 1
+          fi
+
       - run: npm run build
       # First publish authenticates with a granular NPM_TOKEN scoped to
       # @deepl/cli. Switch to OIDC trusted publishing once the package
@@ -61,10 +77,17 @@ jobs:
             echo "has_notes=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Skipped when the release already exists so that re-running the
+      # workflow after a publish failure does not fail on work that
+      # already succeeded.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "release $GITHUB_REF_NAME already exists, leaving it unchanged"
+            exit 0
+          fi
           if [ "${{ steps.notes.outputs.has_notes }}" = "true" ]; then
             gh release create "$GITHUB_REF_NAME" --verify-tag \
               --title "$GITHUB_REF_NAME" --notes-file release-notes.md
