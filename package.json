@@ -41,6 +41,7 @@
     "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' 'tests/**/*.ts' --fix",
     "type-check": "tsc --noEmit",
+    "check-deps": "node scripts/check-dependencies.mjs",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "prepublishOnly": "npm run build"
@@ -62,14 +63,15 @@
     "npm": ">=9.0.0"
   },
   "dependencies": {
+    "@inquirer/prompts": "^8.5.2",
     "axios": "^1.7.9",
     "chalk": "^6.0.0",
     "chokidar": "^5.0.0",
     "cli-table3": "^0.6.5",
     "commander": "^15.0.0",
+    "diff": "^9.0.0",
     "fast-glob": "^3.3.3",
     "form-data": "^4.0.4",
-    "inquirer": "^14.0.2",
     "minimatch": "^10.2.6",
     "ora": "^9.4.1",
     "p-limit": "^7.3.1",
@@ -86,7 +88,6 @@
     "@types/node": "^26.1.2",
     "@types/ws": "^8.18.1",
     "ajv": "^8.20.0",
-    "diff": "^9.0.0",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jest": "^29.16.0",
