@@ -1,66 +1,16 @@
 name: Release
 
+# Publishing to npm does not happen here. Releases are published from GitLab,
+# which is the source of truth and mirrors to GitHub; this workflow only
+# records the GitHub Release for a tag. Do not add an `npm publish` step or an
+# NPM_TOKEN secret to this repository — see the release beads for the
+# GitLab-side pipeline.
 on:
   push:
     tags:
       - 'v*'
 
 jobs:
-  # The publish and release jobs are deliberately independent: a failure
-  # in one must not suppress the other.
-  publish:
-    runs-on: ubuntu-latest
-
-    # Publishing requires manual approval via the environment's required
-    # reviewers, so a pushed tag alone cannot release to npm.
-    environment: npm-publish
-
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      # Actions in this job are pinned to commit SHAs because it is the only
-      # job holding NPM_TOKEN; a moved tag here would run unreviewed code
-      # with publish credentials.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: '24'
-          registry-url: https://registry.npmjs.org
-          cache: npm
-
-      - run: npm ci
-
-      # npm rejects a duplicate version, but this package's first publish has
-      # no prior version to collide with: without this check, tagging v2.0.0
-      # before the version bump publishes the stale version under a v2.0.0
-      # provenance attestation, and npm versions cannot be reused.
-      - name: Verify tag matches package version
-        run: |
-          tag_version="${GITHUB_REF_NAME#v}"
-          package_version="$(node -p 'require("./package.json").version')"
-          if [ "$tag_version" != "$package_version" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $package_version"
-            exit 1
-          fi
-
-      # A tag can point at any commit, including one CI never ran, so the
-      # publish job re-verifies rather than trusting the branch. No DeepL API
-      # key is available to this job: the suite must stay hermetic.
-      - run: npm run lint
-      - run: npm run type-check
-      - run: npm run check-deps
-      - run: npm run build
-      - run: npm test
-
-      # First publish authenticates with a granular NPM_TOKEN scoped to
-      # @deepl/cli. Switch to OIDC trusted publishing once the package
-      # exists on npmjs.com, then revoke the token (tracked in beads).
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
   release:
     runs-on: ubuntu-latest
 
@@ -69,6 +19,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+
+      # A tag can be pushed at any commit, so a mislabelled tag would otherwise
+      # mint a Release whose title disagrees with the version it contains.
+      - name: Verify tag matches package version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p 'require("./package.json").version')"
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $package_version"
+            exit 1
+          fi
 
       # Release notes come from the tag's CHANGELOG section; releases are
       # immutable once published, but notes stay editable afterwards.
@@ -86,8 +47,7 @@ jobs:
           fi
 
       # Skipped when the release already exists so that re-running the
-      # workflow after a publish failure does not fail on work that
-      # already succeeded.
+      # workflow does not fail on work that already succeeded.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -103,37 +63,3 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --verify-tag \
               --title "$GITHUB_REF_NAME" --generate-notes
           fi
-
-  # Gated until DeepL/homebrew-tap exists and a HOMEBREW_TAP_TOKEN secret
-  # (a fine-grained PAT with contents + pull-requests write on that repo)
-  # is configured — see the Homebrew tap issue. github.token cannot push
-  # cross-repo. To enable: change `if:` to `if: ${{ !cancelled() }}`.
-  homebrew:
-    if: false
-    needs: publish
-    runs-on: ubuntu-latest
-
-    permissions: {}
-
-    steps:
-      - name: Bump formula version and sha256
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          url="https://registry.npmjs.org/@deepl/cli/-/cli-${version}.tgz"
-          curl -fsSL -o cli.tgz "$url"
-          sha256="$(sha256sum cli.tgz | cut -d' ' -f1)"
-
-          gh repo clone DeepL/homebrew-tap tap
-          cd tap
-          branch="bump-deepl-${version}"
-          git checkout -b "$branch"
-          sed -i -E "s|^(  url \").*(\")$|\1${url}\2|" Formula/deepl.rb
-          sed -i -E "s|^(  sha256 \").*(\")$|\1${sha256}\2|" Formula/deepl.rb
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git commit -am "deepl ${version}"
-          git push -u origin "$branch"
-          gh pr create --title "deepl ${version}" \
-            --body "Automated formula bump for @deepl/cli ${version}. sha256: \`${sha256}\`"
