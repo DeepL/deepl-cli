@@ -1,10 +1,8 @@
 name: Release
 
-# Publishing to npm does not happen here. Releases are published from GitLab,
-# which is the source of truth and mirrors to GitHub; this workflow only
-# records the GitHub Release for a tag. Do not add an `npm publish` step or an
-# NPM_TOKEN secret to this repository — see the release beads for the
-# GitLab-side pipeline.
+# This workflow only records the GitHub Release for a tag. Publishing to npm
+# happens from GitLab, so no `npm publish` step or NPM_TOKEN secret belongs in
+# this repository.
 on:
   push:
     tags:
@@ -46,8 +44,7 @@ jobs:
             echo "has_notes=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # Skipped when the release already exists so that re-running the
-      # workflow does not fail on work that already succeeded.
+      # Skipped when the release exists, so re-runs are idempotent.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

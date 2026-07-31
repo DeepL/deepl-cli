@@ -1,10 +1,9 @@
 /**
  * Unit tests for `deepl sync init`'s flag vocabulary.
  *
- * --source-locale / --target-locales are the only accepted spellings. The
- * --source-lang / --target-langs aliases were removed at the 2.0 cut per the
- * documented deprecation policy, so they must now be rejected outright rather
- * than silently accepted.
+ * --source-locale / --target-locales are the only accepted spellings; the
+ * --source-lang / --target-langs aliases are rejected outright rather than
+ * silently accepted.
  */
 
 import * as fs from 'fs';

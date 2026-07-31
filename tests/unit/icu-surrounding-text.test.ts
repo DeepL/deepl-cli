@@ -1,15 +1,14 @@
 /**
  * Tests ICU preservation for messages with text around the ICU block.
  *
- * ICU_DETECT_RE was `^`-anchored, so any text before the block meant the
- * string was not recognised as ICU at all and the raw ICU syntax was sent to
- * the MT engine as prose. Verified against the live DeepL API:
+ * Detection must not be `^`-anchored: text before the block would leave the
+ * string unrecognised as ICU, sending raw ICU syntax to the MT engine as prose.
+ * The engine then translates the keyword and selectors —
  *
  *   in  You have {count, plural, one {# item} other {# items}} in your cart.
  *   out Sie haben {count, Plural, ein {# item} weiteres {# items}} in Ihrem Warenkorb.
  *
- * The keyword and both selectors were translated, leaving a message with no
- * valid format type and no `other` branch — structurally invalid ICU.
+ * leaving a message with no valid format type and no `other` branch.
  */
 
 import { parseIcu } from '../../src/utils/icu-preservation';

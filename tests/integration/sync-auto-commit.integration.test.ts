@@ -221,9 +221,8 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
     }
   });
 
-  // A refused run leaves its translations on disk, so the retry has nothing new
-  // to translate. The preflight used to be skipped in that case, and the retry
-  // reported success with no commit made and the tree still dirty.
+  // A refusal leaves translations on disk, so a retry has nothing new to
+  // translate — and must still refuse rather than report success.
   it('retry after a refusal refuses again instead of reporting success', async () => {
     expect.assertions(4);
     seedRepo(tmpDir);
@@ -234,8 +233,7 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
     const command = new SyncCommand(syncService);
     await expect(command.run({ autoCommit: true })).rejects.toThrow(ValidationError);
 
-    // The first run wrote the translation before refusing, so nothing is left
-    // to translate on the retry.
+    // Written before the refusal, so the retry finds nothing to translate.
     expect(fs.existsSync(path.join(tmpDir, 'locales', 'de.json'))).toBe(true);
 
     await expect(command.run({ autoCommit: true })).rejects.toThrow(/Refusing to auto-commit/i);
@@ -244,10 +242,8 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
     expect(git(tmpDir, ['log', '-1', '--pretty=%s']).trim()).toBe('initial');
   });
 
-  // A translation left on disk by an earlier refused run belongs to this sync,
-  // so once the unrelated changes are dealt with the retry commits it. It used
-  // to be classed as an unrelated modification, which refused forever and left
-  // the user to commit it by hand.
+  // A translation awaiting a commit is this sync's own output, not an unrelated
+  // modification, so it is committed once the tree is otherwise clean.
   it('commits a translation left behind by an earlier refusal once the tree is otherwise clean', async () => {
     expect.assertions(4);
     seedRepo(tmpDir);
@@ -269,9 +265,8 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
     expect(git(tmpDir, ['status', '--porcelain']).trim()).toBe('');
   });
 
-  // Watch mode calls the same path once per trigger. A trigger that translates
-  // nothing must not report success while a commit is still owed, and must not
-  // manufacture an empty commit either.
+  // Watch mode runs this path once per trigger: each must refuse while a commit
+  // is owed, and stay silent once nothing is.
   it('refuses consistently across repeated triggers and stays quiet when there is nothing to commit', async () => {
     expect.assertions(4);
     seedRepo(tmpDir);
@@ -283,8 +278,7 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
     await expect(command.run({ autoCommit: true })).rejects.toThrow(/Refusing to auto-commit/i);
     await expect(command.run({ autoCommit: true })).rejects.toThrow(/Refusing to auto-commit/i);
 
-    // With the unrelated file gone and the translation committed, a further
-    // trigger has nothing to do and must neither throw nor commit.
+    // Nothing left to commit: neither throws nor commits.
     fs.unlinkSync(path.join(tmpDir, 'src.ts'));
     git(tmpDir, ['add', '-A']);
     git(tmpDir, ['commit', '-q', '-m', 'tidy']);

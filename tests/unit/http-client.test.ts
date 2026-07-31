@@ -224,7 +224,7 @@ describe('HttpClient', () => {
     });
   });
 
-  describe('retry error wrapping (W6)', () => {
+  describe('retry error wrapping', () => {
     it('should throw NetworkError after retry exhaustion on 500', async () => {
       nock(baseUrl)
         .get('/v2/test')
@@ -245,7 +245,7 @@ describe('HttpClient', () => {
     });
   });
 
-  describe('5xx error mapping (W7)', () => {
+  describe('5xx error mapping', () => {
     it('should map 500 to NetworkError with status in message', async () => {
       nock(baseUrl)
         .get('/v2/test')

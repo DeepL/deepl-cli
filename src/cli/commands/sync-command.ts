@@ -427,11 +427,9 @@ export class SyncCommand {
   }
 
   /**
-   * Every relative path this config's buckets could write, mapped to its
-   * locale. Derived from the lockfile's tracked source files rather than by
-   * re-walking globs, so it agrees with what the sync engine manages, and
-   * each source file is matched to its own bucket so one bucket's
-   * target_path_pattern cannot claim ownership of another's output.
+   * Every relative path this config's buckets can write, mapped to its locale.
+   * Source files come from the lockfile and are matched to their own bucket, so
+   * one bucket's target_path_pattern cannot claim another bucket's output.
    */
   private async resolveOwnedTargetPaths(
     config: ResolvedSyncConfig,
@@ -459,8 +457,7 @@ export class SyncCommand {
             );
             owned.set(targetPath, locale);
           } catch {
-            // The source path does not carry the source locale, so this bucket
-            // cannot derive a target for it — not a path we own.
+            // No derivable target: the path does not carry the source locale.
           }
         }
       }
@@ -488,19 +485,14 @@ export class SyncCommand {
       .filter(r => r.written)
       .map(r => r.file);
 
-    // Preflight: refuse to auto-commit in unsafe repo states. We want to avoid
-    // bundling unrelated work into the chore(i18n) commit and to avoid
-    // committing onto the wrong ref.
+    // Preflight: refuse to auto-commit in unsafe repo states, so unrelated work
+    // is never bundled into the chore(i18n) commit and nothing lands on the
+    // wrong ref. The checks run even when this sync wrote nothing, because a
+    // refusal leaves translations on disk that are still owed a commit.
     //
-    // These run even when this sync wrote nothing. A refused run still leaves
-    // its translations on disk, so the retry finds nothing to translate — and
-    // skipping the checks there reported success while no commit had been made
-    // and the tree was still dirty.
-    //
-    // Every path this config could write counts as expected, not just the ones
-    // written now: a translation left behind by an earlier refused run is ours
-    // to commit, and treating it as an unrelated modification would refuse
-    // forever with no way out but a manual commit.
+    // Anything this config can write counts as expected, not only what this run
+    // wrote: a translation from an earlier refusal belongs to the next commit
+    // rather than being an unrelated modification.
     const ownedPaths = await this.resolveOwnedTargetPaths(config);
     const expectedStaged = new Set<string>([...writtenFiles, ...ownedPaths.keys(), LOCK_FILE_NAME]);
 
@@ -564,9 +556,8 @@ export class SyncCommand {
       );
     }
 
-    // Staged from what is actually dirty rather than from what this run wrote:
-    // a rewrite that produced identical bytes has nothing to commit, and a
-    // translation an earlier refused run left behind does.
+    // Dirt, not write records: a rewrite producing identical bytes has nothing
+    // to commit, while a translation awaiting a commit does.
     const filesToStage = dirtyOwned;
     if (filesToStage.length === 0) return;
 

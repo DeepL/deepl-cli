@@ -20,11 +20,7 @@ jest.mock('child_process', () => ({
   execFile: mockExecFile,
 }));
 
-/**
- * `git status --porcelain -z` output the mocked git returns. NUL-separated
- * "XY path" entries, matching what auto-commit parses. Tests that care about a
- * particular working-tree state assign to this.
- */
+/** NUL-separated "XY path" entries returned for `git status --porcelain -z`. */
 let mockPorcelain = '';
 
 const mockExistsSync = jest.fn((_p: string | URL) => false);
@@ -610,17 +606,15 @@ describe('SyncCommand', () => {
           if (Array.isArray(args) && args[0] === 'rev-parse' && args[1] === '--git-dir') {
             stdout = '.git';
           }
-          // A file the sync just wrote is dirty. Reporting a clean tree here
-          // described a state git cannot produce, and staging is driven by
-          // what is actually dirty rather than by what the run claims it wrote.
+          // Staging follows the dirty set, so a scenario that writes files must
+          // report them here — git cannot show a clean tree after a write.
           if (Array.isArray(args) && args[0] === 'status') {
             stdout = mockPorcelain;
           }
           if (cb) cb(null, { stdout, stderr: '' });
         },
       );
-      // Default to a clean tree; tests that expect a commit declare the dirt
-      // their sync would have produced.
+      // Clean by default; tests expecting a commit declare their own dirt.
       mockPorcelain = '';
       mockExistsSync.mockReset();
       mockExistsSync.mockImplementation((p: string | URL) => {
@@ -655,7 +649,7 @@ describe('SyncCommand', () => {
     });
 
     it('should not stage .deepl-sync.lock when lockUpdated is false', async () => {
-      // Lockfile untouched, so it is not dirty and must not be staged.
+      // Untouched lockfile is not dirty, so it must not be staged.
       mockPorcelain = ' M locales/de.json\0';
       const result = makeResult({
         fileResults: [writtenFile],
@@ -779,9 +773,8 @@ describe('SyncCommand', () => {
       expect(commitCalls).toHaveLength(0);
     });
 
-    // The preflight runs even with nothing to commit, so that a retry after a
-    // refusal reports the refusal again rather than succeeding silently. Only
-    // staging and committing are skipped.
+    // Preflight runs even with nothing to commit; only staging and committing
+    // are skipped.
     it('should run the preflight but not commit when fileResults is empty', async () => {
       const result = makeResult({ fileResults: [] });
       const mockService = createMockSyncService(result);
@@ -976,9 +969,8 @@ describe('SyncCommand', () => {
           if (Array.isArray(args) && args[0] === 'rev-parse' && args[1] === '--git-dir') {
             stdout = '.git';
           }
-          // A file the sync just wrote is dirty. Reporting a clean tree here
-          // described a state git cannot produce, and staging is driven by
-          // what is actually dirty rather than by what the run claims it wrote.
+          // Staging follows the dirty set, so a scenario that writes files must
+          // report them here — git cannot show a clean tree after a write.
           if (Array.isArray(args) && args[0] === 'status') {
             stdout = mockPorcelain;
           }

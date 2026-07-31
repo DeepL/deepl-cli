@@ -252,11 +252,10 @@ export class ConfigService {
    * Save configuration to disk
    */
   private save(): void {
-    // The temp name is unpredictable and created exclusively: at a fixed path a
-    // pre-planted symlink would redirect this file — which holds the API key in
-    // plaintext — to a path of the planter's choosing, and the rename would
-    // then leave config.json as that symlink for every later write. `wx` fails
-    // rather than following anything already there.
+    // Unpredictable name, exclusive create. This file holds the API key in
+    // plaintext, and at a guessable path a planted symlink would redirect the
+    // write and survive the rename as config.json. `wx` fails instead of
+    // following whatever is already there.
     const tmpPath = `${this.configPath}.tmp.${process.pid}.${randomBytes(6).toString('hex')}`;
     try {
       const dir = path.dirname(this.configPath);

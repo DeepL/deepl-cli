@@ -1,7 +1,7 @@
 /**
  * E2E Tests for the --timeout / --max-retries global options.
- * Uses a server that accepts requests and never answers, so the client
- * aborts locally — the case that used to re-submit a billable POST.
+ * Uses a server that accepts requests and never answers, so the client aborts
+ * locally — where retrying would re-submit a billable POST.
  */
 
 import { spawn, ChildProcess } from 'child_process';

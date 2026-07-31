@@ -28,12 +28,11 @@ export default function installHermeticDeepl(): void {
 
 /**
  * Removes real credentials and the real config directory from the environment
- * the whole suite inherits.
+ * the suite inherits.
  *
- * nock cannot intercept across a process boundary, so any spawned CLI that
- * inherits a working DEEPL_API_KEY reaches the live API: doing so spent real
- * quota and wrote real responses into the developer's cache. Suites that need
- * a key pass one explicitly, which still overrides this.
+ * nock cannot intercept across a process boundary, so a spawned CLI holding a
+ * working DEEPL_API_KEY reaches the live API and the real cache. Suites that
+ * need a key pass one explicitly, which still overrides this.
  */
 export function isolateCredentialEnvironment(): void {
   delete process.env['DEEPL_API_KEY'];

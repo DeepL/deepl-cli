@@ -93,7 +93,7 @@ export function mergeInstructions(
 }
 
 // ---------------------------------------------------------------------------
-// Phase 4 foundations: length-aware instructions
+// Length-aware instructions
 // ---------------------------------------------------------------------------
 
 // Industry-standard approximations (IBM, W3C localization guidelines).
