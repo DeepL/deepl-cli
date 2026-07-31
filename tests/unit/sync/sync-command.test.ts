@@ -20,6 +20,9 @@ jest.mock('child_process', () => ({
   execFile: mockExecFile,
 }));
 
+/** NUL-separated "XY path" entries returned for `git status --porcelain -z`. */
+let mockPorcelain = '';
+
 const mockExistsSync = jest.fn((_p: string | URL) => false);
 jest.mock('fs', () => {
   const actual = jest.requireActual('fs');
@@ -603,9 +606,16 @@ describe('SyncCommand', () => {
           if (Array.isArray(args) && args[0] === 'rev-parse' && args[1] === '--git-dir') {
             stdout = '.git';
           }
+          // Staging follows the dirty set, so a scenario that writes files must
+          // report them here — git cannot show a clean tree after a write.
+          if (Array.isArray(args) && args[0] === 'status') {
+            stdout = mockPorcelain;
+          }
           if (cb) cb(null, { stdout, stderr: '' });
         },
       );
+      // Clean by default; tests expecting a commit declare their own dirt.
+      mockPorcelain = '';
       mockExistsSync.mockReset();
       mockExistsSync.mockImplementation((p: string | URL) => {
         // Lockfile exists by default so autoCommit stages it when lockUpdated=true.
@@ -614,6 +624,7 @@ describe('SyncCommand', () => {
     });
 
     it('should call git add and git commit when autoCommit=true and files were written', async () => {
+      mockPorcelain = ' M locales/de.json\0 M .deepl-sync.lock\0';
       const result = makeResult({
         fileResults: [writtenFile],
         lockUpdated: true,
@@ -638,6 +649,8 @@ describe('SyncCommand', () => {
     });
 
     it('should not stage .deepl-sync.lock when lockUpdated is false', async () => {
+      // Untouched lockfile is not dirty, so it must not be staged.
+      mockPorcelain = ' M locales/de.json\0';
       const result = makeResult({
         fileResults: [writtenFile],
         lockUpdated: false,
@@ -655,6 +668,7 @@ describe('SyncCommand', () => {
     });
 
     it('should pass cwd=config.projectRoot to every git invocation', async () => {
+      mockPorcelain = ' M locales/de.json\0 M .deepl-sync.lock\0';
       const result = makeResult({ fileResults: [writtenFile], lockUpdated: true });
       const mockService = createMockSyncService(result);
       const command = new SyncCommand(mockService);
@@ -673,6 +687,7 @@ describe('SyncCommand', () => {
     });
 
     it('should stage multiple written files and include all locales in commit message', async () => {
+      mockPorcelain = ' M locales/de.json\0 M locales/fr.json\0 M .deepl-sync.lock\0';
       const writtenFileFr: SyncFileResult = {
         file: 'locales/fr.json',
         locale: 'fr',
@@ -758,9 +773,8 @@ describe('SyncCommand', () => {
       expect(commitCalls).toHaveLength(0);
     });
 
-    // The preflight runs even with nothing to commit, so that a retry after a
-    // refusal reports the refusal again rather than succeeding silently. Only
-    // staging and committing are skipped.
+    // Preflight runs even with nothing to commit; only staging and committing
+    // are skipped.
     it('should run the preflight but not commit when fileResults is empty', async () => {
       const result = makeResult({ fileResults: [] });
       const mockService = createMockSyncService(result);
@@ -804,6 +818,7 @@ describe('SyncCommand', () => {
     });
 
     it('should log success message after committing', async () => {
+      mockPorcelain = ' M locales/de.json\0 M .deepl-sync.lock\0';
       const result = makeResult({ fileResults: [writtenFile], lockUpdated: true });
       const mockService = createMockSyncService(result);
       const command = new SyncCommand(mockService);
@@ -954,6 +969,11 @@ describe('SyncCommand', () => {
           if (Array.isArray(args) && args[0] === 'rev-parse' && args[1] === '--git-dir') {
             stdout = '.git';
           }
+          // Staging follows the dirty set, so a scenario that writes files must
+          // report them here — git cannot show a clean tree after a write.
+          if (Array.isArray(args) && args[0] === 'status') {
+            stdout = mockPorcelain;
+          }
           if (cb) cb(null, { stdout, stderr: '' });
         },
       );
@@ -972,6 +992,7 @@ describe('SyncCommand', () => {
         return mockWatcher;
       });
 
+      mockPorcelain = ' M locales/de.json\0 M .deepl-sync.lock\0';
       const result = makeResult({
         fileResults: [
           { file: 'locales/de.json', locale: 'de', translated: 5, skipped: 0, failed: 0, written: true },

@@ -1,10 +1,7 @@
 /**
  * Checks every `deepl …` invocation in the user-facing docs against the CLI's
- * real surface, reported by the hidden `_describe` command.
- *
- * The docs were accurate at the 2.0.0 cut, but only because someone checked by
- * hand. This makes a documented command or flag that no longer exists a test
- * failure instead of something a reader discovers.
+ * real surface, reported by the hidden `_describe` command, so a documented
+ * command or flag that stops existing fails here rather than reaching a reader.
  */
 
 import { execFileSync } from 'child_process';

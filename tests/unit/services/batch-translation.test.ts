@@ -138,10 +138,6 @@ describe('BatchTranslationService', () => {
       expect(results.failed[0]?.error).toContain('Translation failed');
     });
 
-    // Note: We don't test p-limit's concurrency behavior as it's a well-tested
-    // third-party library. Concurrency limiting should be verified through manual
-    // testing: `deepl translate ./large-dir --concurrency 3`
-
     it('should filter out unsupported file types', async () => {
       const files = [
         path.join(testDir, 'file1.txt'),

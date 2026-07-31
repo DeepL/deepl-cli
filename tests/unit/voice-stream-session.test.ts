@@ -416,7 +416,7 @@ describe('VoiceStreamSession', () => {
       mockClient.createWebSocket.mockImplementation(() => {
         const mockWs = new EventEmitter();
         // Never open for writing, so the chunk pump parks waiting for a
-        // usable socket — the state that used to leak the generator.
+        // usable socket — the state in which the generator must not leak.
         mockWs.readyState = 3;
         mockWs.send = jest.fn();
         mockWs.close = jest.fn();

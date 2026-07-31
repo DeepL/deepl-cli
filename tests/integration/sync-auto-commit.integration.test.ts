@@ -221,9 +221,8 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
     }
   });
 
-  // A refused run leaves its translations on disk, so the retry has nothing new
-  // to translate. The preflight used to be skipped in that case, and the retry
-  // reported success with no commit made and the tree still dirty.
+  // A refusal leaves translations on disk, so a retry has nothing new to
+  // translate — and must still refuse rather than report success.
   it('retry after a refusal refuses again instead of reporting success', async () => {
     expect.assertions(4);
     seedRepo(tmpDir);
@@ -234,14 +233,61 @@ describeIfGit('SyncCommand auto-commit preflight', () => {
     const command = new SyncCommand(syncService);
     await expect(command.run({ autoCommit: true })).rejects.toThrow(ValidationError);
 
-    // The first run wrote the translation before refusing, so nothing is left
-    // to translate on the retry.
+    // Written before the refusal, so the retry finds nothing to translate.
     expect(fs.existsSync(path.join(tmpDir, 'locales', 'de.json'))).toBe(true);
 
     await expect(command.run({ autoCommit: true })).rejects.toThrow(/Refusing to auto-commit/i);
 
     nock.cleanAll();
     expect(git(tmpDir, ['log', '-1', '--pretty=%s']).trim()).toBe('initial');
+  });
+
+  // A translation awaiting a commit is this sync's own output, not an unrelated
+  // modification, so it is committed once the tree is otherwise clean.
+  it('commits a translation left behind by an earlier refusal once the tree is otherwise clean', async () => {
+    expect.assertions(4);
+    seedRepo(tmpDir);
+    fs.writeFileSync(path.join(tmpDir, 'README.md'), '# changed\n', 'utf-8');
+    const scope = seedTranslateMock();
+    scope.persist();
+
+    const command = new SyncCommand(syncService);
+    await expect(command.run({ autoCommit: true })).rejects.toThrow(ValidationError);
+    expect(fs.existsSync(path.join(tmpDir, 'locales', 'de.json'))).toBe(true);
+
+    // Deal with the unrelated change; the leftover translation remains.
+    git(tmpDir, ['checkout', '--', 'README.md']);
+
+    await command.run({ autoCommit: true });
+
+    nock.cleanAll();
+    expect(git(tmpDir, ['log', '-1', '--pretty=%s']).trim()).toContain('chore(i18n)');
+    expect(git(tmpDir, ['status', '--porcelain']).trim()).toBe('');
+  });
+
+  // Watch mode runs this path once per trigger: each must refuse while a commit
+  // is owed, and stay silent once nothing is.
+  it('refuses consistently across repeated triggers and stays quiet when there is nothing to commit', async () => {
+    expect.assertions(4);
+    seedRepo(tmpDir);
+    fs.writeFileSync(path.join(tmpDir, 'src.ts'), 'export {};\n', 'utf-8');
+    const scope = seedTranslateMock();
+    scope.persist();
+
+    const command = new SyncCommand(syncService);
+    await expect(command.run({ autoCommit: true })).rejects.toThrow(/Refusing to auto-commit/i);
+    await expect(command.run({ autoCommit: true })).rejects.toThrow(/Refusing to auto-commit/i);
+
+    // Nothing left to commit: neither throws nor commits.
+    fs.unlinkSync(path.join(tmpDir, 'src.ts'));
+    git(tmpDir, ['add', '-A']);
+    git(tmpDir, ['commit', '-q', '-m', 'tidy']);
+
+    await command.run({ autoCommit: true });
+
+    nock.cleanAll();
+    expect(git(tmpDir, ['log', '-1', '--pretty=%s']).trim()).toBe('tidy');
+    expect(git(tmpDir, ['status', '--porcelain']).trim()).toBe('');
   });
 
   it('clean repo, no lockfile update: auto-commit does not fail staging a nonexistent lockfile', async () => {

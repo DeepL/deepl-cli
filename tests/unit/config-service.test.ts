@@ -301,7 +301,7 @@ describe('ConfigService', () => {
     });
   });
 
-  describe('config directory permissions (Issue deepl-cli-99a)', () => {
+  describe('config directory permissions', () => {
     it('should create config directory with mode 0o700', () => {
       const uniqueDir = path.join(os.tmpdir(), `deepl-perm-test-${Date.now()}`);
       const configPath = path.join(uniqueDir, 'config.json');

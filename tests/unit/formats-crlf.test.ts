@@ -1,11 +1,10 @@
 /**
  * Tests that line-based parsers treat CRLF input the same as LF.
  *
- * Every line-based parser split on '\n', leaving a trailing '\r' on each
- * line, which then defeated the `$`-anchored patterns used to recognise
- * entries. A Windows-authored resource file therefore extracted zero entries
- * and `deepl sync status` reported 0% coverage with exit 0 — the file was
- * invisible to the tool, and reconstruct would rewrite it from nothing.
+ * Splitting on '\n' alone leaves a trailing '\r' that defeats the `$`-anchored
+ * entry patterns, so a Windows-authored resource file extracts zero entries:
+ * `deepl sync status` reports 0% coverage with exit 0 and reconstruct rewrites
+ * the file from nothing.
  */
 
 import { PoFormatParser } from '../../src/formats/po';

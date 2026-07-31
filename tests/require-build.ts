@@ -1,9 +1,8 @@
 /**
- * Fails fast with an actionable message when tests run without a current
- * build: dist/ is gitignored and `npm test` does not build, yet all three
- * test tiers execute dist/cli/index.js. A missing build otherwise surfaces
- * as hundreds of unrelated failures, and a stale one silently tests the
- * previously built CLI rather than the current source.
+ * Fails fast when tests run without a current build. dist/ is gitignored and
+ * `npm test` does not build, yet all three tiers execute dist/cli/index.js: a
+ * missing build surfaces as hundreds of unrelated failures, and a stale one
+ * silently tests different source than the tree holds.
  */
 
 import * as fs from 'fs';

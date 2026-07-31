@@ -36,9 +36,8 @@ describe('--no-input E2E', () => {
       }
     });
 
-    // Without --no-input the wizard used to start prompting, then die at EOF
-    // with exit 1 and a Node unsettled-top-level-await warning. Docker without
-    // -it, CI, and piped invocations all take this path.
+    // The path taken by `docker run` without -it, by CI, and by piped
+    // invocations: the wizard must refuse rather than prompt into an EOF.
     it('should exit with code 6 when stdin is not a terminal', () => {
       expect.assertions(3);
       try {

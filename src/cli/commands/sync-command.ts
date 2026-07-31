@@ -384,7 +384,7 @@ export class SyncCommand {
           backupTracker,
         });
         this.displayResult(result, 'text');
-        if (options.autoCommit && result.success && !result.dryRun && !result.driftDetected && result.fileResults.length > 0) {
+        if (options.autoCommit && result.success && !result.dryRun && !result.driftDetected) {
           await this.autoCommitTranslations(result, activeConfig);
         }
       },
@@ -426,6 +426,46 @@ export class SyncCommand {
     });
   }
 
+  /**
+   * Every relative path this config's buckets can write, mapped to its locale.
+   * Source files come from the lockfile and are matched to their own bucket, so
+   * one bucket's target_path_pattern cannot claim another bucket's output.
+   */
+  private async resolveOwnedTargetPaths(
+    config: ResolvedSyncConfig,
+  ): Promise<Map<string, string>> {
+    const pathMod = await import('path');
+    const { minimatch } = await import('minimatch');
+    const { SyncLockManager } = await import('../../sync/sync-lock.js');
+    const { resolveTargetPath } = await import('../../sync/sync-utils.js');
+
+    const owned = new Map<string, string>();
+    const lockManager = new SyncLockManager(pathMod.join(config.projectRoot, LOCK_FILE_NAME));
+    const lockFile = await lockManager.read();
+    const sourcePaths = Object.keys(lockFile.entries);
+
+    for (const bucketConfig of Object.values(config.buckets)) {
+      for (const sourcePath of sourcePaths) {
+        if (!bucketConfig.include.some(pattern => minimatch(sourcePath, pattern))) continue;
+        for (const locale of config.target_locales) {
+          try {
+            const targetPath = resolveTargetPath(
+              sourcePath,
+              config.source_locale,
+              locale,
+              bucketConfig.target_path_pattern,
+            );
+            owned.set(targetPath, locale);
+          } catch {
+            // No derivable target: the path does not carry the source locale.
+          }
+        }
+      }
+    }
+
+    return owned;
+  }
+
   private async autoCommitTranslations(result: SyncResult, config: ResolvedSyncConfig): Promise<void> {
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
@@ -445,16 +485,16 @@ export class SyncCommand {
       .filter(r => r.written)
       .map(r => r.file);
 
-    // Preflight: refuse to auto-commit in unsafe repo states. We want to avoid
-    // bundling unrelated work into the chore(i18n) commit and to avoid
-    // committing onto the wrong ref.
+    // Preflight: refuse to auto-commit in unsafe repo states, so unrelated work
+    // is never bundled into the chore(i18n) commit and nothing lands on the
+    // wrong ref. The checks run even when this sync wrote nothing, because a
+    // refusal leaves translations on disk that are still owed a commit.
     //
-    // These run even when this sync wrote nothing. A refused run still leaves
-    // its translations on disk, so the retry finds nothing to translate — and
-    // skipping the checks there reported success while no commit had been made
-    // and the tree was still dirty.
-    const expectedStaged = new Set<string>(writtenFiles);
-    if (result.lockUpdated) expectedStaged.add(LOCK_FILE_NAME);
+    // Anything this config can write counts as expected, not only what this run
+    // wrote: a translation from an earlier refusal belongs to the next commit
+    // rather than being an unrelated modification.
+    const ownedPaths = await this.resolveOwnedTargetPaths(config);
+    const expectedStaged = new Set<string>([...writtenFiles, ...ownedPaths.keys(), LOCK_FILE_NAME]);
 
     // 1. In-progress rebase/merge/cherry-pick
     const gitDir = (await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd })).stdout.trim();
@@ -488,6 +528,7 @@ export class SyncCommand {
     // that aren't part of this sync run).
     const { stdout: porcelain } = await execFileAsync('git', ['status', '--porcelain', '-z'], { cwd });
     const unrelated: string[] = [];
+    const dirtyOwned: string[] = [];
     if (porcelain.length > 0) {
       const parts = porcelain.split('\0').filter(Boolean);
       for (const part of parts) {
@@ -498,7 +539,10 @@ export class SyncCommand {
         const statusCode = part.slice(0, 2);
         const filePath = part.slice(3);
         if (!filePath) continue;
-        if (expectedStaged.has(filePath)) continue;
+        if (expectedStaged.has(filePath)) {
+          dirtyOwned.push(filePath);
+          continue;
+        }
         // Untracked files with the exact target path are already filtered by
         // the expectedStaged check; everything else is unrelated.
         unrelated.push(`${filePath} (${statusCode.trim() || '??'})`);
@@ -512,19 +556,22 @@ export class SyncCommand {
       );
     }
 
-    if (writtenFiles.length === 0) return;
-
-    const filesToStage: string[] = [...writtenFiles];
-    if (result.lockUpdated && fsMod.existsSync(pathMod.join(cwd, LOCK_FILE_NAME))) {
-      filesToStage.push(LOCK_FILE_NAME);
-    }
+    // Dirt, not write records: a rewrite producing identical bytes has nothing
+    // to commit, while a translation awaiting a commit does.
+    const filesToStage = dirtyOwned;
+    if (filesToStage.length === 0) return;
 
     for (const file of filesToStage) {
       await execFileAsync('git', ['add', file], { cwd });
     }
 
-    const locales = [...new Set(result.fileResults.map(r => r.locale))].join(', ');
-    const msg = `chore(i18n): sync translations for ${locales}`;
+    const localeOf = new Map<string, string>(ownedPaths);
+    for (const fileResult of result.fileResults) localeOf.set(fileResult.file, fileResult.locale);
+    const locales = [...new Set(filesToStage.map(file => localeOf.get(file)).filter(Boolean))].join(', ');
+
+    const msg = locales
+      ? `chore(i18n): sync translations for ${locales}`
+      : 'chore(i18n): sync translation lockfile';
     await execFileAsync('git', ['commit', '-m', msg], { cwd });
     Logger.info(`Auto-committed ${filesToStage.length} file(s): ${msg}`);
   }
