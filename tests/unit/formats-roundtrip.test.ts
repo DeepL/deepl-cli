@@ -7,6 +7,7 @@
 
 import { AndroidXmlFormatParser } from '../../src/formats/android-xml';
 import { PropertiesFormatParser } from '../../src/formats/properties';
+import { TomlFormatParser } from '../../src/formats/toml';
 
 describe('parser round-trip stability', () => {
   describe('Android XML entity escaping', () => {
@@ -96,6 +97,48 @@ describe('parser round-trip stability', () => {
       );
 
       expect(parser.extract(withUmlaut)[0]?.value).toBe('Grüße, Welt');
+    });
+
+  });
+
+  describe('TOML line-separator characters', () => {
+    const source = 'greeting = "Hello"\nfarewell = "Bye"\n';
+
+    it('should keep files parseable across repeated syncs when a translation contains U+2028/U+2029', () => {
+      for (const separator of ['\u2028', '\u2029']) {
+        const parser = new TomlFormatParser();
+        const entries = parser
+          .extract(source)
+          .map((e) => ({ ...e, translation: `x${separator}y` }));
+
+        const out = parser.reconstruct(source, entries);
+        expect(parser.extract(out).map((e) => e.value)).toEqual([
+          `x${separator}y`,
+          `x${separator}y`,
+        ]);
+
+        // A raw line separator in the written value breaks the entry-line
+        // scan on the next pass (JS `.` excludes U+2028/U+2029), which
+        // re-appends the key as a duplicate and makes the file unparseable.
+        const out2 = parser.reconstruct(out, entries);
+        expect(out2).toBe(out);
+        expect(() => parser.extract(out2)).not.toThrow();
+      }
+    });
+
+    it('should fall back to a double-quoted string when a literal-string value gains a line separator', () => {
+      const parser = new TomlFormatParser();
+      const literalSource = "greeting = 'Hello'\n";
+      const entries = parser
+        .extract(literalSource)
+        .map((e) => ({ ...e, translation: 'x\u2028y' }));
+
+      const out = parser.reconstruct(literalSource, entries);
+      expect(parser.extract(out)[0]?.value).toBe('x\u2028y');
+
+      const out2 = parser.reconstruct(out, entries);
+      expect(out2).toBe(out);
+      expect(() => parser.extract(out2)).not.toThrow();
     });
   });
 });
