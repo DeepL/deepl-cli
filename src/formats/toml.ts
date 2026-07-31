@@ -241,8 +241,10 @@ export class TomlFormatParser implements FormatParser {
 function encodeTomlString(value: string, useDoubleQuote: boolean): string {
   if (!useDoubleQuote) {
     // Literal strings (single-quoted) are raw — no escapes, cannot contain `'`
-    // or a newline. If the translation has either, fall back to double-quoted.
-    if (value.includes("'") || /[\n\r]/.test(value)) {
+    // or a newline. U+2028/U+2029 also force the double-quoted fallback: left
+    // raw they break ENTRY_LINE_RE on the next pass (JS `.` excludes line
+    // separators), so the key is re-appended as a duplicate.
+    if (value.includes("'") || /[\n\r\u2028\u2029]/.test(value)) {
       return encodeTomlString(value, true);
     }
     return `'${value}'`;
@@ -250,11 +252,14 @@ function encodeTomlString(value: string, useDoubleQuote: boolean): string {
 
   // Double-quoted: escape backslash first, then `"`, then common control chars.
   // Order matters so later escapes don't double-escape the backslashes we add.
+  // U+2028/U+2029 must never be written raw (see the literal-string comment).
   const escaped = value
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/\n/g, '\\n')
     .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t');
+    .replace(/\t/g, '\\t')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
   return `"${escaped}"`;
 }
