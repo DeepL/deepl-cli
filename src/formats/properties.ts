@@ -155,8 +155,12 @@ export class PropertiesFormatParser implements FormatParser {
   }
 
   private escapeValue(s: string): string {
-    let result = '';
-    for (const ch of s) {
+    // Leading spaces must be escaped: the value parser strips unescaped
+    // whitespace after the separator, so a raw leading space is lost on
+    // the next read. (Leading tabs are covered by the \t escape below.)
+    const leading = /^ +/.exec(s);
+    let result = leading ? '\\ '.repeat(leading[0].length) : '';
+    for (const ch of s.slice(leading ? leading[0].length : 0)) {
       switch (ch) {
         case '\n': result += '\\n'; break;
         case '\t': result += '\\t'; break;

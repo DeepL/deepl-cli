@@ -99,6 +99,20 @@ describe('parser round-trip stability', () => {
       expect(parser.extract(withUmlaut)[0]?.value).toBe('Grüße, Welt');
     });
 
+    it('should round-trip leading spaces by escaping them', () => {
+      const parser = new PropertiesFormatParser();
+
+      for (const translation of [' padded', '  two leading', ' ', ' x ']) {
+        const out = parser.reconstruct(
+          source,
+          parser.extract(source).map((e) => ({ ...e, translation })),
+        );
+
+        // An unescaped leading space is trimmed by the value parser (per the
+        // .properties format), silently losing it.
+        expect(parser.extract(out)[0]?.value).toBe(translation);
+      }
+    });
   });
 
   describe('TOML line-separator characters', () => {
