@@ -385,6 +385,11 @@ export class TranslationService {
    *
    * The property order in `cacheData` is intentional and must not be changed,
    * as it directly affects cache key generation via JSON.stringify().
+   *
+   * The text is hashed byte-exact, with no Unicode normalization: NFC and NFD
+   * encodings of the same visible string produce distinct cache keys. This is
+   * intentional — the API receives the un-normalized bytes, so the cache keys
+   * on exactly what is sent.
    */
   private generateCacheKey(text: string, options: TranslationOptions): string {
     // Create a stable representation with deterministic property order

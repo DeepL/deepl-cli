@@ -98,6 +98,14 @@ export class WriteService {
     return improvements[0]!;
   }
 
+  /**
+   * Generate cache key from text and options
+   *
+   * The text is hashed byte-exact, with no Unicode normalization: NFC and NFD
+   * encodings of the same visible string produce distinct cache keys. This is
+   * intentional — the API receives the un-normalized bytes, so the cache keys
+   * on exactly what is sent.
+   */
   private generateCacheKey(text: string, options: WriteOptions): string {
     const cacheData = {
       text,
