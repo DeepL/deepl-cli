@@ -63,6 +63,7 @@ EXAMPLES=(
   # Core Commands - Write
   "13-write.sh"
   "36-write-extended-languages.sh"
+  "37-correct.sh"
   # Core Commands - Voice
   "14-voice.sh"
   # Resources
@@ -116,6 +117,7 @@ if [ "$FAST_MODE" = true ]; then
     # Core Commands - Write
     "13-write.sh"
     "36-write-extended-languages.sh"
+    "37-correct.sh"
     # Core Commands - Voice
     "14-voice.sh"
     # Resources

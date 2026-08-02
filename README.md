@@ -15,6 +15,7 @@
 - **🎙️ Voice Translation (Pro/Enterprise)** - Real-time speech translation via WebSocket streaming (Voice API)
 - **👀 Watch Mode** - Real-time file watching with auto-translation
 - **✍️ Writing Enhancement** - Grammar, style, and tone suggestions (DeepL Write API)
+- **✅ Spelling & Grammar Correction** - Fix mistakes without rewording (`deepl correct`)
 - **💾 Smart Caching** - Local SQLite cache that evicts oldest entries first
 - **🎯 Context-Aware** - Preserves code blocks, variables, and formatting
 - **📦 Batch Processing** - Translate multiple files with parallel processing
@@ -702,6 +703,33 @@ When using `--interactive` without specifying a style or tone, the CLI automatic
 If you specify a style or tone with `--interactive`, you'll get a simple confirm/reject prompt for that single suggestion.
 
 **Note:** You cannot combine `--style` and `--tone` in a single request. Choose one or the other.
+
+### Spelling and Grammar Correction
+
+Fix spelling and grammar without rewording, using the Write API's dedicated correct endpoint. Unlike `deepl write`, which may rephrase for style, `deepl correct` leaves your wording alone.
+
+```bash
+# Correct a sentence (language auto-detected)
+deepl correct "This is an test."
+# This is a test.
+
+# c is an alias of correct
+deepl c "Their going too the store."
+
+# Grammar gate for CI: exit code 8 if corrections are needed
+deepl correct README.md --check
+
+# Fix a file in place, keeping a backup
+deepl correct essay.md --fix --backup
+
+# Review the correction as a diff first
+deepl correct document.txt --diff
+
+# Pipe from stdin
+cat notes.txt | deepl correct
+```
+
+`correct` supports the same languages and workflow flags as `write` (`--check`, `--fix`, `--diff`, `--interactive`, `--output`, `--in-place`, `--format json`), but not `--style`/`--tone`.
 
 ### Voice Translation
 

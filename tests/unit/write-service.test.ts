@@ -513,6 +513,109 @@ describe('WriteService', () => {
     });
   });
 
+  describe('correct()', () => {
+    const mockCorrections: WriteImprovement[] = [
+      {
+        text: 'This is a test.',
+        targetLanguage: 'en-US',
+        detectedSourceLanguage: 'en',
+      },
+    ];
+
+    it('should correct text via client.correctText', async () => {
+      mockClient.correctText.mockResolvedValue(mockCorrections);
+
+      const result = await writeService.correct('This is an test.', { targetLang: 'en-US' });
+
+      expect(result).toEqual(mockCorrections);
+      expect(mockClient.correctText).toHaveBeenCalledWith('This is an test.', { targetLang: 'en-US' });
+      expect(mockClient.improveText).not.toHaveBeenCalled();
+    });
+
+    it('should throw ValidationError for empty text', async () => {
+      await expect(writeService.correct('', {})).rejects.toThrow('Text cannot be empty');
+      await expect(writeService.correct('   ', {})).rejects.toThrow('Text cannot be empty');
+      expect(mockClient.correctText).not.toHaveBeenCalled();
+    });
+
+    it('should cache results under the correct: prefix', async () => {
+      mockClient.correctText.mockResolvedValue(mockCorrections);
+
+      await writeService.correct('Test', { targetLang: 'en-US' });
+
+      expect(mockCacheService.set).toHaveBeenCalledTimes(1);
+      expect(mockCacheService.set).toHaveBeenCalledWith(
+        expect.stringMatching(/^correct:/),
+        mockCorrections
+      );
+    });
+
+    it('should return cached result on hit without calling API', async () => {
+      mockCacheService.get.mockReturnValue(mockCorrections);
+
+      const result = await writeService.correct('Test', { targetLang: 'en-US' });
+
+      expect(result).toEqual(mockCorrections);
+      expect(mockClient.correctText).not.toHaveBeenCalled();
+      expect(mockCacheService.set).not.toHaveBeenCalled();
+    });
+
+    it('should skip cache when skipCache is true', async () => {
+      mockClient.correctText.mockResolvedValue(mockCorrections);
+
+      await writeService.correct('Test', { targetLang: 'en-US' }, { skipCache: true });
+
+      expect(mockCacheService.get).not.toHaveBeenCalled();
+      expect(mockCacheService.set).not.toHaveBeenCalled();
+      expect(mockClient.correctText).toHaveBeenCalled();
+    });
+
+    it('should never share a cache key with improve() for the same input', async () => {
+      mockClient.correctText.mockResolvedValue(mockCorrections);
+      mockClient.improveText.mockResolvedValue(mockCorrections);
+
+      await writeService.correct('Test', { targetLang: 'en-US' });
+      await writeService.improve('Test', { targetLang: 'en-US' });
+
+      const correctKey = mockCacheService.set.mock.calls[0]![0];
+      const writeKey = mockCacheService.set.mock.calls[1]![0];
+      expect(correctKey).not.toBe(writeKey);
+    });
+
+    it('should produce deterministic cache keys', async () => {
+      mockClient.correctText.mockResolvedValue(mockCorrections);
+
+      await writeService.correct('Test', { targetLang: 'en-US' });
+      await writeService.correct('Test', { targetLang: 'en-US' });
+
+      const key1 = mockCacheService.set.mock.calls[0]![0];
+      const key2 = mockCacheService.set.mock.calls[1]![0];
+      expect(key1).toBe(key2);
+    });
+  });
+
+  describe('getBestCorrection()', () => {
+    it('should return the first correction', async () => {
+      mockClient.correctText.mockResolvedValue([
+        { text: 'First.', targetLanguage: 'en-US' },
+        { text: 'Second.', targetLanguage: 'en-US' },
+      ]);
+
+      const result = await writeService.getBestCorrection('Test', { targetLang: 'en-US' });
+
+      expect(result.text).toBe('First.');
+    });
+
+    it('should throw when no corrections are available', async () => {
+      mockCacheService.get.mockReturnValue([]);
+      mockClient.correctText.mockResolvedValue([]);
+
+      await expect(
+        writeService.getBestCorrection('Test', { targetLang: 'en-US' })
+      ).rejects.toThrow('No improvements available');
+    });
+  });
+
   describe('supported languages', () => {
     it('should work with all supported Write languages', async () => {
       const languages: Array<'de' | 'en' | 'en-GB' | 'en-US' | 'es' | 'fr' | 'it' | 'pt' | 'pt-BR' | 'pt-PT'> = [

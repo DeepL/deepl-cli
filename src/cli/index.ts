@@ -25,6 +25,7 @@ import { registerLanguages } from './commands/register-languages.js';
 import { registerTranslate } from './commands/register-translate.js';
 import { registerWatch } from './commands/register-watch.js';
 import { registerWrite } from './commands/register-write.js';
+import { registerCorrect } from './commands/register-correct.js';
 import { registerConfig } from './commands/register-config.js';
 import { registerCache } from './commands/register-cache.js';
 import { registerGlossary } from './commands/register-glossary.js';
@@ -287,6 +288,7 @@ const deps = {
 program.commandsGroup('Core Commands:');
 registerTranslate(program, deps);
 registerWrite(program, deps);
+registerCorrect(program, deps);
 registerVoice(program, deps);
 
 program.commandsGroup('Resources:');

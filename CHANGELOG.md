@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **cli**: `deepl correct` command (alias `c`) — spelling and grammar correction without rewording, via the Write API's `/v2/write/correct` endpoint. Supports the same input handling and workflow flags as `write` (`--check` with exit code 8, `--fix`/`--backup`, `--diff`, `--interactive`, `--output`/`--in-place`, `--format json`, `--no-cache`), but not `--style`/`--tone`, which the correct endpoint does not accept. Results are cached under a separate `correct:` namespace so corrections and rephrasings of the same text never collide.
+
 - **http**: `NO_PROXY` / `no_proxy` are honoured, with the standard semantics — `*` for everything, a leading dot or `*.` for subdomains, and an optional `host:port` that must agree. A corporate `HTTPS_PROXY` was previously applied to every request, including one aimed at localhost.
 - **auth**: `deepl auth set-key --no-verify` stores a key without validating it against the API. Validation ran before persisting, so on a network without proxy configuration both documented setup paths — `auth set-key` and `init` — failed and discarded the key; an unreachable API now also names `DEEPL_API_KEY` as the zero-network alternative.
 - **ci**: `npm run check-deps` fails the build when a package imported by `src/` is missing from `dependencies`, including one declared only under `devDependencies`. It runs in CI and in the publish job, and matches package names as quoted strings so indirect loads such as `requireModule('php-parser')` count as references.

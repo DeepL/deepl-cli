@@ -76,6 +76,7 @@ function deepLClientDefaults(): MockShape<DeepLClient> {
     getDocumentStatus: jest.fn().mockResolvedValue({ status: 'done' }),
     downloadDocument: jest.fn().mockResolvedValue(Buffer.alloc(0)),
     improveText: jest.fn().mockResolvedValue([]),
+    correctText: jest.fn().mockResolvedValue([]),
     getStyleRules: jest.fn().mockResolvedValue([]),
     createStyleRule: jest.fn().mockResolvedValue({
       styleId: 'mock-id', name: 'mock', language: 'en', version: 1,
@@ -270,6 +271,8 @@ function writeServiceDefaults(): MockShape<WriteService> {
   return {
     improve: unconfiguredAsync('WriteService.improve'),
     getBestImprovement: unconfiguredAsync('WriteService.getBestImprovement'),
+    correct: unconfiguredAsync('WriteService.correct'),
+    getBestCorrection: unconfiguredAsync('WriteService.getBestCorrection'),
   };
 }
 

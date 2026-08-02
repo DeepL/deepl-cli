@@ -21,6 +21,7 @@ interface WriteOptions {
   lang?: WriteLanguage;
   style?: WritingStyle;
   tone?: WriteTone;
+  correct?: boolean;
   showAlternatives?: boolean;
   outputFile?: string;
   inPlace?: boolean;
@@ -38,34 +39,17 @@ export class WriteCommand {
 
   /**
    * Improve text using DeepL Write API
+   * (rephrase by default; spelling/grammar correction when options.correct is set)
    */
   async improve(text: string, options: WriteOptions): Promise<string> {
-    const writeOptions: {
-      targetLang?: WriteLanguage;
-      writingStyle?: WritingStyle;
-      tone?: WriteTone;
-    } = {};
-
-    if (options.lang) {
-      writeOptions.targetLang = options.lang;
-    }
-
-    if (options.style) {
-      writeOptions.writingStyle = options.style;
-    }
-
-    if (options.tone) {
-      writeOptions.tone = options.tone;
-    }
-
     const serviceOptions = { skipCache: options.noCache };
 
     if (options.showAlternatives) {
-      const improvements = await this.writeService.improve(text, writeOptions, serviceOptions);
+      const improvements = await this.fetchImprovements(text, options, serviceOptions);
       return this.formatAlternatives(improvements.map(i => i.text));
     }
 
-    const improvement = await this.writeService.getBestImprovement(text, writeOptions, serviceOptions);
+    const improvement = await this.fetchBestImprovement(text, options, serviceOptions);
 
     // Format output based on format option
     if (options.format === 'json') {
@@ -73,6 +57,47 @@ export class WriteCommand {
     }
 
     return improvement.text;
+  }
+
+  /**
+   * Dispatch to the rephrase or correct endpoint based on options.correct
+   */
+  private fetchImprovements(
+    text: string,
+    options: WriteOptions,
+    serviceOptions: { skipCache?: boolean }
+  ) {
+    if (options.correct) {
+      return this.writeService.correct(text, this.toCorrectOptions(options), serviceOptions);
+    }
+    return this.writeService.improve(text, this.toWriteOptions(options), serviceOptions);
+  }
+
+  private fetchBestImprovement(
+    text: string,
+    options: WriteOptions,
+    serviceOptions: { skipCache?: boolean }
+  ) {
+    if (options.correct) {
+      return this.writeService.getBestCorrection(text, this.toCorrectOptions(options), serviceOptions);
+    }
+    return this.writeService.getBestImprovement(text, this.toWriteOptions(options), serviceOptions);
+  }
+
+  private toWriteOptions(options: WriteOptions): {
+    targetLang?: WriteLanguage;
+    writingStyle?: WritingStyle;
+    tone?: WriteTone;
+  } {
+    return {
+      ...(options.lang ? { targetLang: options.lang } : {}),
+      ...(options.style ? { writingStyle: options.style } : {}),
+      ...(options.tone ? { tone: options.tone } : {}),
+    };
+  }
+
+  private toCorrectOptions(options: WriteOptions): { targetLang?: WriteLanguage } {
+    return options.lang ? { targetLang: options.lang } : {};
   }
 
   /**
@@ -273,27 +298,10 @@ export class WriteCommand {
     const { select } = await import('@inquirer/prompts');
     const serviceOptions = { skipCache: options.noCache };
 
-    // If user specified a style or tone, only use that
-    if (options.style || options.tone) {
-      const writeOptions: {
-        targetLang?: WriteLanguage;
-        writingStyle?: WritingStyle;
-        tone?: WriteTone;
-      } = {};
-
-      if (options.lang) {
-        writeOptions.targetLang = options.lang;
-      }
-
-      if (options.style) {
-        writeOptions.writingStyle = options.style;
-      }
-
-      if (options.tone) {
-        writeOptions.tone = options.tone;
-      }
-
-      const improvements = await this.writeService.improve(text, writeOptions, serviceOptions);
+    // A single result is offered when the user pinned the request down to one
+    // variant: an explicit style or tone, or correct mode (which has no styles).
+    if (options.style || options.tone || options.correct) {
+      const improvements = await this.fetchImprovements(text, options, serviceOptions);
 
       const maxLen = this.getPreviewWidth();
       const choices = [
@@ -303,14 +311,14 @@ export class WriteCommand {
           description: text,
         },
         {
-          name: `${chalk.bold('Improved')} - "${this.truncate(improvements[0]!.text, maxLen)}"`,
+          name: `${chalk.bold(options.correct ? 'Corrected' : 'Improved')} - "${this.truncate(improvements[0]!.text, maxLen)}"`,
           value: 0,
           description: improvements[0]!.text,
         },
       ];
 
       const selection = await select({
-        message: 'Choose an improvement:',
+        message: options.correct ? 'Choose a correction:' : 'Choose an improvement:',
         choices,
       });
 
@@ -396,26 +404,7 @@ export class WriteCommand {
 
     const content = await this.readFileContent(filePath);
 
-    // Get alternatives
-    const writeOptions: {
-      targetLang?: WriteLanguage;
-      writingStyle?: WritingStyle;
-      tone?: WriteTone;
-    } = {};
-
-    if (options.lang) {
-      writeOptions.targetLang = options.lang;
-    }
-
-    if (options.style) {
-      writeOptions.writingStyle = options.style;
-    }
-
-    if (options.tone) {
-      writeOptions.tone = options.tone;
-    }
-
-    const improvements = await this.writeService.improve(content, writeOptions, { skipCache: options.noCache });
+    const improvements = await this.fetchImprovements(content, options, { skipCache: options.noCache });
     const alternatives = improvements.map(i => i.text);
 
     // Interactive selection

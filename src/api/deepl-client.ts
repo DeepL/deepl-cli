@@ -9,6 +9,7 @@ import {
   TranslationOptions,
   Language,
   WriteOptions,
+  CorrectOptions,
   WriteImprovement,
   DocumentTranslationOptions,
   DocumentHandle,
@@ -218,6 +219,13 @@ export class DeepLClient {
     options: WriteOptions
   ): Promise<WriteImprovement[]> {
     return this.writeClient.improveText(text, options);
+  }
+
+  async correctText(
+    text: string,
+    options: CorrectOptions = {}
+  ): Promise<WriteImprovement[]> {
+    return this.writeClient.correctText(text, options);
   }
 
   async getStyleRules(

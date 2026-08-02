@@ -1,5 +1,5 @@
 import { HttpClient, DeepLClientOptions } from './http-client.js';
-import { WriteOptions, WriteImprovement } from '../types/index.js';
+import { WriteOptions, CorrectOptions, WriteImprovement } from '../types/index.js';
 import { NetworkError, ValidationError } from '../utils/errors.js';
 
 interface DeepLWriteResponse {
@@ -42,15 +42,7 @@ export class WriteClient extends HttpClient {
         params
       );
 
-      if (!response.improvements || response.improvements.length === 0) {
-        throw new NetworkError('No improvements returned');
-      }
-
-      return response.improvements.map(improvement => ({
-        text: improvement.text,
-        targetLanguage: improvement.target_language as WriteImprovement['targetLanguage'],
-        detectedSourceLanguage: improvement.detected_source_language,
-      }));
+      return this.mapImprovements(response);
     } catch (error) {
       const translated = this.handleError(error);
       if (
@@ -63,5 +55,42 @@ export class WriteClient extends HttpClient {
       }
       throw translated;
     }
+  }
+
+  async correctText(
+    text: string,
+    options: CorrectOptions
+  ): Promise<WriteImprovement[]> {
+    const params: Record<string, string | string[]> = {
+      text: [text],
+    };
+
+    if (options.targetLang) {
+      params['target_lang'] = options.targetLang;
+    }
+
+    try {
+      const response = await this.makeRequest<DeepLWriteResponse>(
+        'POST',
+        '/v2/write/correct',
+        params
+      );
+
+      return this.mapImprovements(response);
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  private mapImprovements(response: DeepLWriteResponse): WriteImprovement[] {
+    if (!response.improvements || response.improvements.length === 0) {
+      throw new NetworkError('No improvements returned');
+    }
+
+    return response.improvements.map(improvement => ({
+      text: improvement.text,
+      targetLanguage: improvement.target_language as WriteImprovement['targetLanguage'],
+      detectedSourceLanguage: improvement.detected_source_language,
+    }));
   }
 }

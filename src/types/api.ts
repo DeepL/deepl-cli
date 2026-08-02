@@ -84,6 +84,10 @@ export interface WriteOptions {
   tone?: WriteTone;
 }
 
+export interface CorrectOptions {
+  targetLang?: WriteLanguage;
+}
+
 export interface WriteImprovement {
   text: string;
   targetLanguage: WriteLanguage;

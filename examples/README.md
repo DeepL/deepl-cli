@@ -23,6 +23,7 @@ This directory contains practical, real-world examples of using the DeepL CLI.
 **Write:**
 - [Writing Enhancement](./13-write.sh) - Using DeepL Write API for grammar, style, and tone improvement
 - [Write — Extended Languages](./36-write-extended-languages.sh) - JA/KO/ZH targets and tone/style on ES/IT/FR/PT variants
+- [Correct](./37-correct.sh) - Spelling and grammar correction without rewording (`deepl correct`, alias `c`)
 
 **Voice:**
 - [Voice Translation](./14-voice.sh) - Real-time speech translation via the Voice API

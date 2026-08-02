@@ -1078,4 +1078,83 @@ describe('WriteCommand', () => {
       ).rejects.toThrow('Symlinks are not supported for security reasons');
     });
   });
+
+  describe('correct mode', () => {
+    const mockCorrection: WriteImprovement = {
+      text: 'This is a test.',
+      targetLanguage: 'en-US',
+    };
+
+    it('should dispatch improve() to getBestCorrection when correct is set', async () => {
+      mockWriteService.getBestCorrection.mockResolvedValue(mockCorrection);
+
+      const result = await writeCommand.improve('This is an test.', {
+        lang: 'en-US',
+        correct: true,
+      });
+
+      expect(result).toBe('This is a test.');
+      expect(mockWriteService.getBestCorrection).toHaveBeenCalledWith(
+        'This is an test.',
+        { targetLang: 'en-US' },
+        { skipCache: undefined }
+      );
+      expect(mockWriteService.getBestImprovement).not.toHaveBeenCalled();
+    });
+
+    it('should dispatch alternatives to correct()', async () => {
+      mockWriteService.correct.mockResolvedValue([
+        mockCorrection,
+        { text: 'This is one test.', targetLanguage: 'en-US' },
+      ]);
+
+      const result = await writeCommand.improve('This is an test.', {
+        correct: true,
+        showAlternatives: true,
+      });
+
+      expect(result).toContain('1. This is a test.');
+      expect(result).toContain('2. This is one test.');
+      expect(mockWriteService.correct).toHaveBeenCalledWith(
+        'This is an test.',
+        {},
+        { skipCache: undefined }
+      );
+      expect(mockWriteService.improve).not.toHaveBeenCalled();
+    });
+
+    it('should pass skipCache through in correct mode', async () => {
+      mockWriteService.getBestCorrection.mockResolvedValue(mockCorrection);
+
+      await writeCommand.improve('Test', { correct: true, noCache: true });
+
+      expect(mockWriteService.getBestCorrection).toHaveBeenCalledWith(
+        'Test',
+        {},
+        { skipCache: true }
+      );
+    });
+
+    it('should count changes via checkText in correct mode', async () => {
+      mockWriteService.getBestCorrection.mockResolvedValue(mockCorrection);
+
+      const result = await writeCommand.checkText('This is an test.', {
+        lang: 'en-US',
+        correct: true,
+      });
+
+      expect(result.needsImprovement).toBe(true);
+      expect(result.changes).toBeGreaterThan(0);
+      expect(mockWriteService.getBestCorrection).toHaveBeenCalled();
+    });
+
+    it('should not use the correct endpoint when correct is not set', async () => {
+      mockWriteService.getBestImprovement.mockResolvedValue(mockCorrection);
+
+      await writeCommand.improve('Test', { lang: 'en-US' });
+
+      expect(mockWriteService.getBestCorrection).not.toHaveBeenCalled();
+      expect(mockWriteService.correct).not.toHaveBeenCalled();
+    });
+  });
 });

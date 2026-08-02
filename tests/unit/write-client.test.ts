@@ -248,4 +248,120 @@ describe('WriteClient', () => {
       ).rejects.not.toThrow(/See https:\/\/github\.com\/DeepL\/deepl-cli/);
     });
   });
+
+  describe('correctText()', () => {
+    it('should correct text successfully', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: {
+          improvements: [
+            {
+              text: 'This is a test.',
+              target_language: 'en-US',
+              detected_source_language: 'en',
+            },
+          ],
+        },
+        status: 200,
+        headers: {},
+      });
+
+      const result = await client.correctText('This is an test.', {});
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.text).toBe('This is a test.');
+      expect(result[0]!.targetLanguage).toBe('en-US');
+      expect(result[0]!.detectedSourceLanguage).toBe('en');
+    });
+
+    it('should POST to /v2/write/correct', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: {
+          improvements: [{ text: 'Corrected', target_language: 'en-GB' }],
+        },
+        status: 200,
+        headers: {},
+      });
+
+      await client.correctText('Test', { targetLang: 'en-GB' });
+
+      expect(mockAxiosInstance.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'POST',
+          url: '/v2/write/correct',
+        }),
+      );
+    });
+
+    it('should send target_lang and never style or tone params', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: {
+          improvements: [{ text: 'Corrected', target_language: 'en-US' }],
+        },
+        status: 200,
+        headers: {},
+      });
+
+      await client.correctText('Test', { targetLang: 'en-US' });
+
+      const body = mockAxiosInstance.request.mock.calls[0][0].data as string;
+      expect(body).toContain('target_lang=en-US');
+      expect(body).not.toContain('writing_style');
+      expect(body).not.toContain('tone');
+    });
+
+    it('should omit target_lang when not specified (auto-detect)', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: {
+          improvements: [{ text: 'Corrected', target_language: 'de' }],
+        },
+        status: 200,
+        headers: {},
+      });
+
+      await client.correctText('Test', {});
+
+      const body = mockAxiosInstance.request.mock.calls[0][0].data as string;
+      expect(body).not.toContain('target_lang');
+    });
+
+    it('should throw NetworkError when no improvements returned', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: { improvements: [] },
+        status: 200,
+        headers: {},
+      });
+
+      await expect(
+        client.correctText('Test', {})
+      ).rejects.toThrow('No improvements returned');
+    });
+
+    it('should handle 403 auth error', async () => {
+      const axiosError = {
+        isAxiosError: true,
+        response: { status: 403, data: { message: 'Forbidden' }, headers: {} },
+        message: 'Forbidden',
+      };
+      mockAxiosInstance.request.mockRejectedValue(axiosError);
+      jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+
+      await expect(
+        client.correctText('Test', {})
+      ).rejects.toThrow();
+    });
+
+    it('should NOT append the style/tone docs hint on 400', async () => {
+      const axiosError = {
+        isAxiosError: true,
+        response: { status: 400, data: { message: 'Generic bad request' }, headers: {} },
+        message: 'Bad request',
+      };
+      mockAxiosInstance.request.mockRejectedValue(axiosError);
+      jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+
+      await expect(
+        client.correctText('Test', { targetLang: 'ja' })
+      ).rejects.not.toThrow(/See https:\/\/github\.com\/DeepL\/deepl-cli/);
+    });
+  });
 });

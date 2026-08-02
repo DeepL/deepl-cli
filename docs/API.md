@@ -14,6 +14,7 @@ Complete reference for all DeepL CLI commands, options, and configuration.
   - Core Commands
     - [translate](#translate)
     - [write](#write)
+    - [correct](#correct)
     - [voice](#voice)
   - Resources
     - [glossary](#glossary)
@@ -844,6 +845,96 @@ deepl write "This are good." --lang en-US --format json
 ```bash
 # Force a fresh API call, skipping cached results
 deepl write "Improve this text." --lang en-US --no-cache
+```
+
+---
+
+### correct
+
+Correct spelling and grammar with the DeepL Write API, without rewording.
+
+#### Synopsis
+
+```bash
+deepl correct [OPTIONS] TEXT
+deepl c [OPTIONS] TEXT        # alias
+```
+
+#### Description
+
+Fixes spelling and grammar only, avoiding the broader rewording that `deepl write` performs. Uses the Write API's `/v2/write/correct` endpoint. Supports the same 14 target languages as `write`.
+
+**File Detection:** The command automatically detects if the text argument is a file path. If a file exists at that path, it operates on the file; otherwise, it treats the argument as text to correct.
+
+#### Options
+
+`correct` accepts the same options as `write` **except** `--style` and `--tone` (the correct endpoint does not restyle text):
+
+**Language:**
+
+- `--lang, -l LANG` - Target language: `de`, `en`, `en-GB`, `en-US`, `es`, `fr`, `it`, `ja`, `ko`, `pt`, `pt-BR`, `pt-PT`, `zh`, `zh-Hans`. Optional — omit to auto-detect the language and correct in the original language.
+- `--to LANG` - Long-only alias of `--lang`, as on `write`.
+
+**Output Modes:**
+
+- `--alternatives, -a` - Show all alternative corrections
+- `--output, -o FILE` - Write corrected text to file
+- `--in-place` - Edit file in place (use with file input)
+- `--interactive, -i` - Review the correction before accepting
+- `--diff, -d` - Show diff between original and corrected text
+
+**Fix Operations:**
+
+- `--check` - Check if text needs correction (exit 0 if clean, exit 8 if corrections needed)
+- `--fix` - Automatically fix file in place
+- `--backup, -b` - Create backup file before fixing (use with `--fix`)
+
+**Advanced:**
+
+- `--no-cache` - Bypass cache for this request
+- `--format FORMAT` - Output format: `text`, `json` (default: `text`)
+
+#### Examples
+
+**Basic correction:**
+
+```bash
+deepl correct "This is an test."
+# This is a test.
+
+# Using the alias
+deepl c "Their going too the store."
+```
+
+**Grammar gate in CI (exit code 8 if corrections needed):**
+
+```bash
+deepl correct README.md --check
+```
+
+**Fix a file in place with a backup:**
+
+```bash
+deepl correct essay.md --fix --backup
+```
+
+**Diff view:**
+
+```bash
+deepl correct document.txt --diff
+```
+
+**Pipe via stdin:**
+
+```bash
+cat notes.txt | deepl correct
+```
+
+**JSON output:**
+
+```bash
+deepl correct "Their going too the store." --format json
+# {"original":"Their going too the store.","improved":"They're going to the store.","changes":1,"language":"auto-detected"}
 ```
 
 ---
