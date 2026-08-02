@@ -241,6 +241,7 @@ Translate text directly, from stdin, from files, or entire directories. Supports
 - `--formality LEVEL` - Formality: `default`, `more`, `less`, `prefer_more`, `prefer_less`, `formal`, `informal`
 - `--model-type TYPE` - Model type: `quality_optimized`, `prefer_quality_optimized`, `latency_optimized` (no CLI default; the API server selects the model when omitted)
 - `--preserve-code` - Preserve code blocks (markdown, etc.)
+  - Known limitation: code blocks and variable placeholders (`{name}`, `%s`, etc.; always preserved) are protected internally with `__CODE_n__`/`__VAR_n__` tokens, so source text that literally contains such tokens may be rewritten during restoration.
 - `--preserve-formatting` - Preserve line breaks and whitespace formatting
 - `--split-sentences LEVEL` - Sentence splitting: `on` (default), `off`, `nonewlines`
 - `--tag-handling MODE` - XML tag handling: `xml`, `html`
