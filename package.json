@@ -65,7 +65,7 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",
-    "axios": "^1.7.9",
+    "axios": "^1.19.0",
     "chalk": "^6.0.0",
     "chokidar": "^5.0.0",
     "cli-table3": "^0.6.5",
@@ -96,7 +96,7 @@
     "globals": "^17.8.0",
     "jest": "^30.4.2",
     "memfs": "^4.64.0",
-    "nock": "^14.0.16",
+    "nock": "^14.0.17",
     "prettier": "^3.9.6",
     "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
