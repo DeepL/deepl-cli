@@ -1,0 +1,6 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "local>deepl-org/deepl/renovate/shared-renovate-config:auto-merge-non-major-updates.json5"
+  ]
+}
