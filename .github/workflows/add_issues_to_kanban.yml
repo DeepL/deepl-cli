@@ -16,7 +16,7 @@ jobs:
         with:
           client-id: ${{ secrets.PROJECT_BOT_CLIENT_ID }}
           private-key: ${{ secrets.PROJECT_BOT_PRIVATE_KEY }}
-      - uses: actions/add-to-project@v2.0.0
+      - uses: actions/add-to-project@v2.0.1
         with:
           project-url: https://github.com/orgs/DeepL/projects/1
           github-token: ${{ steps.app-token.outputs.token }}
